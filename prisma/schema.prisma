@@ -1,0 +1,108 @@
+// Fetan P2P PostgreSQL Prisma Schema (Shared by Website & Telegram Serverless)
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  MERCHANT
+  ADMIN
+  SUPERADMIN
+}
+
+enum KycStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAYMENT_SENT
+  COMPLETED
+  DISPUTED
+  CANCELLED
+}
+
+model User {
+  id                    String         @id @default(uuid())
+  email                 String         @unique
+  name                  String
+  nickname              String?
+  passwordHash          String?
+  telegramHandle        String?
+  telegramChatId        String?        @unique
+  telegramNotifications Boolean        @default(true)
+  telegramLinkCode      String?        @unique
+  role                  Role           @default(USER)
+  kycStatus             KycStatus      @default(UNVERIFIED)
+  kycDocType            String?        // 'NATIONAL_ID' | 'PASSPORT' | 'DRIVERS_LICENSE'
+  kycDocNumber          String?
+  usdtBalance           Decimal        @default(0.0) @db.Decimal(18, 6)
+  usdtLocked            Decimal        @default(0.0) @db.Decimal(18, 6)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  offers                P2POffer[]
+  ordersAsBuyer         P2POrder[]     @relation("BuyerOrders")
+  ordersAsSeller        P2POrder[]     @relation("SellerOrders")
+  supportTickets        SupportTicket[]
+}
+
+model P2POffer {
+  id              String         @id @default(uuid())
+  merchantId      String
+  merchant        User           @relation(fields: [merchantId], references: [id])
+  offerType       String         // 'SELL' | 'BUY'
+  pricePerUsdtEtb Decimal        @db.Decimal(10, 2)
+  minLimitEtb     Decimal        @db.Decimal(10, 2)
+  maxLimitEtb     Decimal        @db.Decimal(10, 2)
+  totalAvailable  Decimal        @db.Decimal(18, 6)
+  paymentMethods  String[]
+  terms           String?
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  orders          P2POrder[]
+}
+
+model P2POrder {
+  id              String         @id @default(uuid())
+  offerId         String
+  offer           P2POffer       @relation(fields: [offerId], references: [id])
+  buyerId         String
+  sellerId        String
+  buyer           User           @relation("BuyerOrders", fields: [buyerId], references: [id])
+  seller          User           @relation("SellerOrders", fields: [sellerId], references: [id])
+  usdtAmount      Decimal        @db.Decimal(18, 6)
+  etbAmount       Decimal        @db.Decimal(10, 2)
+  unitPriceEtb    Decimal        @db.Decimal(10, 2)
+  paymentMethod   String
+  status          OrderStatus    @default(PENDING_PAYMENT)
+  proofReceiptUrl String?
+  disputeReason   String?
+  resolutionNote  String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model SupportTicket {
+  id              String         @id @default(uuid())
+  userId          String
+  user            User           @relation(fields: [userId], references: [id])
+  orderId         String?
+  category        String         // 'ORDER_COMPLAINT' | 'PAYMENT_ISSUE' | 'KYC_HELP' | 'GENERAL_SUPPORT'
+  subject         String
+  message         String
+  status          String         @default("OPEN")
+  adminReply      String?
+  resolvedBy      String?
+  source          String         @default("WEB")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Fetan P2P • Telegram Mini App</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: var(--tg-theme-bg-color, #0f172a);
+      --text: var(--tg-theme-text-color, #f8fafc);
+      --secondary: var(--tg-theme-secondary-bg-color, #1e293b);
+      --hint: var(--tg-theme-hint-color, #94a3b8);
+      --btn: var(--tg-theme-button-color, #10b981);
+      --btn-text: var(--tg-theme-button-text-color, #ffffff);
+      --border: rgba(255, 255, 255, 0.1);
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --rose: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding-bottom: 72px; min-height: 100vh; }
+    .header { padding: 16px; background: var(--secondary); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 20; }
+    .brand { font-size: 16px; font-weight: 800; letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
+    .brand-badge { font-size: 10px; background: rgba(16, 185, 129, 0.2); color: var(--emerald); padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+    .user-pill { font-size: 11px; padding: 4px 8px; border-radius: 20px; background: rgba(255, 255, 255, 0.08); display: flex; align-items: center; gap: 6px; }
+    .kyc-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .kyc-verified { background: var(--emerald); }
+    .kyc-pending { background: var(--amber); }
+    .kyc-unverified { background: var(--rose); }
+
+    .content { padding: 16px; max-width: 480px; margin: 0 auto; }
+    .card { background: var(--secondary); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 16px; }
+    .card-title { font-size: 13px; font-weight: 700; color: var(--hint); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }
+
+    .rate-banner { display: flex; justify-content: space-between; align-items: baseline; }
+    .rate-num { font-size: 26px; font-weight: 800; color: var(--emerald); }
+    .rate-sub { font-size: 11px; color: var(--hint); }
+
+    .tab-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--secondary); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 4px; z-index: 30; }
+    .tab-btn { background: none; border: none; color: var(--hint); font-size: 11px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; flex: 1; }
+    .tab-btn.active { color: var(--emerald); }
+
+    .btn { width: 100%; padding: 12px; border-radius: 12px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; text-align: center; display: block; margin-top: 8px; }
+    .btn-primary { background: var(--btn); color: var(--btn-text); }
+    .btn-secondary { background: rgba(255, 255, 255, 0.08); color: var(--text); border: 1px solid var(--border); }
+    .btn-danger { background: rgba(239, 68, 68, 0.2); color: var(--rose); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+    input, select, textarea { width: 100%; padding: 12px; border-radius: 10px; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border); color: var(--text); font-size: 13px; margin-top: 6px; margin-bottom: 12px; outline: none; }
+    input:focus, select:focus, textarea:focus { border-color: var(--emerald); }
+
+    .order-item { border-bottom: 1px solid var(--border); padding: 12px 0; }
+    .order-item:last-child { border-bottom: none; }
+    .badge { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+    .toast { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: #000000; color: #fff; padding: 10px 16px; border-radius: 30px; font-size: 12px; z-index: 100; border: 1px solid rgba(255,255,255,0.2); display: none; }
+  </style>
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+
+  <header class="header">
+    <div class="brand">
+      <span>⚡ FETAN P2P</span>
+      <span class="brand-badge">ETHIOPIA</span>
+    </div>
+    <div class="user-pill" id="userPill">
+      <span class="kyc-dot kyc-unverified" id="kycDot"></span>
+      <span id="userName">Connecting...</span>
+    </div>
+  </header>
+
+  <main class="content">
+    <!-- TAB 1: MARKET & CALCULATOR -->
+    <div id="tab-market" class="tab-pane">
+      <div class="card">
+        <div class="card-title">Live P2P Benchmark</div>
+        <div class="rate-banner">
+          <div>
+            <span class="rate-num">158.35</span>
+            <span style="font-size: 12px; font-weight: 700; color: var(--hint);">ETB / USDT</span>
+          </div>
+          <span class="badge" style="background: rgba(16,185,129,0.2); color: var(--emerald);">0% FEE</span>
+        </div>
+        <div class="rate-sub" style="margin-top: 6px;">Supported: Telebirr • CBE • Bank of Abyssinia • Awash Bank</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Quick Birr / USDT Estimator</div>
+        <label style="font-size: 12px; color: var(--hint);">Enter Ethiopian Birr (ETB)</label>
+        <input type="number" id="calcEtb" value="10000" oninput="calculateUsdt()">
+
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0;">
+          <span style="font-size: 13px; color: var(--hint);">You Receive:</span>
+          <span id="calcUsdt" style="font-size: 18px; font-weight: 800; color: var(--emerald);">63.15 USDT</span>
+        </div>
+
+        <button class="btn btn-primary" onclick="openWebAppWebsite()">Open Full Orderbook on Web</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Safety & Escrow</div>
+        <p style="font-size: 12px; color: var(--hint); line-height: 1.5;">
+          All orders are protected by Fetan Escrow. The seller’s USDT is locked before you pay. Never release USDT until you verify the Birr deposit inside your bank/Telebirr app.
+        </p>
+      </div>
+    </div>
+
+    <!-- TAB 2: ORDERS -->
+    <div id="tab-orders" class="tab-pane" style="display: none;">
+      <div class="card">
+        <div class="card-title">Active & Recent Orders</div>
+        <div id="ordersList" style="font-size: 12px;">
+          <div style="color: var(--hint); text-align: center; padding: 20px;">Loading orders...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: KYC VERIFICATION -->
+    <div id="tab-kyc" class="tab-pane" style="display: none;">
+      <div class="card">
+        <div class="card-title">Identity Verification (KYC)</div>
+        <p style="font-size: 12px; color: var(--hint); line-height: 1.5; margin-bottom: 12px;">
+          All users must verify their identity before trading. Superadmin <b>@kanzedin</b> reviews submissions.
+        </p>
+
+        <div id="kycStatusBox" style="padding: 12px; border-radius: 10px; background: rgba(0,0,0,0.2); margin-bottom: 12px; font-size: 12px;">
+          Status: <b id="kycStatusLabel">Checking...</b>
+        </div>
+
+        <form id="kycForm" onsubmit="handleKycSubmit(event)">
+          <label style="font-size: 12px; color: var(--hint);">Document Type</label>
+          <select id="kycDocType">
+            <option value="NATIONAL_ID">Fayda / National ID</option>
+            <option value="PASSPORT">Passport</option>
+            <option value="DRIVERS_LICENSE">Driver's License</option>
+          </select>
+
+          <label style="font-size: 12px; color: var(--hint);">ID Number</label>
+          <input type="text" id="kycDocNumber" placeholder="e.g. FAYDA-8821-4402" required>
+
+          <button type="submit" class="btn btn-primary" id="kycSubmitBtn">Submit ID for Verification</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- TAB 4: SUPPORT & ORDER COMPLAINTS -->
+    <div id="tab-support" class="tab-pane" style="display: none;">
+      <div class="card">
+        <div class="card-title">Order Complaints & Support</div>
+        <p style="font-size: 12px; color: var(--hint); line-height: 1.5; margin-bottom: 12px;">
+          Direct communication with Superadmin <b>@kanzedin</b>.
+        </p>
+
+        <form id="supportForm" onsubmit="handleSupportSubmit(event)">
+          <label style="font-size: 12px; color: var(--hint);">Order Number (Optional)</label>
+          <input type="text" id="supportOrderId" placeholder="e.g. 20261109000101">
+
+          <label style="font-size: 12px; color: var(--hint);">Category</label>
+          <select id="supportCategory">
+            <option value="ORDER_COMPLAINT">Order Complaint / Appeal</option>
+            <option value="PAYMENT_ISSUE">Payment Not Received</option>
+            <option value="KYC_HELP">KYC Verification Question</option>
+            <option value="GENERAL_SUPPORT">General Question</option>
+          </select>
+
+          <label style="font-size: 12px; color: var(--hint);">Your Message</label>
+          <textarea id="supportMessage" rows="3" placeholder="Explain your situation clearly..." required></textarea>
+
+          <button type="submit" class="btn btn-primary" id="supportSubmitBtn">Send Complaint to @kanzedin</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- TAB 5: SUPERADMIN CONTROL (shown only to @kanzedin) -->
+    <div id="tab-admin" class="tab-pane" style="display: none;">
+      <div class="card">
+        <div class="card-title">Superadmin Desk (@kanzedin)</div>
+        <div style="font-size: 12px; line-height: 1.6; margin-bottom: 12px;">
+          • Pending KYCs: <b id="adminKycCount">0</b><br>
+          • Open Disputes: <b id="adminDisputeCount">0</b><br>
+          • Support Tickets: <b id="adminTicketCount">0</b>
+        </div>
+        <button class="btn btn-primary" onclick="openAdminWebsite()">Open Web Admin Control Center</button>
+      </div>
+    </div>
+  </main>
+
+  <nav class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('market')">
+      <span>📈</span><span>Market</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('orders')">
+      <span>📋</span><span>Orders</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('kyc')">
+      <span>🪪</span><span>KYC</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('support')">
+      <span>💬</span><span>Support</span>
+    </button>
+    <button class="tab-btn" id="adminNavBtn" style="display: none;" onclick="switchTab('admin')">
+      <span>👑</span><span>Admin</span>
+    </button>
+  </nav>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.ready();
+      tg.expand();
+    }
+
+    let appData = {
+      user: { name: 'Trader', role: 'USER', kycStatus: 'UNVERIFIED' },
+      isSuperadmin: false,
+      orders: []
+    };
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.innerText = msg;
+      t.style.display = 'block';
+      setTimeout(() => { t.style.display = 'none'; }, 3000);
+    }
+
+    function calculateUsdt() {
+      const etb = parseFloat(document.getElementById('calcEtb').value) || 0;
+      const rate = 158.35;
+      document.getElementById('calcUsdt').innerText = (etb / rate).toFixed(2) + ' USDT';
+    }
+
+    function switchTab(name) {
+      document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      const activePane = document.getElementById('tab-' + name);
+      if (activePane) activePane.style.display = 'block';
+
+      const btns = document.querySelectorAll('.tab-btn');
+      const tabs = ['market', 'orders', 'kyc', 'support', 'admin'];
+      const idx = tabs.indexOf(name);
+      if (idx !== -1 && btns[idx]) btns[idx].classList.add('active');
+    }
+
+    async function loadData() {
+      try {
+        if (tg?.Serverless?.call) {
+          tg.Serverless.call('getMiniAppData', {}, (err, res) => {
+            if (!err && res) renderData(res);
+          });
+        } else {
+          // Local fallback fetch
+          const res = await fetch('/api/getMiniAppData', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user: tg?.initDataUnsafe?.user || { id: 1, first_name: 'Dawit' } })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            renderData(data.result || data);
+          }
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    function renderData(data) {
+      appData = data;
+      const u = data.user || {};
+      document.getElementById('userName').innerText = (u.username || u.name || 'Trader');
+
+      const dot = document.getElementById('kycDot');
+      const statusLabel = document.getElementById('kycStatusLabel');
+      dot.className = 'kyc-dot ' + (u.kycStatus === 'VERIFIED' ? 'kyc-verified' : u.kycStatus === 'PENDING' ? 'kyc-pending' : 'kyc-unverified');
+      statusLabel.innerText = u.kycStatus || 'UNVERIFIED';
+
+      if (data.isSuperadmin) {
+        document.getElementById('adminNavBtn').style.display = 'flex';
+        document.getElementById('adminKycCount').innerText = data.adminStats?.pendingKycs || 0;
+        document.getElementById('adminDisputeCount').innerText = data.adminStats?.openDisputes || 0;
+        document.getElementById('adminTicketCount').innerText = data.adminStats?.openTickets || 0;
+      }
+
+      // Render orders
+      const list = document.getElementById('ordersList');
+      if (!data.orders || data.orders.length === 0) {
+        list.innerHTML = '<div style="color: var(--hint); text-align: center; padding: 16px;">No open orders. You are ready to trade!</div>';
+      } else {
+        list.innerHTML = data.orders.map(o => `
+          <div class="order-item">
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+              <b>#${o.id}</b>
+              <span class="badge" style="background: rgba(16,185,129,0.2); color: var(--emerald);">${o.status}</span>
+            </div>
+            <div style="color: var(--hint); font-size: 11px;">
+              ${o.usdtAmount} USDT (${o.etbAmount?.toLocaleString()} ETB via ${o.paymentMethod || 'Telebirr'})
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    async function handleKycSubmit(e) {
+      e.preventDefault();
+      const docType = document.getElementById('kycDocType').value;
+      const docNumber = document.getElementById('kycDocNumber').value;
+      const btn = document.getElementById('kycSubmitBtn');
+      btn.disabled = true;
+      btn.innerText = 'Submitting...';
+
+      const payload = { docType, docNumber, user: tg?.initDataUnsafe?.user };
+      const cb = (err, res) => {
+        btn.disabled = false;
+        btn.innerText = 'Submit ID for Verification';
+        if (err) {
+          showToast(err.message || 'Error submitting KYC');
+        } else {
+          showToast('KYC submitted to @kanzedin!');
+          document.getElementById('kycStatusLabel').innerText = 'PENDING';
+          document.getElementById('kycDot').className = 'kyc-dot kyc-pending';
+        }
+      };
+
+      if (tg?.Serverless?.call) {
+        tg.Serverless.call('submitKyc', payload, cb);
+      } else {
+        try {
+          const r = await fetch('/api/submitKyc', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const d = await r.json();
+          cb(null, d.result || d);
+        } catch(err) {
+          cb(err);
+        }
+      }
+    }
+
+    async function handleSupportSubmit(e) {
+      e.preventDefault();
+      const orderId = document.getElementById('supportOrderId').value;
+      const category = document.getElementById('supportCategory').value;
+      const message = document.getElementById('supportMessage').value;
+      const btn = document.getElementById('supportSubmitBtn');
+      btn.disabled = true;
+      btn.innerText = 'Sending...';
+
+      const payload = { orderId, category, message, user: tg?.initDataUnsafe?.user };
+      const cb = (err, res) => {
+        btn.disabled = false;
+        btn.innerText = 'Send Complaint to @kanzedin';
+        if (err) {
+          showToast(err.message || 'Error sending ticket');
+        } else {
+          showToast('Sent to Superadmin @kanzedin!');
+          document.getElementById('supportMessage').value = '';
+        }
+      };
+
+      if (tg?.Serverless?.call) {
+        tg.Serverless.call('submitTicket', payload, cb);
+      } else {
+        try {
+          const r = await fetch('/api/submitTicket', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const d = await r.json();
+          cb(null, d.result || d);
+        } catch(err) {
+          cb(err);
+        }
+      }
+    }
+
+    function openWebAppWebsite() {
+      if (tg?.openLink) {
+        tg.openLink('http://localhost:3000/market');
+      } else {
+        window.open('/market', '_blank');
+      }
+    }
+
+    function openAdminWebsite() {
+      if (tg?.openLink) {
+        tg.openLink('http://localhost:3000/admin');
+      } else {
+        window.open('/admin', '_blank');
+      }
+    }
+
+    loadData();
+    calculateUsdt();
+  </script>
+</body>
+</html>

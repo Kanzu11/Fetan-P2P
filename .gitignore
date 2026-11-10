@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+/node_modules
+telegram/node_modules/
+fetanp2probot/node_modules/
+.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+build/
+/dist/
+!telegram/dist/
+
+# Environment variables & secrets (never commit real credentials)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*
+!.env.example
+
+# Telegram Serverless CLI credentials & local snapshot
+.tgcloud/
+telegram/.tgcloud/
+fetanp2probot/.tgcloud/
+
+# TypeScript & Logs
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
