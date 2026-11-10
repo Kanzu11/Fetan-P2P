@@ -34,7 +34,7 @@ export async function POST(req: Request) {
       const updated: SupportTicket = {
         ...existing,
         status: 'RESOLVED',
-        adminReply: adminReply || 'Resolved by Fetan Support (@kanzedin).',
+        adminReply: (adminReply || 'Resolved by Fetan Support.').slice(0, 1000),
         resolvedBy: resolvedBy || '@kanzedin',
         updatedAt: new Date().toISOString(),
       };
@@ -58,6 +58,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Please enter a message for support.' }, { status: 400 });
     }
 
+    // Input sanitization & size limits
+    const cleanMessage = String(message).trim().slice(0, 2000);
+    const cleanSubject = String(subject || (orderId ? `Order #${orderId} Complaint` : 'Support Request'))
+      .trim()
+      .slice(0, 150);
+
     const user = db.getUser(userId);
     const now = new Date().toISOString();
 
@@ -67,12 +73,10 @@ export async function POST(req: Request) {
       userName: user?.name || 'Fetan Trader',
       userEmail: user?.email || 'user@fetan.et',
       telegramHandle: user?.telegramHandle,
-      orderId: orderId?.trim() || undefined,
+      orderId: orderId?.trim()?.slice(0, 50) || undefined,
       category: category || (orderId ? 'ORDER_COMPLAINT' : 'GENERAL_SUPPORT'),
-      subject:
-        subject?.trim() ||
-        (orderId ? `Order #${orderId} Complaint` : 'Support Request'),
-      message: message.trim(),
+      subject: cleanSubject,
+      message: cleanMessage,
       status: 'OPEN',
       source: source || 'WEB',
       createdAt: now,
@@ -93,4 +97,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 }
-

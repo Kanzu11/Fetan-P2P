@@ -3,11 +3,30 @@ import { telegramBot } from '@/server/telegram-bot';
 import { escrowController } from '@/server/escrow-controller';
 import { db } from '@/lib/db/store';
 
+function isAuthorizedWebhook(req: Request): boolean {
+  const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET || process.env.TELEGRAM_BOT_TOKEN;
+  // If no secret configured, permit development requests
+  if (!webhookSecret || process.env.NODE_ENV !== 'production') {
+    return true;
+  }
+  const secretHeader = req.headers.get('x-telegram-bot-api-secret-token') || req.headers.get('x-webhook-secret');
+  return secretHeader === webhookSecret;
+}
+
 export async function POST(req: Request) {
   try {
+    if (!isAuthorizedWebhook(req)) {
+      return NextResponse.json({ error: 'Unauthorized webhook' }, { status: 401 });
+    }
+
     const update = await req.json();
 
     if (update.action === 'simulate_callback') {
+      // Simulation mode strictly guarded
+      if (process.env.NODE_ENV === 'production' && !isAuthorizedWebhook(req)) {
+        return NextResponse.json({ error: 'Simulation disabled in production' }, { status: 403 });
+      }
+
       const { callbackData, reviewedBy } = update;
       const adminActor = reviewedBy || '@kanzedin';
       const superadminId = db.getSuperadminUser()?.id || 'usr-super-yared';
@@ -15,29 +34,29 @@ export async function POST(req: Request) {
       if (callbackData?.startsWith('approve_merchant:')) {
         const appId = callbackData.replace('approve_merchant:', '');
         const app = await telegramBot.handleMerchantApproval(appId, adminActor, true);
-        return NextResponse.json({ success: true, app, message: 'Merchant approved via @fetanp2probot' });
+        return NextResponse.json({ success: true, app, message: 'Merchant approved via Telegram Bot' });
       }
       if (callbackData?.startsWith('reject_merchant:')) {
         const appId = callbackData.replace('reject_merchant:', '');
         const app = await telegramBot.handleMerchantApproval(appId, adminActor, false);
-        return NextResponse.json({ success: true, app, message: 'Merchant rejected via @fetanp2probot' });
+        return NextResponse.json({ success: true, app, message: 'Merchant rejected via Telegram Bot' });
       }
       if (callbackData?.startsWith('approve_kyc:')) {
         const kycId = callbackData.replace('approve_kyc:', '');
         const kyc = await telegramBot.handleKycApproval(kycId, adminActor, true);
-        return NextResponse.json({ success: true, kyc, message: 'KYC approved via @fetanp2probot' });
+        return NextResponse.json({ success: true, kyc, message: 'KYC approved via Telegram Bot' });
       }
       if (callbackData?.startsWith('reject_kyc:')) {
         const kycId = callbackData.replace('reject_kyc:', '');
         const kyc = await telegramBot.handleKycApproval(kycId, adminActor, false);
-        return NextResponse.json({ success: true, kyc, message: 'KYC rejected via @fetanp2probot' });
+        return NextResponse.json({ success: true, kyc, message: 'KYC rejected via Telegram Bot' });
       }
       if (callbackData?.startsWith('admin_release:') || callbackData?.startsWith('order_release:')) {
         const orderId = callbackData.replace(/^(admin_release:|order_release:)/, '');
         const order = await escrowController.releaseEscrow(
           orderId,
           superadminId,
-          'Released via @fetanp2probot inline button by @kanzedin'
+          'Released via Telegram Bot by admin'
         );
         return NextResponse.json({ success: true, order, message: `Order #${orderId} released to buyer` });
       }
@@ -46,7 +65,7 @@ export async function POST(req: Request) {
         const order = await escrowController.cancelEscrow(
           orderId,
           superadminId,
-          'Cancelled via @fetanp2probot inline button by @kanzedin'
+          'Cancelled via Telegram Bot by admin'
         );
         return NextResponse.json({ success: true, order, message: `Order #${orderId} cancelled` });
       }
@@ -56,7 +75,7 @@ export async function POST(req: Request) {
         if (existing) {
           existing.status = 'RESOLVED';
           existing.resolvedBy = '@kanzedin';
-          existing.adminReply = 'Resolved via @fetanp2probot by @kanzedin.';
+          existing.adminReply = 'Resolved via Telegram Bot by admin.';
           existing.updatedAt = new Date().toISOString();
           db.saveSupportTicket(existing);
         }
@@ -77,7 +96,6 @@ export async function GET() {
   return NextResponse.json({
     botUsername: telegramBot.getBotUsername(),
     miniAppUrl: telegramBot.getMiniAppUrl(),
-    superadmin: '@kanzedin',
     logs,
   });
 }
