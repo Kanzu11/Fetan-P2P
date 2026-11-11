@@ -28,6 +28,7 @@ import { CreateOfferModal } from '@/client/components/create-offer-modal';
 import { ApplyMerchantModal } from '@/client/components/apply-merchant-modal';
 import { KycModal } from '@/client/components/kyc-modal';
 import { LivePriceTicker } from '@/client/components/live-price-ticker';
+import { ProtectedRoute } from '@/client/components/protected-route';
 
 function MarketContent() {
   const router = useRouter();
@@ -1246,10 +1247,12 @@ function MarketContent() {
 
 export default function MarketPage() {
   return (
-    <Suspense
-      fallback={<div className="p-12 text-center text-slate-500 text-xs">Loading P2P Market...</div>}
-    >
-      <MarketContent />
-    </Suspense>
+    <ProtectedRoute>
+      <Suspense
+        fallback={<div className="p-12 text-center text-slate-500 text-xs">Loading P2P Market...</div>}
+      >
+        <MarketContent />
+      </Suspense>
+    </ProtectedRoute>
   );
 }

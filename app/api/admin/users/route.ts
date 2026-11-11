@@ -50,12 +50,26 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. Superadmin Action: Promote/Demote ADMIN
+    // 1. Admin / Superadmin Action: Promote/Demote ADMIN
     if (action === 'TOGGLE_ADMIN' || newRole) {
-      if (caller.role !== 'SUPERADMIN') {
+      if (caller.role !== 'SUPERADMIN' && caller.role !== 'ADMIN') {
         return NextResponse.json(
-          { error: 'Strict RBAC Guard: Only SUPERADMIN is permitted to promote or demote ADMIN accounts.' },
+          { error: 'Strict RBAC Guard: Only ADMIN or SUPERADMIN is permitted to promote or demote user accounts.' },
           { status: 403 }
+        );
+      }
+
+      if (target.role === 'SUPERADMIN' || target.telegramHandle === '@kanzedin') {
+        return NextResponse.json(
+          { error: 'Security Violation: Superadmin accounts (@kanzedin) cannot be demoted or modified.' },
+          { status: 403 }
+        );
+      }
+
+      if (caller.id === target.id) {
+        return NextResponse.json(
+          { error: 'Cannot modify your own administrative role.' },
+          { status: 400 }
         );
       }
 
@@ -64,7 +78,7 @@ export async function POST(req: Request) {
 
       wsGateway.emitToUser(targetUserId, 'role_updated', {
         role: assignedRole,
-        message: `Your account role was updated to ${assignedRole} by Superadmin ${caller.name}.`
+        message: `Your account role was updated to ${assignedRole} by ${caller.role === 'SUPERADMIN' ? 'Superadmin' : 'Admin'} ${caller.name}.`
       });
 
       wsGateway.emitToRoom('admin:dashboard', 'user_role_changed', {

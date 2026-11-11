@@ -30,7 +30,11 @@ import {
   ThumbsUp,
   ThumbsDown,
   UserCheck,
+  ImageIcon,
+  Loader2,
+  Zap,
 } from 'lucide-react';
+import { ProtectedRoute } from '@/client/components/protected-route';
 
 export default function EscrowRoomPage() {
   const params = useParams();
@@ -58,6 +62,8 @@ export default function EscrowRoomPage() {
   const [paymentRefInput, setPaymentRefInput] = useState<string>('');
   const [receiptUrl, setReceiptUrl] = useState<string>('');
   const [receiptName, setReceiptName] = useState<string>('');
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const [uploadingChatImage, setUploadingChatImage] = useState(false);
   const [previewReceiptModal, setPreviewReceiptModal] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
@@ -84,6 +90,28 @@ export default function EscrowRoomPage() {
 
   // 15-Minute Countdown Timer
   const [timeLeft, setTimeLeft] = useState<number>(15 * 60);
+
+  // Auto-Release Countdown (seconds)
+  const [autoReleaseCountdown, setAutoReleaseCountdown] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (order?.status !== 'PAYMENT_SENT' || !order.autoReleaseAt) {
+      setAutoReleaseCountdown(null);
+      return;
+    }
+
+    const update = () => {
+      const diff = Math.max(
+        0,
+        Math.ceil((new Date(order.autoReleaseAt!).getTime() - Date.now()) / 1000)
+      );
+      setAutoReleaseCountdown(diff);
+    };
+
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [order?.status, order?.autoReleaseAt]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -174,17 +202,83 @@ export default function EscrowRoomPage() {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setReceiptName(file.name);
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setReceiptUrl(reader.result);
+    setUploadingReceipt(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', 'fetan_p2p/receipts');
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.url) {
+        setReceiptUrl(data.url);
+        setNotification('Payment proof uploaded to Cloudinary!');
+      } else {
+        // Fallback to local Data URI if serverless upload fails
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') setReceiptUrl(reader.result);
+        };
+        reader.readAsDataURL(file);
       }
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') setReceiptUrl(reader.result);
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setUploadingReceipt(false);
+    }
+  };
+
+  const handleChatImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser) return;
+
+    setUploadingChatImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', 'fetan_p2p/chat');
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.url) {
+        await fetch(`/api/orders/${orderId}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            senderId: currentUser.id,
+            text: 'Screenshot / Payment Receipt',
+            imageUrl: data.url,
+            type: 'IMAGE',
+          }),
+        });
+        await fetchOrderAndChat();
+        setNotification('Image sent in chat via Cloudinary!');
+      } else {
+        setNotification('Could not upload image');
+      }
+    } catch (err) {
+      console.error(err);
+      setNotification('Failed to send image');
+    } finally {
+      setUploadingChatImage(false);
+    }
   };
 
   const handleAttachSampleReceipt = () => {
@@ -454,7 +548,8 @@ export default function EscrowRoomPage() {
       ];
 
   return (
-    <div className="space-y-4 pb-10">
+    <ProtectedRoute>
+      <div className="space-y-4 pb-10">
       {/* Role Perspective & 1-Click Test Switcher Bar */}
       <div className="bg-slate-900 text-white rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
         <div className="flex items-center gap-2">
@@ -1041,15 +1136,33 @@ export default function EscrowRoomPage() {
                     )}
 
                     {order.status === 'PAYMENT_SENT' && (
-                      <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 space-y-2">
-                        <div className="font-bold">
-                          You marked this order as paid. Waiting for seller to complete the order.
+                      <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 font-bold text-xs text-emerald-800">
+                            <Zap className="w-4 h-4 text-amber-500 fill-amber-500 animate-bounce" />
+                            <span>Automated Escrow Release Active</span>
+                          </div>
+                          {autoReleaseCountdown !== null && (
+                            <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-600 text-white tabular-nums shadow-sm">
+                              {autoReleaseCountdown > 0 ? `Auto-Release in ${autoReleaseCountdown}s` : 'Releasing now...'}
+                            </span>
+                          )}
                         </div>
-                        <p className="leading-relaxed">
-                          <strong>{displayName(order.sellerName)}</strong> has been notified to check
-                          their {railMeta.shortName} balance and release your{' '}
-                          <strong>{order.usdtAmount.toFixed(2)} USDT</strong>.
+                        <p className="text-xs leading-relaxed text-slate-700">
+                          Payment has been registered. <strong>{displayName(order.sellerName)}</strong> has been notified.
+                          Our automated escrow engine will automatically complete the order and credit{' '}
+                          <strong className="text-emerald-700">{order.usdtAmount.toFixed(2)} USDT</strong> directly to your wallet.
                         </p>
+                        {autoReleaseCountdown !== null && (
+                          <div className="w-full bg-emerald-200 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className="bg-emerald-600 h-1.5 rounded-full transition-all duration-1000"
+                              style={{
+                                width: `${Math.min(100, Math.max(5, ((15 - (autoReleaseCountdown ?? 0)) / 15) * 100))}%`,
+                              }}
+                            />
+                          </div>
+                        )}
                         <div className="pt-1 flex items-center gap-2">
                           <button
                             type="button"
@@ -1183,14 +1296,21 @@ export default function EscrowRoomPage() {
                     ) : (
                       /* Seller sees PAYMENT_SENT or DISPUTED -> can Confirm & Complete Order */
                       <div className="space-y-3">
-                        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 space-y-1">
-                          <div className="font-bold">
-                            Buyer marked {order.etbAmount.toLocaleString()} ETB as paid!
+                        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="font-bold flex items-center gap-1.5">
+                              <Zap className="w-4 h-4 text-emerald-600" />
+                              <span>Buyer marked {order.etbAmount.toLocaleString()} ETB as paid!</span>
+                            </div>
+                            {autoReleaseCountdown !== null && (
+                              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-600 text-white tabular-nums">
+                                {autoReleaseCountdown > 0 ? `Auto-Release in ${autoReleaseCountdown}s` : 'Processing release...'}
+                              </span>
+                            )}
                           </div>
-                          <p className="leading-relaxed">
-                            Please open your <strong>{railMeta.shortName}</strong> account, confirm
-                            the money arrived, tick the box below, and click{' '}
-                            <strong>&ldquo;{t.releaseBtn}&rdquo;</strong>.
+                          <p className="leading-relaxed text-xs">
+                            Please check your <strong>{railMeta.shortName}</strong> account. Confirm
+                            the money arrived and click <strong>&ldquo;{t.releaseBtn}&rdquo;</strong>, or the automated escrow will auto-release to the buyer once the countdown ends.
                           </p>
                         </div>
 
@@ -1349,7 +1469,21 @@ export default function EscrowRoomPage() {
                           : 'bg-white text-slate-900 border border-slate-200 rounded-bl-sm shadow-sm'
                       }`}
                     >
-                      {msg.text}
+                      {msg.imageUrl && (
+                        <div className="mb-2 overflow-hidden rounded-xl border border-slate-200/40">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={msg.imageUrl}
+                            alt="Receipt attachment"
+                            className="max-h-56 max-w-full rounded-lg object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                            onClick={() => {
+                              setReceiptUrl(msg.imageUrl!);
+                              setPreviewReceiptModal(true);
+                            }}
+                          />
+                        </div>
+                      )}
+                      {msg.text && <div>{msg.text}</div>}
                     </div>
                   </div>
                 );
@@ -1376,8 +1510,26 @@ export default function EscrowRoomPage() {
             {/* Chat Input */}
             <form
               onSubmit={handleSendMessage}
-              className="p-3 border-t border-slate-200 bg-white flex gap-2"
+              className="p-3 border-t border-slate-200 bg-white flex items-center gap-2"
             >
+              <label
+                title="Attach Image / Receipt (Cloudinary)"
+                className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer transition-colors relative"
+              >
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleChatImageUpload}
+                  disabled={uploadingChatImage}
+                  className="hidden"
+                />
+                {uploadingChatImage ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                ) : (
+                  <ImageIcon className="w-4 h-4" />
+                )}
+              </label>
+
               <input
                 type="text"
                 placeholder={t.chatPlaceholder}
@@ -1387,7 +1539,7 @@ export default function EscrowRoomPage() {
               />
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 flex items-center justify-center"
+                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 flex items-center justify-center transition-colors"
               >
                 <Send className="w-3.5 h-3.5" />
               </button>
@@ -1491,5 +1643,6 @@ export default function EscrowRoomPage() {
         </div>
       )}
     </div>
+    </ProtectedRoute>
   );
 }

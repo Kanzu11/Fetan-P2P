@@ -23,6 +23,7 @@ import {
   ExternalLink,
   MessageSquareWarning,
 } from 'lucide-react';
+import { ProtectedRoute } from '@/client/components/protected-route';
 
 export default function WalletPage() {
   const { currentUser, refreshUser, depositUsdt, setNotification } = useRealtime();
@@ -239,7 +240,8 @@ export default function WalletPage() {
   };
 
   return (
-    <div className="space-y-6 pb-8">
+    <ProtectedRoute>
+      <div className="space-y-6 pb-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -856,5 +858,6 @@ export default function WalletPage() {
         </div>
       )}
     </div>
+    </ProtectedRoute>
   );
 }

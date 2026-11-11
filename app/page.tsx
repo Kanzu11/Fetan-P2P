@@ -17,17 +17,75 @@ import {
   ArrowUpDown,
   AlertCircle,
   CheckCircle2,
+  Mail,
+  Wallet,
+  Smartphone,
+  ExternalLink,
+  Sparkles,
+  Camera,
 } from 'lucide-react';
 import { ApplyMerchantModal } from '@/client/components/apply-merchant-modal';
 import { KycModal } from '@/client/components/kyc-modal';
 
 export default function LandingPage() {
   const router = useRouter();
-  const { currentUser, latestActiveOrderId } = useRealtime();
+  const {
+    currentUser,
+    latestActiveOrderId,
+    openAuthModal,
+    loginWithGoogle,
+    loginWithEmail,
+    setNotification,
+  } = useRealtime();
   const { lang, t } = useI18n();
 
   const [merchantModalOpen, setMerchantModalOpen] = useState(false);
   const [kycModalOpen, setKycModalOpen] = useState(false);
+
+  // Inline Email Login State
+  const [inlineEmail, setInlineEmail] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const handleInlineEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inlineEmail.trim()) {
+      setAuthError('Please enter your email.');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const res = await loginWithEmail(inlineEmail.trim());
+      if (res.success && res.user) {
+        setNotification(`Welcome to Fetan P2P, ${res.user.name}!`);
+        setInlineEmail('');
+      } else {
+        setAuthError(res.error || 'Login failed');
+      }
+    } catch (err: unknown) {
+      setAuthError(err instanceof Error ? err.message : 'Login failed');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleInlineGoogleLogin = async () => {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const res = await loginWithGoogle();
+      if (res.success && res.user) {
+        setNotification(`Signed in with Google as ${res.user.name}!`);
+      } else {
+        setAuthError(res.error || 'Google Sign-In failed');
+      }
+    } catch (err: unknown) {
+      setAuthError(err instanceof Error ? err.message : 'Google Sign-In failed');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   // Interactive Hero Calculator State
   const [calcSide, setCalcSide] = useState<'BUY' | 'SELL'>('BUY');
@@ -119,30 +177,80 @@ export default function LandingPage() {
               </p>
 
               <div className="pt-1 flex flex-wrap items-center gap-3">
-                <Link
-                  href="/market"
-                  className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition-colors shadow-sm"
-                >
-                  <span>{t.btnStartTrading}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
+                {currentUser ? (
+                  <>
+                    <Link
+                      href="/market"
+                      className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition-colors shadow-sm"
+                    >
+                      <span>{t.btnStartTrading}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
 
-                <Link
-                  href={`/trade/${latestActiveOrderId}`}
-                  className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
-                >
-                  <Lock className="w-4 h-4 text-emerald-600" />
-                  <span>{t.btnEscrowDemo}</span>
-                </Link>
+                    <Link
+                      href="/wallet"
+                      className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
+                    >
+                      <Wallet className="w-4 h-4 text-emerald-600" />
+                      <span>My Wallet</span>
+                    </Link>
 
-                {currentUser?.role === 'USER' && (
-                  <button
-                    onClick={() => setMerchantModalOpen(true)}
-                    className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-sm font-semibold hover:bg-slate-100 transition-colors"
-                  >
-                    <UserCheck className="w-4 h-4 text-slate-600" />
-                    <span>{t.btnBecomeMerchant}</span>
-                  </button>
+                    {currentUser?.role === 'USER' && (
+                      <button
+                        onClick={() => setMerchantModalOpen(true)}
+                        className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-sm font-semibold hover:bg-slate-100 transition-colors"
+                      >
+                        <UserCheck className="w-4 h-4 text-slate-600" />
+                        <span>{t.btnBecomeMerchant}</span>
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleInlineGoogleLogin}
+                      disabled={authLoading}
+                      className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-slate-300 text-slate-800 text-sm font-bold hover:bg-slate-50 shadow-sm transition-colors"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24">
+                        <path
+                          fill="#4285F4"
+                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        />
+                        <path
+                          fill="#34A853"
+                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                        />
+                        <path
+                          fill="#EA4335"
+                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                        />
+                      </svg>
+                      <span>Continue with Google</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => openAuthModal()}
+                      className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition-colors shadow-sm"
+                    >
+                      <Mail className="w-4 h-4 text-emerald-400" />
+                      <span>Sign In with Email</span>
+                    </button>
+
+                    <Link
+                      href={`/trade/${latestActiveOrderId}`}
+                      className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
+                    >
+                      <Lock className="w-4 h-4 text-emerald-600" />
+                      <span>{t.btnEscrowDemo}</span>
+                    </Link>
+                  </>
                 )}
               </div>
             </div>
@@ -337,6 +445,248 @@ export default function LandingPage() {
               </button>
             </form>
           </div>
+        </div>
+      </section>
+
+      {/* 1.5. Interactive User Hub / Instant Google & Email Auth Section */}
+      {currentUser ? (
+        <section className="bg-slate-900 text-white rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                  {currentUser.role}
+                </span>
+                <span
+                  className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
+                    currentUser.kycStatus === 'VERIFIED'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      : currentUser.kycStatus === 'PENDING'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                      : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                  }`}
+                >
+                  KYC: {currentUser.kycStatus}
+                </span>
+                {currentUser.merchantStatus === 'APPROVED' ? (
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold">
+                    Certified Merchant
+                  </span>
+                ) : (
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                    Regular Trader
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight">
+                  Welcome back, <span className="text-emerald-400">{currentUser.name}</span>!
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Account: {currentUser.email} • Telegram: {currentUser.telegramHandle || 'Not linked'}
+                </p>
+              </div>
+
+              {currentUser.kycStatus !== 'VERIFIED' && (
+                <div className="inline-flex items-center gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>
+                    {currentUser.kycStatus === 'PENDING'
+                      ? 'Your ID document is under admin review. You can trade once approved.'
+                      : 'Complete Fayda / Passport verification to unlock full P2P trading.'}
+                  </span>
+                  {currentUser.kycStatus === 'UNVERIFIED' && (
+                    <button
+                      onClick={() => setKycModalOpen(true)}
+                      className="ml-2 font-bold underline hover:text-white"
+                    >
+                      Verify Now →
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Quick Balances & Actions */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+              <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-4 min-w-[200px]">
+                <div className="text-xs text-slate-400 font-medium">Available Balance</div>
+                <div className="text-2xl font-bold text-white tabular-nums mt-0.5">
+                  {currentUser.usdtBalance.toFixed(2)}{' '}
+                  <span className="text-xs text-emerald-400 font-mono">USDT</span>
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  ≈ {(currentUser.usdtBalance * 158.35).toLocaleString()} ETB
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Link
+                  href="/market"
+                  className="py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors"
+                >
+                  <span>Go to P2P Market</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+                <Link
+                  href="/orders"
+                  className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center justify-center gap-2 border border-slate-700 transition-colors"
+                >
+                  <span>My Orders</span>
+                </Link>
+                <Link
+                  href="/wallet"
+                  className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center justify-center gap-2 border border-slate-700 transition-colors"
+                >
+                  <Wallet className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Wallet & Deposit</span>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            <div className="lg:col-span-7 space-y-3">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Zero Registration Fee • Instant Access</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+                Join Ethiopia&apos;s Most Trusted P2P Crypto Exchange
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-xl">
+                Sign in with Google or enter your Email to start buying and selling USDT directly with
+                Ethiopian Birr via Telebirr, CBE, Abyssinia, and Awash Bank. Protected by automated escrow.
+              </p>
+              <div className="pt-2 flex flex-wrap gap-4 text-xs text-slate-600 font-medium">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Automatic Escrow Release</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Cloudinary Receipt Verification</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Telegram Bot (@fetanp2probot)</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-2xl p-5 sm:p-6 space-y-4">
+              <div className="space-y-1">
+                <div className="font-bold text-slate-900 text-sm">Instant Sign In</div>
+                <p className="text-xs text-slate-500">Sign in with Google or your email address</p>
+              </div>
+
+              {authError && (
+                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between">
+                  <span>{authError}</span>
+                  <button onClick={() => setAuthError(null)} className="text-rose-500 font-bold ml-2">✕</button>
+                </div>
+              )}
+
+              {/* 1. Google OAuth Button */}
+              <button
+                type="button"
+                onClick={handleInlineGoogleLogin}
+                disabled={authLoading}
+                className="w-full py-3 px-4 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 text-xs font-bold flex items-center justify-center gap-2.5 shadow-sm transition-colors disabled:opacity-50"
+              >
+                <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                  />
+                </svg>
+                <span>{authLoading ? 'Signing in...' : 'Continue with Google'}</span>
+              </button>
+
+              <div className="relative flex items-center justify-center">
+                <div className="border-t border-slate-200 w-full" />
+                <span className="bg-slate-50 px-2 text-[11px] text-slate-400 font-medium uppercase">or email</span>
+              </div>
+
+              {/* 2. Direct Email Form */}
+              <form onSubmit={handleInlineEmailLogin} className="space-y-2">
+                <input
+                  type="email"
+                  value={inlineEmail}
+                  onChange={(e) => setInlineEmail(e.target.value)}
+                  placeholder="Enter your email address..."
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-slate-900 bg-white"
+                />
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                >
+                  <Mail className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{authLoading ? 'Connecting...' : 'Continue with Email'}</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 1.7. Four Pillars of Fetan P2P Architecture */}
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-2 shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center font-bold">
+            <Zap className="w-5 h-5" />
+          </div>
+          <h3 className="text-sm font-bold text-slate-900">Automatic Escrow Release</h3>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Funds locked in escrow are automatically released directly to the buyer upon confirmed payment completion.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-2 shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200 text-sky-600 flex items-center justify-center font-bold">
+            <Camera className="w-5 h-5" />
+          </div>
+          <h3 className="text-sm font-bold text-slate-900">Cloudinary Image Uploads</h3>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Upload and view payment receipts in live trade chat. Admins review Fayda/Passport photos with click-to-zoom inspection.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-2 shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center font-bold">
+            <Smartphone className="w-5 h-5" />
+          </div>
+          <h3 className="text-sm font-bold text-slate-900">Telegram Bot & Mini App</h3>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Trade anywhere with @fetanp2probot, native menu button launcher, and real-time order alerts sent directly to your phone.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-2 shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center font-bold">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <h3 className="text-sm font-bold text-slate-900">Platform KYC & Merchant Roles</h3>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Mandatory KYC ensures safe trading for all users, with a distinct certified merchant program and protected superadmin controls.
+          </p>
         </div>
       </section>
 

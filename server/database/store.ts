@@ -733,6 +733,11 @@ export class DatabaseStore {
     return updated;
   }
 
+  saveUser(user: User): User {
+    this.users.set(user.id, user);
+    return user;
+  }
+
   updateUser(id: string, updates: Partial<User>): User {
     const existing = this.users.get(id);
     if (!existing) throw new Error('User not found');

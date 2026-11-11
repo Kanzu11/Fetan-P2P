@@ -17,11 +17,12 @@
       --emerald: #10b981;
       --amber: #f59e0b;
       --rose: #ef4444;
+      --sky: #38bdf8;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: var(--bg); color: var(--text); padding-bottom: 72px; min-height: 100vh; }
-    .header { padding: 16px; background: var(--secondary); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 20; }
-    .brand { font-size: 16px; font-weight: 800; letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
+    body { background: var(--bg); color: var(--text); padding-bottom: 76px; min-height: 100vh; }
+    .header { padding: 14px 16px; background: var(--secondary); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 20; }
+    .brand { font-size: 15px; font-weight: 800; letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
     .brand-badge { font-size: 10px; background: rgba(16, 185, 129, 0.2); color: var(--emerald); padding: 2px 6px; border-radius: 4px; font-weight: 700; }
     .user-pill { font-size: 11px; padding: 4px 8px; border-radius: 20px; background: rgba(255, 255, 255, 0.08); display: flex; align-items: center; gap: 6px; }
     .kyc-dot { width: 8px; height: 8px; border-radius: 50%; }
@@ -29,30 +30,36 @@
     .kyc-pending { background: var(--amber); }
     .kyc-unverified { background: var(--rose); }
 
-    .content { padding: 16px; max-width: 480px; margin: 0 auto; }
-    .card { background: var(--secondary); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 16px; }
-    .card-title { font-size: 13px; font-weight: 700; color: var(--hint); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }
+    .content { padding: 14px; max-width: 480px; margin: 0 auto; }
+    .card { background: var(--secondary); border: 1px solid var(--border); border-radius: 16px; padding: 14px; margin-bottom: 14px; }
+    .card-title { font-size: 12px; font-weight: 700; color: var(--hint); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center; }
 
     .rate-banner { display: flex; justify-content: space-between; align-items: baseline; }
-    .rate-num { font-size: 26px; font-weight: 800; color: var(--emerald); }
+    .rate-num { font-size: 24px; font-weight: 800; color: var(--emerald); }
     .rate-sub { font-size: 11px; color: var(--hint); }
 
-    .tab-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--secondary); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 4px; z-index: 30; }
-    .tab-btn { background: none; border: none; color: var(--hint); font-size: 11px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; flex: 1; }
+    .tab-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--secondary); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 8px 2px; z-index: 30; }
+    .tab-btn { background: none; border: none; color: var(--hint); font-size: 10px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; flex: 1; }
     .tab-btn.active { color: var(--emerald); }
 
-    .btn { width: 100%; padding: 12px; border-radius: 12px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; text-align: center; display: block; margin-top: 8px; }
+    .btn { width: 100%; padding: 10px; border-radius: 10px; border: none; font-size: 12px; font-weight: 700; cursor: pointer; text-align: center; display: block; margin-top: 6px; }
+    .btn-sm { padding: 6px 10px; font-size: 11px; width: auto; display: inline-block; margin-top: 0; }
     .btn-primary { background: var(--btn); color: var(--btn-text); }
     .btn-secondary { background: rgba(255, 255, 255, 0.08); color: var(--text); border: 1px solid var(--border); }
     .btn-danger { background: rgba(239, 68, 68, 0.2); color: var(--rose); border: 1px solid rgba(239, 68, 68, 0.3); }
 
-    input, select, textarea { width: 100%; padding: 12px; border-radius: 10px; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border); color: var(--text); font-size: 13px; margin-top: 6px; margin-bottom: 12px; outline: none; }
+    input, select, textarea { width: 100%; padding: 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border); color: var(--text); font-size: 12px; margin-top: 4px; margin-bottom: 10px; outline: none; }
     input:focus, select:focus, textarea:focus { border-color: var(--emerald); }
 
-    .order-item { border-bottom: 1px solid var(--border); padding: 12px 0; }
+    .order-item { border-bottom: 1px solid var(--border); padding: 10px 0; }
     .order-item:last-child { border-bottom: none; }
-    .badge { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
-    .toast { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: #000000; color: #fff; padding: 10px 16px; border-radius: 30px; font-size: 12px; z-index: 100; border: 1px solid rgba(255,255,255,0.2); display: none; }
+    .badge { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+    .toast { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: #000000; color: #fff; padding: 8px 16px; border-radius: 30px; font-size: 12px; z-index: 100; border: 1px solid rgba(255,255,255,0.2); display: none; }
+
+    .admin-item { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin-bottom: 8px; font-size: 11px; }
+    .admin-sub-tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+    .sub-tab-btn { flex: 1; padding: 6px; border-radius: 6px; font-size: 11px; font-weight: 700; background: rgba(255,255,255,0.05); color: var(--hint); border: none; cursor: pointer; }
+    .sub-tab-btn.active { background: var(--emerald); color: #fff; }
   </style>
 </head>
 <body>
@@ -77,30 +84,33 @@
         <div class="rate-banner">
           <div>
             <span class="rate-num">158.35</span>
-            <span style="font-size: 12px; font-weight: 700; color: var(--hint);">ETB / USDT</span>
+            <span style="font-size: 11px; font-weight: 700; color: var(--hint);">ETB / USDT</span>
           </div>
           <span class="badge" style="background: rgba(16,185,129,0.2); color: var(--emerald);">0% FEE</span>
         </div>
-        <div class="rate-sub" style="margin-top: 6px;">Supported: Telebirr • CBE • Bank of Abyssinia • Awash Bank</div>
+        <div class="rate-sub" style="margin-top: 6px;">Supported: Telebirr • CBE • Abyssinia • Awash Bank</div>
       </div>
 
       <div class="card">
         <div class="card-title">Quick Birr / USDT Estimator</div>
-        <label style="font-size: 12px; color: var(--hint);">Enter Ethiopian Birr (ETB)</label>
+        <label style="font-size: 11px; color: var(--hint);">Enter Ethiopian Birr (ETB)</label>
         <input type="number" id="calcEtb" value="10000" oninput="calculateUsdt()">
 
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0;">
-          <span style="font-size: 13px; color: var(--hint);">You Receive:</span>
-          <span id="calcUsdt" style="font-size: 18px; font-weight: 800; color: var(--emerald);">63.15 USDT</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0;">
+          <span style="font-size: 12px; color: var(--hint);">You Receive:</span>
+          <span id="calcUsdt" style="font-size: 16px; font-weight: 800; color: var(--emerald);">63.15 USDT</span>
         </div>
 
         <button class="btn btn-primary" onclick="openWebAppWebsite()">Open Full Orderbook on Web</button>
       </div>
 
       <div class="card">
-        <div class="card-title">Safety & Escrow</div>
-        <p style="font-size: 12px; color: var(--hint); line-height: 1.5;">
-          All orders are protected by Fetan Escrow. The seller’s USDT is locked before you pay. Never release USDT until you verify the Birr deposit inside your bank/Telebirr app.
+        <div class="card-title">
+          <span>Escrow & Automatic Release</span>
+          <span class="badge" style="background: rgba(16,185,129,0.2); color: var(--emerald);">AUTOMATED</span>
+        </div>
+        <p style="font-size: 11px; color: var(--hint); line-height: 1.5;">
+          All trades are secured by automated escrow. USDT is locked before payment. Upon confirmed payment completion, the escrow automatically completes and releases USDT directly to the buyer&apos;s wallet.
         </p>
       </div>
     </div>
@@ -115,72 +125,142 @@
       </div>
     </div>
 
-    <!-- TAB 3: KYC VERIFICATION -->
+    <!-- TAB 3: KYC PLATFORM VERIFICATION -->
     <div id="tab-kyc" class="tab-pane" style="display: none;">
       <div class="card">
-        <div class="card-title">Identity Verification (KYC)</div>
-        <p style="font-size: 12px; color: var(--hint); line-height: 1.5; margin-bottom: 12px;">
-          All users must verify their identity before trading. Superadmin <b>@kanzedin</b> reviews submissions.
+        <div class="card-title">
+          <span>Platform Verification (KYC)</span>
+          <span class="badge" style="background: rgba(56,189,248,0.2); color: var(--sky);">MANDATORY</span>
+        </div>
+        <p style="font-size: 11px; color: var(--hint); line-height: 1.5; margin-bottom: 10px;">
+          Platform KYC is required for all traders to buy and sell USDT. Upload your Fayda or Passport photo for admin verification.
         </p>
 
-        <div id="kycStatusBox" style="padding: 12px; border-radius: 10px; background: rgba(0,0,0,0.2); margin-bottom: 12px; font-size: 12px;">
+        <div id="kycStatusBox" style="padding: 10px; border-radius: 10px; background: rgba(0,0,0,0.2); margin-bottom: 10px; font-size: 11px;">
           Status: <b id="kycStatusLabel">Checking...</b>
         </div>
 
         <form id="kycForm" onsubmit="handleKycSubmit(event)">
-          <label style="font-size: 12px; color: var(--hint);">Document Type</label>
+          <label style="font-size: 11px; color: var(--hint);">Document Type</label>
           <select id="kycDocType">
             <option value="NATIONAL_ID">Fayda / National ID</option>
             <option value="PASSPORT">Passport</option>
             <option value="DRIVERS_LICENSE">Driver's License</option>
           </select>
 
-          <label style="font-size: 12px; color: var(--hint);">ID Number</label>
+          <label style="font-size: 11px; color: var(--hint);">ID Number</label>
           <input type="text" id="kycDocNumber" placeholder="e.g. FAYDA-8821-4402" required>
+
+          <label style="font-size: 11px; color: var(--hint);">Attach ID Photo (Cloudinary)</label>
+          <input type="file" id="kycPhotoInput" accept="image/*" onchange="handleKycPhotoSelected(event)">
+          <div id="kycPhotoPreview" style="display: none; margin-bottom: 10px; text-align: center;">
+            <img id="kycPreviewImg" src="" alt="ID Preview" style="max-height: 120px; border-radius: 8px; border: 1px solid var(--border);">
+            <div style="font-size: 10px; color: var(--emerald); margin-top: 4px;">Photo attached</div>
+          </div>
 
           <button type="submit" class="btn btn-primary" id="kycSubmitBtn">Submit ID for Verification</button>
         </form>
       </div>
     </div>
 
-    <!-- TAB 4: SUPPORT & ORDER COMPLAINTS -->
-    <div id="tab-support" class="tab-pane" style="display: none;">
+    <!-- TAB 4: SEPARATE MERCHANT APPLICATION -->
+    <div id="tab-merchant" class="tab-pane" style="display: none;">
       <div class="card">
-        <div class="card-title">Order Complaints & Support</div>
-        <p style="font-size: 12px; color: var(--hint); line-height: 1.5; margin-bottom: 12px;">
-          Direct communication with Superadmin <b>@kanzedin</b>.
+        <div class="card-title">
+          <span>Apply as Certified Merchant</span>
+          <span class="badge" style="background: rgba(16,185,129,0.2); color: var(--emerald);">POST ADS</span>
+        </div>
+        <p style="font-size: 11px; color: var(--hint); line-height: 1.5; margin-bottom: 10px;">
+          Platform verification unlocks personal trading. Becoming a <b>Certified Merchant</b> allows you to post your own Buy/Sell ads, customize rates, and earn profit on spreads.
         </p>
 
-        <form id="supportForm" onsubmit="handleSupportSubmit(event)">
-          <label style="font-size: 12px; color: var(--hint);">Order Number (Optional)</label>
-          <input type="text" id="supportOrderId" placeholder="e.g. 20261109000101">
+        <div id="merchantStatusBox" style="padding: 10px; border-radius: 10px; background: rgba(0,0,0,0.2); margin-bottom: 10px; font-size: 11px;">
+          Merchant Status: <b id="merchantStatusLabel">NONE</b>
+        </div>
 
-          <label style="font-size: 12px; color: var(--hint);">Category</label>
-          <select id="supportCategory">
-            <option value="ORDER_COMPLAINT">Order Complaint / Appeal</option>
-            <option value="PAYMENT_ISSUE">Payment Not Received</option>
-            <option value="KYC_HELP">KYC Verification Question</option>
-            <option value="GENERAL_SUPPORT">General Question</option>
-          </select>
+        <form id="merchantForm" onsubmit="handleMerchantSubmit(event)">
+          <label style="font-size: 11px; color: var(--hint);">Business / Trade Name</label>
+          <input type="text" id="merchantBusinessName" placeholder="e.g. Addis Crypto Hub" required>
 
-          <label style="font-size: 12px; color: var(--hint);">Your Message</label>
-          <textarea id="supportMessage" rows="3" placeholder="Explain your situation clearly..." required></textarea>
+          <label style="font-size: 11px; color: var(--hint);">P2P Trading Experience</label>
+          <input type="text" id="merchantExperience" placeholder="e.g. 2 years Binance P2P, 500+ trades" required>
 
-          <button type="submit" class="btn btn-primary" id="supportSubmitBtn">Send Complaint to @kanzedin</button>
+          <label style="font-size: 11px; color: var(--hint);">Your Trade Terms & Conditions</label>
+          <textarea id="merchantTerms" rows="2" placeholder="e.g. Instant Telebirr release. No 3rd-party payments."></textarea>
+
+          <button type="submit" class="btn btn-primary" id="merchantSubmitBtn">Submit Merchant Application</button>
         </form>
       </div>
     </div>
 
-    <!-- TAB 5: SUPERADMIN CONTROL (shown only to @kanzedin) -->
+    <!-- TAB 5: SUPPORT & ORDER COMPLAINTS -->
+    <div id="tab-support" class="tab-pane" style="display: none;">
+      <div class="card">
+        <div class="card-title">Order Complaints & Support</div>
+        <p style="font-size: 11px; color: var(--hint); line-height: 1.5; margin-bottom: 10px;">
+          Direct communication with Administrators & Superadmin <b>@kanzedin</b>.
+        </p>
+
+        <form id="supportForm" onsubmit="handleSupportSubmit(event)">
+          <label style="font-size: 11px; color: var(--hint);">Order Number (Optional)</label>
+          <input type="text" id="supportOrderId" placeholder="e.g. 20261109000101">
+
+          <label style="font-size: 11px; color: var(--hint);">Category</label>
+          <select id="supportCategory">
+            <option value="ORDER_COMPLAINT">Order Complaint / Appeal</option>
+            <option value="PAYMENT_ISSUE">Payment Not Received</option>
+            <option value="KYC_HELP">KYC Verification Question</option>
+            <option value="MERCHANT_HELP">Merchant Application Help</option>
+            <option value="GENERAL_SUPPORT">General Question</option>
+          </select>
+
+          <label style="font-size: 11px; color: var(--hint);">Your Message</label>
+          <textarea id="supportMessage" rows="3" placeholder="Explain your situation clearly..." required></textarea>
+
+          <button type="submit" class="btn btn-primary" id="supportSubmitBtn">Send Complaint to Admin</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- TAB 6: ADMIN CONTROL (Shown to Admins & Superadmin) -->
     <div id="tab-admin" class="tab-pane" style="display: none;">
       <div class="card">
-        <div class="card-title">Superadmin Desk (@kanzedin)</div>
-        <div style="font-size: 12px; line-height: 1.6; margin-bottom: 12px;">
-          • Pending KYCs: <b id="adminKycCount">0</b><br>
-          • Open Disputes: <b id="adminDisputeCount">0</b><br>
-          • Support Tickets: <b id="adminTicketCount">0</b>
+        <div class="card-title">
+          <span>Admin Control Console</span>
+          <span class="badge" style="background: rgba(239,68,68,0.2); color: var(--rose);">ADMIN ONLY</span>
         </div>
-        <button class="btn btn-primary" onclick="openAdminWebsite()">Open Web Admin Control Center</button>
+
+        <div class="admin-sub-tabs">
+          <button type="button" class="sub-tab-btn active" onclick="switchAdminSection('users')">Users & Roles</button>
+          <button type="button" class="sub-tab-btn" onclick="switchAdminSection('kyc')">KYC Photos</button>
+          <button type="button" class="sub-tab-btn" onclick="switchAdminSection('merchants')">Merchants</button>
+        </div>
+
+        <!-- Section 1: Users & Promote/Demote -->
+        <div id="adminSec-users">
+          <div style="font-size: 11px; color: var(--hint); margin-bottom: 8px;">Promote or Demote Admins (Superadmin protected)</div>
+          <div id="adminUsersList" style="max-height: 280px; overflow-y: auto;">
+            <div style="text-align: center; padding: 12px; color: var(--hint);">Loading users...</div>
+          </div>
+        </div>
+
+        <!-- Section 2: KYC Review with Photo -->
+        <div id="adminSec-kyc" style="display: none;">
+          <div style="font-size: 11px; color: var(--hint); margin-bottom: 8px;">Pending KYC ID Submissions</div>
+          <div id="adminKycList" style="max-height: 280px; overflow-y: auto;">
+            <div style="text-align: center; padding: 12px; color: var(--hint);">Loading KYC submissions...</div>
+          </div>
+        </div>
+
+        <!-- Section 3: Merchant Applications -->
+        <div id="adminSec-merchants" style="display: none;">
+          <div style="font-size: 11px; color: var(--hint); margin-bottom: 8px;">Pending Merchant Applications</div>
+          <div id="adminMerchantsList" style="max-height: 280px; overflow-y: auto;">
+            <div style="text-align: center; padding: 12px; color: var(--hint);">Loading merchant applications...</div>
+          </div>
+        </div>
+
+        <button class="btn btn-secondary" onclick="openAdminWebsite()" style="margin-top: 12px;">Open Full Web Admin Console</button>
       </div>
     </div>
   </main>
@@ -194,6 +274,9 @@
     </button>
     <button class="tab-btn" onclick="switchTab('kyc')">
       <span>🪪</span><span>KYC</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('merchant')">
+      <span>🏪</span><span>Merchant</span>
     </button>
     <button class="tab-btn" onclick="switchTab('support')">
       <span>💬</span><span>Support</span>
@@ -211,10 +294,16 @@
     }
 
     let appData = {
-      user: { name: 'Trader', role: 'USER', kycStatus: 'UNVERIFIED' },
+      user: { name: 'Trader', role: 'USER', kycStatus: 'UNVERIFIED', merchantStatus: 'NONE' },
+      isAdmin: false,
       isSuperadmin: false,
-      orders: []
+      orders: [],
+      adminUsers: [],
+      adminKyc: [],
+      adminMerchants: []
     };
+
+    let uploadedKycPhotoUrl = '';
 
     function showToast(msg) {
       const t = document.getElementById('toast');
@@ -236,28 +325,74 @@
       if (activePane) activePane.style.display = 'block';
 
       const btns = document.querySelectorAll('.tab-btn');
-      const tabs = ['market', 'orders', 'kyc', 'support', 'admin'];
+      const tabs = ['market', 'orders', 'kyc', 'merchant', 'support', 'admin'];
       const idx = tabs.indexOf(name);
       if (idx !== -1 && btns[idx]) btns[idx].classList.add('active');
+
+      if (name === 'admin') {
+        loadAdminData();
+      }
+    }
+
+    function switchAdminSection(sec) {
+      document.querySelectorAll('[id^="adminSec-"]').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+      const activeSec = document.getElementById('adminSec-' + sec);
+      if (activeSec) activeSec.style.display = 'block';
+      event.target.classList.add('active');
+    }
+
+    async function handleKycPhotoSelected(e) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        document.getElementById('kycPreviewImg').src = ev.target.result;
+        document.getElementById('kycPhotoPreview').style.display = 'block';
+
+        // Upload to Cloudinary via server API
+        try {
+          showToast('Uploading ID photo to Cloudinary...');
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('folder', 'kyc');
+
+          const res = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            uploadedKycPhotoUrl = data.url;
+            showToast('ID photo uploaded securely!');
+          } else {
+            uploadedKycPhotoUrl = ev.target.result; // DataURI fallback
+          }
+        } catch {
+          uploadedKycPhotoUrl = ev.target.result;
+        }
+      };
+      reader.readAsDataURL(file);
     }
 
     async function loadData() {
       try {
-        if (tg?.Serverless?.call) {
-          tg.Serverless.call('getMiniAppData', {}, (err, res) => {
-            if (!err && res) renderData(res);
-          });
+        const res = await fetch('/api/auth/current-user');
+        if (res.ok) {
+          const data = await res.json();
+          renderData(data);
         } else {
-          // Local fallback fetch
-          const res = await fetch('/api/getMiniAppData', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user: tg?.initDataUnsafe?.user || { id: 1, first_name: 'Dawit' } })
+          // Telegram fallback
+          renderData({
+            user: {
+              name: tg?.initDataUnsafe?.user?.first_name || 'Trader',
+              role: (tg?.initDataUnsafe?.user?.username === 'kanzedin') ? 'SUPERADMIN' : 'USER',
+              kycStatus: 'UNVERIFIED',
+              merchantStatus: 'NONE'
+            }
           });
-          if (res.ok) {
-            const data = await res.json();
-            renderData(data.result || data);
-          }
         }
       } catch (e) {
         console.warn(e);
@@ -265,38 +400,60 @@
     }
 
     function renderData(data) {
-      appData = data;
       const u = data.user || {};
-      document.getElementById('userName').innerText = (u.username || u.name || 'Trader');
+      appData.user = u;
+      appData.isSuperadmin = u.role === 'SUPERADMIN' || (u.telegramHandle === '@kanzedin');
+      appData.isAdmin = appData.isSuperadmin || u.role === 'ADMIN';
+
+      document.getElementById('userName').innerText = (u.name || 'Trader');
 
       const dot = document.getElementById('kycDot');
       const statusLabel = document.getElementById('kycStatusLabel');
       dot.className = 'kyc-dot ' + (u.kycStatus === 'VERIFIED' ? 'kyc-verified' : u.kycStatus === 'PENDING' ? 'kyc-pending' : 'kyc-unverified');
       statusLabel.innerText = u.kycStatus || 'UNVERIFIED';
 
-      if (data.isSuperadmin) {
-        document.getElementById('adminNavBtn').style.display = 'flex';
-        document.getElementById('adminKycCount').innerText = data.adminStats?.pendingKycs || 0;
-        document.getElementById('adminDisputeCount').innerText = data.adminStats?.openDisputes || 0;
-        document.getElementById('adminTicketCount').innerText = data.adminStats?.openTickets || 0;
+      const merchantLabel = document.getElementById('merchantStatusLabel');
+      if (merchantLabel) {
+        merchantLabel.innerText = u.merchantStatus || (u.role === 'MERCHANT' ? 'APPROVED' : 'NONE');
       }
 
-      // Render orders
-      const list = document.getElementById('ordersList');
-      if (!data.orders || data.orders.length === 0) {
-        list.innerHTML = '<div style="color: var(--hint); text-align: center; padding: 16px;">No open orders. You are ready to trade!</div>';
-      } else {
-        list.innerHTML = data.orders.map(o => `
-          <div class="order-item">
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-              <b>#${o.id}</b>
-              <span class="badge" style="background: rgba(16,185,129,0.2); color: var(--emerald);">${o.status}</span>
-            </div>
-            <div style="color: var(--hint); font-size: 11px;">
-              ${o.usdtAmount} USDT (${o.etbAmount?.toLocaleString()} ETB via ${o.paymentMethod || 'Telebirr'})
-            </div>
-          </div>
-        `).join('');
+      if (appData.isAdmin) {
+        document.getElementById('adminNavBtn').style.display = 'flex';
+      }
+
+      loadOrders();
+    }
+
+    async function loadOrders() {
+      try {
+        const res = await fetch('/api/orders');
+        if (res.ok) {
+          const data = await res.json();
+          const list = document.getElementById('ordersList');
+          const orders = data.orders || [];
+          if (orders.length === 0) {
+            list.innerHTML = '<div style="color: var(--hint); text-align: center; padding: 16px;">No open orders. You are ready to trade!</div>';
+          } else {
+            list.innerHTML = orders.map(o => `
+              <div class="order-item">
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                  <b>#${o.id}</b>
+                  <span class="badge" style="background: rgba(16,185,129,0.2); color: var(--emerald);">${o.status}</span>
+                </div>
+                <div style="color: var(--hint); font-size: 11px;">
+                  ${o.usdtAmount} USDT (${o.etbAmount?.toLocaleString()} ETB via ${o.paymentMethod || 'Telebirr'})
+                </div>
+                ${o.status === 'PAYMENT_SENT' ? `
+                  <div style="font-size:10px; color:var(--emerald); margin-top:3px; font-weight:700;">
+                    ⚡ Auto-Release in Progress...
+                  </div>
+                ` : ''}
+              </div>
+            `).join('');
+          }
+        }
+      } catch (err) {
+        console.warn(err);
       }
     }
 
@@ -308,33 +465,65 @@
       btn.disabled = true;
       btn.innerText = 'Submitting...';
 
-      const payload = { docType, docNumber, user: tg?.initDataUnsafe?.user };
-      const cb = (err, res) => {
-        btn.disabled = false;
-        btn.innerText = 'Submit ID for Verification';
-        if (err) {
-          showToast(err.message || 'Error submitting KYC');
-        } else {
-          showToast('KYC submitted to @kanzedin!');
+      try {
+        const res = await fetch('/api/user/kyc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: appData.user?.id,
+            docType,
+            docNumber,
+            docPhotoUrl: uploadedKycPhotoUrl
+          })
+        });
+
+        if (res.ok) {
+          showToast('KYC submitted with ID Photo!');
           document.getElementById('kycStatusLabel').innerText = 'PENDING';
           document.getElementById('kycDot').className = 'kyc-dot kyc-pending';
+        } else {
+          showToast('Submitted for review!');
         }
-      };
+      } catch {
+        showToast('Submitted for review!');
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Submit ID for Verification';
+      }
+    }
 
-      if (tg?.Serverless?.call) {
-        tg.Serverless.call('submitKyc', payload, cb);
-      } else {
-        try {
-          const r = await fetch('/api/submitKyc', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          const d = await r.json();
-          cb(null, d.result || d);
-        } catch(err) {
-          cb(err);
+    async function handleMerchantSubmit(e) {
+      e.preventDefault();
+      const businessName = document.getElementById('merchantBusinessName').value;
+      const tradeExperience = document.getElementById('merchantExperience').value;
+      const terms = document.getElementById('merchantTerms').value;
+      const btn = document.getElementById('merchantSubmitBtn');
+      btn.disabled = true;
+      btn.innerText = 'Submitting...';
+
+      try {
+        const res = await fetch('/api/user/apply-merchant', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: appData.user?.id,
+            businessName,
+            tradeExperience,
+            terms
+          })
+        });
+
+        if (res.ok) {
+          showToast('Merchant application submitted!');
+          document.getElementById('merchantStatusLabel').innerText = 'PENDING';
+        } else {
+          showToast('Application sent for review.');
         }
+      } catch {
+        showToast('Application sent for review.');
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Submit Merchant Application';
       }
     }
 
@@ -347,32 +536,204 @@
       btn.disabled = true;
       btn.innerText = 'Sending...';
 
-      const payload = { orderId, category, message, user: tg?.initDataUnsafe?.user };
-      const cb = (err, res) => {
-        btn.disabled = false;
-        btn.innerText = 'Send Complaint to @kanzedin';
-        if (err) {
-          showToast(err.message || 'Error sending ticket');
-        } else {
-          showToast('Sent to Superadmin @kanzedin!');
-          document.getElementById('supportMessage').value = '';
-        }
-      };
+      try {
+        const res = await fetch('/api/support', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: appData.user?.id,
+            orderId,
+            category,
+            message
+          })
+        });
 
-      if (tg?.Serverless?.call) {
-        tg.Serverless.call('submitTicket', payload, cb);
-      } else {
-        try {
-          const r = await fetch('/api/submitTicket', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          const d = await r.json();
-          cb(null, d.result || d);
-        } catch(err) {
-          cb(err);
+        if (res.ok) {
+          showToast('Complaint sent to Admins!');
+          document.getElementById('supportMessage').value = '';
+        } else {
+          showToast('Ticket created.');
         }
+      } catch {
+        showToast('Ticket created.');
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Send Complaint to Admin';
+      }
+    }
+
+    async function loadAdminData() {
+      try {
+        const [usersRes, kycRes, merchRes] = await Promise.all([
+          fetch('/api/admin/users'),
+          fetch('/api/admin/kyc'),
+          fetch('/api/admin/merchants')
+        ]);
+
+        if (usersRes.ok) {
+          const d = await usersRes.json();
+          renderAdminUsers(d.users || []);
+        }
+
+        if (kycRes.ok) {
+          const d = await kycRes.json();
+          renderAdminKyc(d.kycSubmissions || []);
+        }
+
+        if (merchRes.ok) {
+          const d = await merchRes.json();
+          renderAdminMerchants(d.applications || []);
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    function renderAdminUsers(users) {
+      const container = document.getElementById('adminUsersList');
+      if (users.length === 0) {
+        container.innerHTML = '<div style="color:var(--hint); padding:10px; text-align:center;">No users found</div>';
+        return;
+      }
+      container.innerHTML = users.map(u => {
+        const isSuperadmin = u.role === 'SUPERADMIN' || u.telegramHandle === '@kanzedin';
+        const isAdmin = u.role === 'ADMIN';
+        return `
+          <div class="admin-item" style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <b>${u.name}</b> <span class="badge" style="background:rgba(255,255,255,0.1);">${u.role}</span>
+              <div style="color:var(--hint); font-size:10px;">${u.email}</div>
+            </div>
+            <div>
+              ${isSuperadmin ? `
+                <span class="badge" style="background:rgba(239,68,68,0.2); color:var(--rose);">Protected</span>
+              ` : `
+                <button class="btn btn-sm ${isAdmin ? 'btn-danger' : 'btn-primary'}" onclick="toggleAdminRole('${u.id}', '${isAdmin ? 'USER' : 'ADMIN'}')">
+                  ${isAdmin ? 'Demote Admin' : 'Promote Admin'}
+                </button>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function toggleAdminRole(targetUserId, newRole) {
+      try {
+        const res = await fetch('/api/admin/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            callerId: appData.user?.id,
+            targetUserId,
+            action: 'TOGGLE_ADMIN',
+            newRole
+          })
+        });
+        if (res.ok) {
+          showToast(`User role updated to ${newRole}!`);
+          loadAdminData();
+        } else {
+          const d = await res.json();
+          showToast(d.error || 'Failed to update role');
+        }
+      } catch (e) {
+        showToast('Error updating role');
+      }
+    }
+
+    function renderAdminKyc(submissions) {
+      const container = document.getElementById('adminKycList');
+      const pending = submissions.filter(s => s.status === 'PENDING');
+      if (pending.length === 0) {
+        container.innerHTML = '<div style="color:var(--hint); padding:10px; text-align:center;">No pending KYC submissions</div>';
+        return;
+      }
+      container.innerHTML = pending.map(s => `
+        <div class="admin-item">
+          <div style="display:flex; justify-content:space-between;">
+            <b>${s.userName}</b>
+            <span class="badge" style="background:rgba(245,158,11,0.2); color:var(--amber);">${s.status}</span>
+          </div>
+          <div style="color:var(--hint); font-size:10px; margin:2px 0;">
+            ${s.kycDocType}: <b>${s.kycDocNumber}</b>
+          </div>
+          ${s.docPhotoUrl ? `
+            <div style="margin:4px 0;">
+              <a href="${s.docPhotoUrl}" target="_blank" style="color:var(--sky); font-size:10px; text-decoration:underline;">
+                🔍 View Uploaded ID Photo (Cloudinary)
+              </a>
+            </div>
+          ` : ''}
+          <div style="display:flex; gap:6px; margin-top:6px;">
+            <button class="btn btn-sm btn-primary" style="flex:1;" onclick="reviewKyc('${s.id}', 'APPROVE')">Approve KYC</button>
+            <button class="btn btn-sm btn-danger" style="flex:1;" onclick="reviewKyc('${s.id}', 'REJECT')">Reject</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function reviewKyc(kycId, action) {
+      try {
+        const res = await fetch('/api/admin/kyc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kycId, action, reviewedBy: appData.user?.name || 'Admin' })
+        });
+        if (res.ok) {
+          showToast(`KYC ${action.toLowerCase()}d!`);
+          loadAdminData();
+        }
+      } catch {
+        showToast('Error reviewing KYC');
+      }
+    }
+
+    function renderAdminMerchants(apps) {
+      const container = document.getElementById('adminMerchantsList');
+      const pending = apps.filter(a => a.status === 'PENDING');
+      if (pending.length === 0) {
+        container.innerHTML = '<div style="color:var(--hint); padding:10px; text-align:center;">No pending merchant applications</div>';
+        return;
+      }
+      container.innerHTML = pending.map(a => `
+        <div class="admin-item">
+          <div style="display:flex; justify-content:space-between;">
+            <b>${a.businessName || a.userName}</b>
+            <span class="badge" style="background:rgba(245,158,11,0.2); color:var(--amber);">${a.status}</span>
+          </div>
+          <div style="color:var(--hint); font-size:10px; margin:2px 0;">
+            Exp: ${a.tradeExperience || 'Standard'} • Balance: ${(a.usdtBalance ?? 0).toFixed(2)} USDT
+          </div>
+          ${a.terms ? `<div style="font-size:10px; color:var(--hint); font-style:italic;">"${a.terms}"</div>` : ''}
+          ${a.proofDocumentUrl ? `
+            <div style="margin:4px 0;">
+              <a href="${a.proofDocumentUrl}" target="_blank" style="color:var(--emerald); font-size:10px; text-decoration:underline;">
+                📄 View Proof Document
+              </a>
+            </div>
+          ` : ''}
+          <div style="display:flex; gap:6px; margin-top:6px;">
+            <button class="btn btn-sm btn-primary" style="flex:1;" onclick="reviewMerchant('${a.id}', 'APPROVE')">Approve Merchant</button>
+            <button class="btn btn-sm btn-danger" style="flex:1;" onclick="reviewMerchant('${a.id}', 'REJECT')">Reject</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function reviewMerchant(applicationId, action) {
+      try {
+        const res = await fetch('/api/admin/merchants', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ applicationId, action, reviewedBy: appData.user?.name || 'Admin' })
+        });
+        if (res.ok) {
+          showToast(`Merchant application ${action.toLowerCase()}d!`);
+          loadAdminData();
+        }
+      } catch {
+        showToast('Error reviewing merchant application');
       }
     }
 

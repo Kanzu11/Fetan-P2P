@@ -25,6 +25,7 @@ import {
   Power,
 } from 'lucide-react';
 import { CreateOfferModal } from '@/client/components/create-offer-modal';
+import { ProtectedRoute } from '@/client/components/protected-route';
 
 function OrdersContent() {
   const searchParams = useSearchParams();
@@ -491,10 +492,12 @@ function OrdersContent() {
 
 export default function OrdersPage() {
   return (
-    <Suspense
-      fallback={<div className="p-12 text-center text-slate-500 text-xs">Loading orders...</div>}
-    >
-      <OrdersContent />
-    </Suspense>
+    <ProtectedRoute>
+      <Suspense
+        fallback={<div className="p-12 text-center text-slate-500 text-xs">Loading orders...</div>}
+      >
+        <OrdersContent />
+      </Suspense>
+    </ProtectedRoute>
   );
 }

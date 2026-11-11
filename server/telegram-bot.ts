@@ -50,6 +50,7 @@ class TelegramBotManager {
   private initBot(token: string) {
     try {
       this.bot = new Telegraf(token);
+      void this.setupBotMenuButton();
 
       this.bot.action(/^approve_merchant:(.+)$/, async (ctx) => {
         const applicationId = ctx.match[1];
@@ -76,6 +77,45 @@ class TelegramBotManager {
       });
     } catch (err) {
       console.error('Failed to initialize Telegram Bot:', err);
+    }
+  }
+
+  async setupBotMenuButton(): Promise<boolean> {
+    const token = this.getBotToken();
+    const miniAppUrl = this.getMiniAppUrl();
+    if (!token || !miniAppUrl) return false;
+
+    try {
+      await fetch(`https://api.telegram.org/bot${token}/setChatMenuButton`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          menu_button: {
+            type: 'web_app',
+            text: '📱 Open Fetan P2P',
+            web_app: { url: miniAppUrl },
+          },
+        }),
+      });
+
+      await fetch(`https://api.telegram.org/bot${token}/setMyCommands`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          commands: [
+            { command: 'start', description: '🚀 Open Fetan P2P Platform' },
+            { command: 'app', description: '📱 Launch Mini App' },
+            { command: 'kyc', description: '🪪 Verify Your Identity' },
+            { command: 'merchant', description: '🏪 Apply as Merchant' },
+            { command: 'support', description: '💬 Support & Complaints' },
+            { command: 'admin', description: '🛡️ Admin Dashboard' },
+          ],
+        }),
+      });
+      return true;
+    } catch (e) {
+      console.warn('Could not set telegram menu button:', e);
+      return false;
     }
   }
 
@@ -475,12 +515,14 @@ class TelegramBotManager {
 
     const user = db.getUser(app.userId);
     if (approved) {
-      db.updateUser(app.userId, { role: 'MERCHANT', kycStatus: 'VERIFIED' });
+      db.updateUser(app.userId, { role: 'MERCHANT', merchantStatus: 'APPROVED', kycStatus: 'VERIFIED' });
 
       wsGateway.emitToUser(app.userId, 'merchant_status_updated', {
         role: 'MERCHANT',
         message: 'Your merchant application is approved! You can now post Buy & Sell ads.',
       });
+    } else {
+      db.updateUser(app.userId, { merchantStatus: 'REJECTED' });
     }
 
     if (user?.telegramChatId) {

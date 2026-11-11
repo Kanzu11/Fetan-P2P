@@ -25,6 +25,7 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
   const [docType, setDocType] = useState<KycDocType>('NATIONAL_ID');
   const [docNumber, setDocNumber] = useState('');
   const [docPhotoUrl, setDocPhotoUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +34,37 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
 
   const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'fetanp2probot';
   const miniAppUrl = process.env.NEXT_PUBLIC_TELEGRAM_MINIAPP_URL || 'https://app9136159373.tgcloud.ai/';
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', 'fetan_p2p/kyc');
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.url) {
+        setDocPhotoUrl(data.url);
+        setNotification('ID image uploaded to Cloudinary successfully!');
+      } else {
+        setError(data.error || 'Failed to upload image');
+      }
+    } catch {
+      setError('Network error while uploading image');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,18 +243,80 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                ID Photo Link (Optional)
+                Upload ID Photo / Document (Cloudinary)
               </label>
-              <div className="relative">
-                <Upload className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="url"
-                  value={docPhotoUrl}
-                  onChange={(e) => setDocPhotoUrl(e.target.value)}
-                  placeholder="https://... (or upload photo in @fetanp2probot)"
-                  className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-600"
-                />
-              </div>
+
+              {docPhotoUrl ? (
+                <div className="relative rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={docPhotoUrl}
+                      alt="Uploaded ID preview"
+                      className="w-12 h-12 object-cover rounded-lg border border-emerald-300"
+                    />
+                    <div>
+                      <div className="text-xs font-bold text-emerald-900 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Image Uploaded</span>
+                      </div>
+                      <a
+                        href={docPhotoUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-emerald-700 underline truncate block max-w-[200px]"
+                      >
+                        View in Cloudinary
+                      </a>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDocPhotoUrl('')}
+                    className="text-xs text-rose-600 font-semibold hover:underline"
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 bg-slate-50 dark:bg-slate-950/50 cursor-pointer transition-colors text-center">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      disabled={uploadingImage}
+                    />
+                    {uploadingImage ? (
+                      <div className="flex items-center gap-2 text-xs text-slate-600 font-semibold">
+                        <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                        <span>Uploading to Cloudinary...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="w-6 h-6 text-slate-400 mb-1" />
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                          Click to upload ID photo
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          JPG, PNG, WEBP (stored securely on Cloudinary)
+                        </span>
+                      </>
+                    )}
+                  </label>
+
+                  <div className="relative">
+                    <input
+                      type="url"
+                      value={docPhotoUrl}
+                      onChange={(e) => setDocPhotoUrl(e.target.value)}
+                      placeholder="Or paste image URL directly..."
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-[11px] text-slate-600 dark:text-slate-300 focus:outline-none focus:border-emerald-600"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">

@@ -185,6 +185,8 @@ export interface User {
   kycDocType?: KycDocType;
   kycDocNumber?: string;
   kycSubmittedAt?: string;
+  /** Separate merchant application status */
+  merchantStatus?: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
   usdtBalance: number;
   /** USDT held for open orders. Always equals the sum of this user's open sell orders. */
   usdtLocked: number;
@@ -242,6 +244,8 @@ export interface ChatMessage {
   senderName: string;
   senderRole: Role;
   text: string;
+  imageUrl?: string;
+  type?: 'TEXT' | 'IMAGE';
   timestamp: string;
   isSystem?: boolean;
 }
@@ -277,6 +281,8 @@ export interface P2POrder {
   createdAt: string;
   updatedAt: string;
   paidAt?: string;
+  autoReleaseAt?: string;
+  isAutoRelease?: boolean;
   completedAt?: string;
   cancelledAt?: string;
   cancelledBy?: 'BUYER' | 'ADMIN' | 'SYSTEM' | string;
@@ -298,10 +304,14 @@ export interface MerchantApplication {
   userId: string;
   userEmail: string;
   userName: string;
+  businessName?: string;
   telegramHandle: string;
   kycDocType: KycDocType;
   kycDocNumber: string;
+  proofDocumentUrl?: string;
   usdtBalance: number;
+  tradeExperience?: string;
+  terms?: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   submittedAt: string;
   reviewedBy?: string;

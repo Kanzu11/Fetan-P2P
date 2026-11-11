@@ -19,7 +19,16 @@ import {
   Search,
   Lock,
   AlertCircle,
+  Eye,
+  FileCheck,
+  X,
+  ExternalLink,
+  UserCheck,
+  CheckCircle2,
+  Image as ImageIcon,
+  Zap,
 } from 'lucide-react';
+import { ProtectedRoute } from '@/client/components/protected-route';
 
 export default function AdminDashboardPage() {
   const { currentUser, connected, refreshUser, setNotification } = useRealtime();
@@ -37,6 +46,10 @@ export default function AdminDashboardPage() {
   const [orderStatusFilter, setOrderStatusFilter] = useState<
     'ALL' | 'OPEN' | 'DISPUTED' | 'COMPLETED' | 'CANCELLED'
   >('ALL');
+
+  // Inspection Lightbox Modals
+  const [inspectKycModal, setInspectKycModal] = useState<KycSubmission | null>(null);
+  const [inspectMerchantModal, setInspectMerchantModal] = useState<MerchantApplication | null>(null);
 
   // Filters for All Users Tab
   const [searchQuery, setSearchQuery] = useState('');
@@ -206,10 +219,20 @@ export default function AdminDashboardPage() {
     }
   };
 
-  // Superadmin Action: Promote/Demote ADMIN
+  // Admin & Superadmin Action: Promote/Demote ADMIN
   const handleToggleAdminRole = async (targetUser: User) => {
-    if (currentUser?.role !== 'SUPERADMIN') {
-      setAdminError('Only Superadmin can add or remove Admin roles.');
+    if (currentUser?.role !== 'SUPERADMIN' && currentUser?.role !== 'ADMIN') {
+      setAdminError('Only Administrators or Superadmin can manage Admin privileges.');
+      return;
+    }
+
+    if (targetUser.role === 'SUPERADMIN' || targetUser.telegramHandle === '@kanzedin') {
+      setAdminError('Security Guard: Superadmin account (@kanzedin) cannot be modified or demoted.');
+      return;
+    }
+
+    if (targetUser.id === currentUser.id) {
+      setAdminError('You cannot modify your own administrative role.');
       return;
     }
 
@@ -330,7 +353,8 @@ export default function AdminDashboardPage() {
   });
 
   return (
-    <div className="space-y-6 pb-8">
+    <ProtectedRoute requireAdmin={true}>
+      <div className="space-y-6 pb-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2.5">
@@ -442,7 +466,7 @@ export default function AdminDashboardPage() {
           {t.tabKyc} ({kycSubmissions.filter((k) => k.status === 'PENDING').length})
         </button>
 
-        {isSuperadmin && (
+        {(isSuperadmin || currentUser?.role === 'ADMIN') && (
           <button
             onClick={() => setActiveTab('SUPERADMIN')}
             className={`px-4 py-2 rounded-xl font-bold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
@@ -754,7 +778,7 @@ export default function AdminDashboardPage() {
                                 </button>
                               )}
 
-                              {isSuperadmin && (
+                              {!isSelf && u.telegramHandle !== '@kanzedin' && (
                                 <button
                                   onClick={() => handleToggleAdminRole(u)}
                                   disabled={actionLoadingId === u.id}
@@ -785,23 +809,53 @@ export default function AdminDashboardPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 uppercase text-[11px] font-semibold">
-                  <th className="py-3.5 px-4">User</th>
+                  <th className="py-3.5 px-4">Merchant / Applicant</th>
+                  <th className="py-3.5 px-4">Business Details & Terms</th>
+                  <th className="py-3.5 px-4">Proof Document</th>
                   <th className="py-3.5 px-4">{t.balance}</th>
-                  <th className="py-3.5 px-4">{t.docType}</th>
                   <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {merchantApps.map((app) => {
-                  const isUnderfunded = app.usdtBalance < 10.0;
+                  const isUnderfunded = (app.usdtBalance ?? 0) < 10.0;
                   const isPending = app.status === 'PENDING';
 
                   return (
                     <tr key={app.id} className="hover:bg-slate-50">
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-900">{displayName(app.userName)}</div>
-                        <div className="text-[11px] text-slate-500">{app.telegramHandle}</div>
+                        <div className="text-[11px] text-slate-500">{app.telegramHandle || app.userEmail}</div>
+                      </td>
+
+                      <td className="py-3.5 px-4 max-w-xs">
+                        <div className="font-semibold text-slate-800">
+                          {app.businessName || 'Independent Merchant'}
+                        </div>
+                        <div className="text-[11px] text-slate-500 truncate">
+                          Exp: {app.tradeExperience || 'Experienced P2P trader'}
+                        </div>
+                        {app.terms && (
+                          <div className="text-[11px] text-slate-400 italic truncate mt-0.5">
+                            &ldquo;{app.terms}&rdquo;
+                          </div>
+                        )}
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        {app.proofDocumentUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => setInspectMerchantModal(app)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold hover:bg-emerald-100 transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>View Proof</span>
+                          </button>
+                        ) : (
+                          <span className="text-slate-400 italic">No document</span>
+                        )}
                       </td>
 
                       <td className="py-3.5 px-4 tabular-nums">
@@ -810,20 +864,13 @@ export default function AdminDashboardPage() {
                             isUnderfunded ? 'text-rose-600' : 'text-emerald-700'
                           }`}
                         >
-                          {app.usdtBalance.toFixed(2)} USDT
+                          {(app.usdtBalance ?? 0).toFixed(2)} USDT
                         </div>
                         {isUnderfunded && (
                           <span className="text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
                             Below 10 USDT
                           </span>
                         )}
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <div className="font-semibold text-slate-800">{app.kycDocType}</div>
-                        <div className="text-[11px] font-mono text-slate-500">
-                          {app.kycDocNumber}
-                        </div>
                       </td>
 
                       <td className="py-3.5 px-4">
@@ -840,7 +887,7 @@ export default function AdminDashboardPage() {
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4 text-right space-x-1.5">
+                      <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
                         {isPending ? (
                           <>
                             <button
@@ -881,6 +928,7 @@ export default function AdminDashboardPage() {
                   <th className="py-3.5 px-4">User</th>
                   <th className="py-3.5 px-4">{t.docType}</th>
                   <th className="py-3.5 px-4">ID Number</th>
+                  <th className="py-3.5 px-4">ID Photo (Cloudinary)</th>
                   <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-4 text-right">Action</th>
                 </tr>
@@ -904,6 +952,21 @@ export default function AdminDashboardPage() {
                       </td>
 
                       <td className="py-3.5 px-4">
+                        {sub.docPhotoUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => setInspectKycModal(sub)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-sky-50 border border-sky-200 text-sky-800 font-bold hover:bg-sky-100 transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-sky-600" />
+                            <span>Inspect ID Photo</span>
+                          </button>
+                        ) : (
+                          <span className="text-slate-400 italic">No photo attached</span>
+                        )}
+                      </td>
+
+                      <td className="py-3.5 px-4">
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                             sub.status === 'VERIFIED'
@@ -917,7 +980,7 @@ export default function AdminDashboardPage() {
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4 text-right space-x-1.5">
+                      <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
                         {isPending ? (
                           <>
                             <button
@@ -998,6 +1061,223 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Lightbox Modal: Inspect KYC ID Photo (Cloudinary) */}
+      {inspectKycModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-xl w-full border border-slate-200 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <h3 className="font-bold text-sm">KYC ID Document Inspection</h3>
+              </div>
+              <button
+                onClick={() => setInspectKycModal(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <div className="text-slate-500 font-medium">Applicant Name</div>
+                  <div className="font-bold text-slate-900 text-sm mt-0.5">{displayName(inspectKycModal.userName)}</div>
+                  <div className="text-[11px] text-slate-400">{inspectKycModal.userEmail}</div>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <div className="text-slate-500 font-medium">Document Details</div>
+                  <div className="font-bold text-slate-900 text-sm mt-0.5">{inspectKycModal.kycDocType}</div>
+                  <div className="font-mono text-[11px] text-emerald-700 font-bold">{inspectKycModal.kycDocNumber}</div>
+                </div>
+              </div>
+
+              {inspectKycModal.docPhotoUrl ? (
+                <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-950 flex flex-col items-center justify-center p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={inspectKycModal.docPhotoUrl}
+                    alt="KYC Document"
+                    className="max-h-[360px] w-auto object-contain rounded-lg shadow"
+                  />
+                  <div className="pt-2 text-[11px] text-slate-400 flex items-center gap-2">
+                    <a
+                      href={inspectKycModal.docPhotoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sky-400 hover:underline flex items-center gap-1"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Open Full Resolution on Cloudinary
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs">
+                  No image photo was uploaded with this submission.
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
+              <span className="text-xs text-slate-500">
+                Current Status: <b className="text-slate-800">{inspectKycModal.status}</b>
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setInspectKycModal(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-100"
+                >
+                  Close
+                </button>
+                {inspectKycModal.status === 'PENDING' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await handleReviewKyc(inspectKycModal.id, 'REJECT');
+                        setInspectKycModal(null);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700"
+                    >
+                      Reject ID
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await handleReviewKyc(inspectKycModal.id, 'APPROVE');
+                        setInspectKycModal(null);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700"
+                    >
+                      Approve ID
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Modal: Inspect Merchant Proof Document */}
+      {inspectMerchantModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-xl w-full border border-slate-200 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-emerald-400" />
+                <h3 className="font-bold text-sm">Merchant Application Review</h3>
+              </div>
+              <button
+                onClick={() => setInspectMerchantModal(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                  <div className="text-slate-500 font-medium">Business / Trade Name</div>
+                  <div className="font-bold text-slate-900 text-sm">
+                    {inspectMerchantModal.businessName || inspectMerchantModal.userName}
+                  </div>
+                  <div className="text-[11px] text-slate-400">{inspectMerchantModal.userEmail}</div>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                  <div className="text-slate-500 font-medium">USDT Balance</div>
+                  <div className="font-bold text-emerald-700 text-sm">
+                    {(inspectMerchantModal.usdtBalance ?? 0).toFixed(2)} USDT
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    {(inspectMerchantModal.usdtBalance ?? 0) >= 10 ? 'Eligible (>=10 USDT)' : 'Low Balance'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <div className="text-slate-500 font-medium">P2P Trade Experience</div>
+                <p className="text-slate-800 leading-relaxed">
+                  {inspectMerchantModal.tradeExperience || 'Standard P2P trader'}
+                </p>
+              </div>
+
+              {inspectMerchantModal.terms && (
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                  <div className="text-slate-500 font-medium">Merchant Trade Terms</div>
+                  <p className="text-slate-800 italic leading-relaxed">
+                    &ldquo;{inspectMerchantModal.terms}&rdquo;
+                  </p>
+                </div>
+              )}
+
+              {inspectMerchantModal.proofDocumentUrl && (
+                <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-950 p-2 flex flex-col items-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={inspectMerchantModal.proofDocumentUrl}
+                    alt="Merchant Proof"
+                    className="max-h-[300px] w-auto object-contain rounded-lg shadow"
+                  />
+                  <a
+                    href={inspectMerchantModal.proofDocumentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="pt-2 text-sky-400 hover:underline flex items-center gap-1 text-[11px]"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    Open Document on Cloudinary
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
+              <span className="text-xs text-slate-500">
+                Status: <b className="text-slate-800">{inspectMerchantModal.status}</b>
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setInspectMerchantModal(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-100"
+                >
+                  Close
+                </button>
+                {inspectMerchantModal.status === 'PENDING' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await handleReviewMerchant(inspectMerchantModal.id, 'REJECT');
+                        setInspectMerchantModal(null);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700"
+                    >
+                      Reject Merchant
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await handleReviewMerchant(inspectMerchantModal.id, 'APPROVE');
+                        setInspectMerchantModal(null);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700"
+                    >
+                      Approve Merchant
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+    </ProtectedRoute>
   );
 }

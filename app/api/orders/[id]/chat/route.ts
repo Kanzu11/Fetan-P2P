@@ -10,9 +10,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const { senderId, text } = await req.json();
-    if (!senderId || !text) {
-      return NextResponse.json({ error: 'senderId and text are required' }, { status: 400 });
+    const { senderId, text, imageUrl, type } = await req.json();
+    if (!senderId || (!text && !imageUrl)) {
+      return NextResponse.json({ error: 'senderId and text or imageUrl are required' }, { status: 400 });
     }
 
     const user = db.getUser(senderId);
@@ -22,17 +22,31 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
+    const messageType = imageUrl ? 'IMAGE' : (type || 'TEXT');
+    const messageText = text?.trim() || (imageUrl ? 'Receipt / Image attachment' : '');
+
     const message: ChatMessage = {
       id: `msg-${Date.now()}`,
       orderId: params.id,
       senderId,
       senderName: user ? user.name : 'Participant',
       senderRole: user ? user.role : 'USER',
-      text,
+      text: messageText,
+      imageUrl: imageUrl || undefined,
+      type: messageType,
       timestamp: new Date().toISOString()
     };
 
     db.addChatMessage(message);
+
+    // If an image receipt was uploaded by the buyer, update the order's proofReceiptUrl
+    if (imageUrl && senderId === order.buyerId && !order.proofReceiptUrl) {
+      db.saveOrder({
+        ...order,
+        proofReceiptUrl: imageUrl,
+        updatedAt: new Date().toISOString()
+      });
+    }
 
     // Broadcast message to trade room
     wsGateway.emitToRoom(`trade:${params.id}`, 'chat_message', message);

@@ -19,18 +19,22 @@ import {
   Clock,
   Home,
   ChevronRight,
+  LogIn,
+  LogOut,
 } from 'lucide-react';
 import { ApplyMerchantModal } from './apply-merchant-modal';
 import { KycModal } from './kyc-modal';
+import { AuthModal } from './auth-modal';
 
 export function Navigation() {
   const pathname = usePathname();
-  const { currentUser, activeOrdersCount, latestActiveOrderId } = useRealtime();
+  const { currentUser, activeOrdersCount, latestActiveOrderId, logout } = useRealtime();
   const { lang, setLang, t } = useI18n();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [merchantModalOpen, setMerchantModalOpen] = useState(false);
   const [kycModalOpen, setKycModalOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   const isAdmin = isAdminRole(currentUser?.role);
 
@@ -140,7 +144,7 @@ export function Navigation() {
                 </button>
               </div>
 
-              {currentUser && (
+              {currentUser ? (
                 <>
                   {/* Wallet Balance Pill */}
                   <Link
@@ -203,7 +207,24 @@ export function Navigation() {
                       <span>{t.applyMerchant}</span>
                     </button>
                   ) : null}
+
+                  {/* Sign Out Button */}
+                  <button
+                    onClick={() => logout()}
+                    title="Sign Out"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition-colors"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
                 </>
+              ) : (
+                <button
+                  onClick={() => setAuthModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Sign In</span>
+                </button>
               )}
             </div>
 
@@ -421,6 +442,7 @@ export function Navigation() {
       </nav>
 
       {/* Modals */}
+      <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
       <ApplyMerchantModal isOpen={merchantModalOpen} onClose={() => setMerchantModalOpen(false)} />
       <KycModal isOpen={kycModalOpen} onClose={() => setKycModalOpen(false)} />
     </>

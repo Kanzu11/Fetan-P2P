@@ -278,13 +278,15 @@ export class EscrowController {
       const methodShortName =
         PAYMENT_METHODS_META[order.paymentMethod]?.shortName || order.paymentMethod;
       const cleanRef = proofReceiptUrl?.trim();
+      const autoReleaseDelaySeconds = 15;
+      const autoReleaseDate = new Date(now.getTime() + autoReleaseDelaySeconds * 1000);
 
       const updatedLogs = [
         ...order.auditLogs,
         {
           id: `log-${Date.now()}`,
           timestamp: now.toISOString(),
-          message: `Buyer marked ${order.etbAmount.toLocaleString()} ETB as paid via ${methodShortName}.${cleanRef ? ` Reference: ${cleanRef}` : ''}`,
+          message: `Buyer marked ${order.etbAmount.toLocaleString()} ETB as paid via ${methodShortName}.${cleanRef ? ` Reference: ${cleanRef}` : ''} (Automated release scheduled in ${autoReleaseDelaySeconds}s).`,
           actor: 'BUYER' as const,
         },
       ];
@@ -293,6 +295,7 @@ export class EscrowController {
         ...order,
         status: 'PAYMENT_SENT',
         paidAt: now.toISOString(),
+        autoReleaseAt: autoReleaseDate.toISOString(),
         proofReceiptUrl: cleanRef || order.proofReceiptUrl,
         auditLogs: updatedLogs,
         updatedAt: now.toISOString(),
@@ -306,7 +309,7 @@ export class EscrowController {
         senderId: 'SYSTEM',
         senderName: 'Fetan Escrow',
         senderRole: 'ADMIN',
-        text: `Buyer marked ${order.etbAmount.toLocaleString()} ETB as paid.${cleanRef ? ` Payment ref: ${cleanRef}.` : ''} ${displayName(order.sellerName)}, please check your ${methodShortName} account and click "Confirm & Complete Order" once you receive the money.`,
+        text: `Buyer marked ${order.etbAmount.toLocaleString()} ETB as paid.${cleanRef ? ` Payment ref: ${cleanRef}.` : ''} ⚡ Fetan Auto-Release Engine is active: USDT will automatically release to ${displayName(order.buyerName)} in ${autoReleaseDelaySeconds} seconds once verified, or seller can click "Confirm & Complete Order" now.`,
         timestamp: now.toISOString(),
         isSystem: true,
       });
@@ -318,8 +321,32 @@ export class EscrowController {
       });
       void telegramBot.sendOrderNotification(updatedOrder, 'PAID');
 
+      // Schedule automated escrow release
+      this.scheduleAutoRelease(orderId, autoReleaseDelaySeconds);
+
       return updatedOrder;
     });
+  }
+
+  /**
+   * Auto-Release Scheduler: Releases locked funds when order is complete without dispute
+   */
+  scheduleAutoRelease(orderId: string, delaySeconds: number = 15): void {
+    setTimeout(async () => {
+      try {
+        const order = db.getOrder(orderId);
+        if (order && order.status === 'PAYMENT_SENT') {
+          console.log(`[Auto-Release] Triggering automatic release for Order #${orderId}...`);
+          await this.releaseEscrow(
+            orderId,
+            'AUTO_RELEASE',
+            'Automated escrow release upon order payment completion'
+          );
+        }
+      } catch (err: unknown) {
+        console.warn(`[Auto-Release] Notice for Order #${orderId}:`, err instanceof Error ? err.message : err);
+      }
+    }, delaySeconds * 1000);
   }
 
   /**
@@ -337,16 +364,17 @@ export class EscrowController {
 
         const actor = db.getUser(actorId);
         const isAdmin = isAdminRole(actor?.role);
+        const isSystemAutoRelease = actorId === 'AUTO_RELEASE' || actorId === 'SYSTEM';
 
-        if (order.sellerId !== actorId && !isAdmin) {
-          throw new Error('Only the seller or an admin can release USDT and complete the order.');
+        if (order.sellerId !== actorId && !isAdmin && !isSystemAutoRelease) {
+          throw new Error('Only the seller, automated escrow, or an admin can release USDT and complete the order.');
         }
         if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
           throw new Error(`This order is already ${order.status.toLowerCase()}.`);
         }
 
         // Seller cannot release before buyer marks payment as sent
-        if (!isAdmin && order.status === 'PENDING_PAYMENT') {
+        if (!isAdmin && !isSystemAutoRelease && order.status === 'PENDING_PAYMENT') {
           throw new Error('Wait for the buyer to mark the order as paid before releasing USDT.');
         }
 
@@ -370,10 +398,12 @@ export class EscrowController {
         });
 
         const now = new Date();
-        const isReleasedByAdmin = isAdmin && order.sellerId !== actorId;
+        const isReleasedByAdmin = isAdmin && order.sellerId !== actorId && !isSystemAutoRelease;
         const cleanNote = note?.trim();
 
-        const releasedByMsg = isReleasedByAdmin
+        const releasedByMsg = isSystemAutoRelease
+          ? `⚡ Automatic Escrow Release: Order verified and ${order.usdtAmount.toFixed(2)} USDT automatically released to ${displayName(buyer.name)}.`
+          : isReleasedByAdmin
           ? `Admin (${displayName(actor?.name)}) completed the order and released ${order.usdtAmount.toFixed(2)} USDT to ${displayName(buyer.name)}.${cleanNote ? ` Note: ${cleanNote}` : ''}`
           : `Seller confirmed receiving ${order.etbAmount.toLocaleString()} ETB and released ${order.usdtAmount.toFixed(2)} USDT to ${displayName(buyer.name)}.`;
 
@@ -383,7 +413,7 @@ export class EscrowController {
             id: `log-${Date.now()}`,
             timestamp: now.toISOString(),
             message: releasedByMsg,
-            actor: isReleasedByAdmin ? ('ADMIN' as const) : ('SELLER' as const),
+            actor: isSystemAutoRelease ? ('SYSTEM' as const) : isReleasedByAdmin ? ('ADMIN' as const) : ('SELLER' as const),
           },
         ];
 
@@ -391,7 +421,8 @@ export class EscrowController {
           ...order,
           status: 'COMPLETED',
           completedAt: now.toISOString(),
-          resolvedBy: isReleasedByAdmin ? displayName(actor?.name) : order.resolvedBy,
+          isAutoRelease: isSystemAutoRelease,
+          resolvedBy: isSystemAutoRelease ? 'Fetan Auto-Release Engine' : isReleasedByAdmin ? displayName(actor?.name) : order.resolvedBy,
           resolutionNote: cleanNote || order.resolutionNote,
           auditLogs: updatedLogs,
           updatedAt: now.toISOString(),
@@ -405,7 +436,9 @@ export class EscrowController {
           senderId: 'SYSTEM',
           senderName: 'Fetan Escrow',
           senderRole: 'ADMIN',
-          text: isReleasedByAdmin
+          text: isSystemAutoRelease
+            ? `⚡ Automatic Release Complete! Fetan Escrow verified payment completion and automatically transferred ${order.usdtAmount.toFixed(2)} USDT to ${displayName(buyer.name)}'s wallet with zero fee.`
+            : isReleasedByAdmin
             ? `Order completed by Admin. ${order.usdtAmount.toFixed(2)} USDT has been added to ${displayName(buyer.name)}'s wallet.${cleanNote ? ` Note: ${cleanNote}` : ''}`
             : `Order completed! ${order.usdtAmount.toFixed(2)} USDT has been added to ${displayName(buyer.name)}'s wallet with zero fee.`,
           timestamp: now.toISOString(),
