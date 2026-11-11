@@ -55,7 +55,7 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
       const data = await res.json();
       if (res.ok && data.success && data.url) {
         setDocPhotoUrl(data.url);
-        setNotification('ID image uploaded to Cloudinary successfully!');
+        setNotification('ID image uploaded successfully!');
       } else {
         setError(data.error || 'Failed to upload image');
       }
@@ -243,7 +243,7 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                Upload ID Photo / Document (Cloudinary)
+                Upload ID Photo / Document
               </label>
 
               {docPhotoUrl ? (
@@ -266,7 +266,7 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
                         rel="noreferrer"
                         className="text-[10px] text-emerald-700 underline truncate block max-w-[200px]"
                       >
-                        View in Cloudinary
+                        View Full Image
                       </a>
                     </div>
                   </div>
@@ -291,7 +291,7 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
                     {uploadingImage ? (
                       <div className="flex items-center gap-2 text-xs text-slate-600 font-semibold">
                         <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
-                        <span>Uploading to Cloudinary...</span>
+                        <span>Uploading image...</span>
                       </div>
                     ) : (
                       <>
@@ -300,7 +300,7 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
                           Click to upload ID photo
                         </span>
                         <span className="text-[10px] text-slate-500">
-                          JPG, PNG, WEBP (stored securely on Cloudinary)
+                          JPG, PNG, WEBP (stored securely)
                         </span>
                       </>
                     )}

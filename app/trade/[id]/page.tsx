@@ -221,7 +221,7 @@ export default function EscrowRoomPage() {
       const data = await res.json();
       if (res.ok && data.success && data.url) {
         setReceiptUrl(data.url);
-        setNotification('Payment proof uploaded to Cloudinary!');
+        setNotification('Payment proof uploaded successfully!');
       } else {
         // Fallback to local Data URI if serverless upload fails
         const reader = new FileReader();
@@ -269,7 +269,7 @@ export default function EscrowRoomPage() {
           }),
         });
         await fetchOrderAndChat();
-        setNotification('Image sent in chat via Cloudinary!');
+        setNotification('Image sent in chat successfully!');
       } else {
         setNotification('Could not upload image');
       }
@@ -1461,7 +1461,7 @@ export default function EscrowRoomPage() {
               className="p-3 border-t border-slate-200 bg-white flex items-center gap-2"
             >
               <label
-                title="Attach Image / Receipt (Cloudinary)"
+                title="Attach Image / Receipt"
                 className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer transition-colors relative"
               >
                 <input

@@ -151,7 +151,7 @@
           <label style="font-size: 11px; color: var(--hint);">ID Number</label>
           <input type="text" id="kycDocNumber" placeholder="e.g. FAYDA-8821-4402" required>
 
-          <label style="font-size: 11px; color: var(--hint);">Attach ID Photo (Cloudinary)</label>
+          <label style="font-size: 11px; color: var(--hint);">Attach ID Photo (Fayda / Passport)</label>
           <input type="file" id="kycPhotoInput" accept="image/*" onchange="handleKycPhotoSelected(event)">
           <div id="kycPhotoPreview" style="display: none; margin-bottom: 10px; text-align: center;">
             <img id="kycPreviewImg" src="" alt="ID Preview" style="max-height: 120px; border-radius: 8px; border: 1px solid var(--border);">
@@ -351,9 +351,9 @@
         document.getElementById('kycPreviewImg').src = ev.target.result;
         document.getElementById('kycPhotoPreview').style.display = 'block';
 
-        // Upload to Cloudinary via server API
+        // Upload image via server API
         try {
-          showToast('Uploading ID photo to Cloudinary...');
+          showToast('Uploading ID photo...');
           const formData = new FormData();
           formData.append('file', file);
           formData.append('folder', 'kyc');
@@ -661,7 +661,7 @@
           ${s.docPhotoUrl ? `
             <div style="margin:4px 0;">
               <a href="${s.docPhotoUrl}" target="_blank" style="color:var(--sky); font-size:10px; text-decoration:underline;">
-                🔍 View Uploaded ID Photo (Cloudinary)
+                🔍 View Uploaded ID Photo
               </a>
             </div>
           ` : ''}

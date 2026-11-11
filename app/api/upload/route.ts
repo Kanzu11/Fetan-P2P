@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
-import { cloudinaryService, UploadFolder } from '@/server/cloudinary-service';
+import { uploadService, UploadFolder } from '@/server/upload-service';
 import { rateLimiter, getClientIp } from '@/server/security/rate-limiter';
 
 export const dynamic = 'force-dynamic';
+
+function normalizeFolder(inputFolder?: string | null): UploadFolder {
+  if (!inputFolder) return 'general';
+  if (inputFolder.includes('kyc')) return 'kyc';
+  if (inputFolder.includes('receipt')) return 'receipts';
+  return 'general';
+}
 
 export async function POST(req: Request) {
   try {
@@ -23,7 +30,8 @@ export async function POST(req: Request) {
     if (contentType.includes('multipart/form-data')) {
       const formData = await req.formData();
       const file = formData.get('file') as File | null;
-      const folder = (formData.get('folder') as UploadFolder) || 'fetan_p2p/general';
+      const rawFolder = formData.get('folder') as string | null;
+      const folder = normalizeFolder(rawFolder);
 
       if (!file) {
         return NextResponse.json({ error: 'No file provided in form data' }, { status: 400 });
@@ -36,29 +44,30 @@ export async function POST(req: Request) {
 
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
-      const result = await cloudinaryService.uploadBuffer(buffer, folder, file.type || 'image/jpeg');
+      const result = await uploadService.uploadBuffer(buffer, folder, file.type || 'image/jpeg');
 
       return NextResponse.json({
         success: true,
-        url: result.secureUrl,
-        publicId: result.publicId,
+        url: result.url,
+        filename: result.filename,
         format: result.format,
       });
     }
 
     // 2. JSON Base64 Payload
     const body = await req.json();
-    const { image, folder = 'fetan_p2p/general' } = body;
+    const { image, folder: rawFolder } = body;
+    const folder = normalizeFolder(rawFolder);
 
     if (!image || typeof image !== 'string') {
       return NextResponse.json({ error: 'Missing image string (Data URI / base64 required)' }, { status: 400 });
     }
 
-    const result = await cloudinaryService.uploadDataUri(image, folder);
+    const result = await uploadService.uploadDataUri(image, folder);
     return NextResponse.json({
       success: true,
-      url: result.secureUrl,
-      publicId: result.publicId,
+      url: result.url,
+      filename: result.filename,
       format: result.format,
     });
   } catch (err: unknown) {

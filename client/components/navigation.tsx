@@ -21,10 +21,12 @@ import {
   ChevronRight,
   LogIn,
   LogOut,
+  User,
 } from 'lucide-react';
 import { ApplyMerchantModal } from './apply-merchant-modal';
 import { KycModal } from './kyc-modal';
 import { AuthModal } from './auth-modal';
+import { ProfileModal } from './profile-modal';
 
 export function Navigation() {
   const pathname = usePathname();
@@ -35,6 +37,7 @@ export function Navigation() {
   const [merchantModalOpen, setMerchantModalOpen] = useState(false);
   const [kycModalOpen, setKycModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   const isAdmin = isAdminRole(currentUser?.role);
 
@@ -170,6 +173,21 @@ export function Navigation() {
                     )}
                   </Link>
 
+                  {/* User Profile Pill (See Profile & Edit) */}
+                  <button
+                    onClick={() => setProfileModalOpen(true)}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-xs font-semibold text-slate-800 shadow-sm"
+                    title="See Profile & Edit"
+                  >
+                    <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-bold">
+                      {(currentUser.nickname || currentUser.name || 'U').charAt(0).toUpperCase()}
+                    </div>
+                    <span className="truncate max-w-[90px]">{displayName(currentUser.name)}</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 uppercase border border-slate-200">
+                      {currentUser.role}
+                    </span>
+                  </button>
+
                   {/* KYC Badge or Action */}
                   {currentUser.kycStatus === 'VERIFIED' ? (
                     <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg">
@@ -208,13 +226,14 @@ export function Navigation() {
                     </button>
                   ) : null}
 
-                  {/* Sign Out Button */}
+                  {/* Clear Log Out Button */}
                   <button
                     onClick={() => logout()}
-                    title="Sign Out"
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-xs font-semibold text-slate-700 transition-colors shadow-sm"
+                    title="Log Out"
                   >
-                    <LogOut className="w-4 h-4" />
+                    <LogOut className="w-3.5 h-3.5 text-rose-500" />
+                    <span>Log Out</span>
                   </button>
                 </>
               ) : (
@@ -364,6 +383,42 @@ export function Navigation() {
                   </span>
                 </Link>
               )}
+
+              {currentUser ? (
+                <div className="pt-2 border-t border-slate-100 space-y-2">
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setProfileModalOpen(true);
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 font-bold text-xs flex items-center justify-center gap-2"
+                  >
+                    <User className="w-4 h-4 text-slate-600" />
+                    <span>See Profile &amp; Edit Details</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      void logout();
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 font-bold text-xs flex items-center justify-center gap-2"
+                  >
+                    <LogOut className="w-4 h-4 text-rose-500" />
+                    <span>Log Out</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setAuthModalOpen(true);
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Sign In</span>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -445,6 +500,14 @@ export function Navigation() {
       <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
       <ApplyMerchantModal isOpen={merchantModalOpen} onClose={() => setMerchantModalOpen(false)} />
       <KycModal isOpen={kycModalOpen} onClose={() => setKycModalOpen(false)} />
+      <ProfileModal
+        isOpen={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        onOpenKyc={() => {
+          setProfileModalOpen(false);
+          setKycModalOpen(true);
+        }}
+      />
     </>
   );
 }

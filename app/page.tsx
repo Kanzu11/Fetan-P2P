@@ -44,6 +44,7 @@ export default function LandingPage() {
   const [merchantModalOpen, setMerchantModalOpen] = useState(false);
   const [kycModalOpen, setKycModalOpen] = useState(false);
   const [termsModalOpen, setTermsModalOpen] = useState(false);
+  const [heroTab, setHeroTab] = useState<'LOGIN' | 'CALCULATOR'>('LOGIN');
 
   // Inline Email Login State
   const [inlineEmail, setInlineEmail] = useState('');
@@ -284,169 +285,355 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Right Column: Quick Price Calculator */}
+          {/* Right Column: Instant Sign In / Quick Price Calculator */}
           <div className="lg:col-span-5 bg-slate-900 text-white p-6 sm:p-8 flex flex-col justify-between border-t lg:border-t-0 lg:border-l border-slate-800">
-            <form onSubmit={handleHeroQuoteSubmit} className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                    Quick Calculator
-                  </span>
-                </div>
-                <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full tabular-nums">
-                  1 USDT ≈ {unitRate.toFixed(2)} ETB
-                </span>
-              </div>
-
-              {/* Buy / Sell Switcher */}
-              <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-800 border border-slate-700 text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => setCalcSide('BUY')}
-                  className={`py-2.5 rounded-lg transition-colors ${
-                    calcSide === 'BUY'
-                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
-                >
-                  {lang === 'am' ? 'USDT ግዛ' : 'Buy USDT'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCalcSide('SELL')}
-                  className={`py-2.5 rounded-lg transition-colors ${
-                    calcSide === 'SELL'
-                      ? 'bg-rose-500 text-white shadow-sm'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
-                >
-                  {lang === 'am' ? 'USDT ሽጥ' : 'Sell USDT'}
-                </button>
-              </div>
-
-              {/* Birr Input Box */}
-              <div className="rounded-2xl bg-slate-800 border border-slate-700 p-3.5 space-y-2">
-                <div className="flex justify-between text-xs text-slate-400">
-                  <span>
-                    {calcSide === 'BUY'
-                      ? lang === 'am'
-                        ? 'የሚከፍሉት ብር'
-                        : 'You pay (Birr)'
-                      : lang === 'am'
-                      ? 'የሚቀበሉት ብር'
-                      : 'You get (Birr)'}
-                  </span>
-                  <span>300 – 850,000 ETB</span>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <input
-                    type="number"
-                    value={etbInput}
-                    onChange={(e) => setEtbInput(e.target.value)}
-                    placeholder="15000"
-                    className="w-full bg-transparent text-2xl font-bold text-white tabular-nums focus:outline-none"
-                  />
-                  <span className="px-2.5 py-1 rounded-lg bg-slate-700 text-xs font-bold text-slate-200 flex-shrink-0">
-                    ETB
-                  </span>
-                </div>
-                <div className="flex gap-1.5 pt-1">
-                  {['2000', '10000', '25000', '100000'].map((preset) => (
+            {!currentUser ? (
+              <div className="space-y-4">
+                {/* Switcher Pill between Instant Sign In and Calculator */}
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex p-1 bg-slate-800 rounded-xl text-xs font-semibold gap-1">
                     <button
-                      key={preset}
                       type="button"
-                      onClick={() => setEtbInput(preset)}
-                      className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors ${
-                        etbInput === preset
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                          : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                      onClick={() => setHeroTab('LOGIN')}
+                      className={`px-3 py-1.5 rounded-lg transition-colors ${
+                        heroTab === 'LOGIN'
+                          ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
+                          : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      {Number(preset).toLocaleString()}
+                      Instant Sign In
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => setHeroTab('CALCULATOR')}
+                      className={`px-3 py-1.5 rounded-lg transition-colors ${
+                        heroTab === 'CALCULATOR'
+                          ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Calculator
+                    </button>
+                  </div>
+                  <span className="text-[11px] font-mono text-emerald-400 tabular-nums">
+                    1 USDT ≈ {unitRate.toFixed(2)} ETB
+                  </span>
                 </div>
-              </div>
 
-              {/* Calculated USDT Output */}
-              <div className="rounded-2xl bg-slate-800 border border-slate-700 p-3.5 space-y-1">
-                <div className="flex justify-between text-xs text-slate-400">
+                {heroTab === 'LOGIN' ? (
+                  <div className="space-y-4 py-1">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                        <h3 className="text-base font-bold text-white">Sign In to Fetan P2P</h3>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Access escrow protection, buy/sell USDT with Ethiopian Birr, or manage your wallet.
+                      </p>
+                    </div>
+
+                    {authError && (
+                      <div className="p-2.5 rounded-lg bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between">
+                        <span>{authError}</span>
+                        <button onClick={() => setAuthError(null)} className="text-rose-400 font-bold ml-2">✕</button>
+                      </div>
+                    )}
+
+                    {/* Google OAuth Button */}
+                    <button
+                      type="button"
+                      onClick={handleInlineGoogleLogin}
+                      disabled={authLoading}
+                      className="w-full py-3 px-4 rounded-xl bg-white hover:bg-slate-100 text-slate-900 text-xs font-bold flex items-center justify-center gap-2.5 shadow transition-colors disabled:opacity-50"
+                    >
+                      <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
+                        <path
+                          fill="#4285F4"
+                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        />
+                        <path
+                          fill="#34A853"
+                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                        />
+                        <path
+                          fill="#EA4335"
+                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                        />
+                      </svg>
+                      <span>{authLoading ? 'Signing in...' : 'Continue with Google'}</span>
+                    </button>
+
+                    <div className="relative flex items-center justify-center">
+                      <div className="border-t border-slate-800 w-full" />
+                      <span className="bg-slate-900 px-2 text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                        or email
+                      </span>
+                    </div>
+
+                    {/* Direct Email Form */}
+                    <form onSubmit={handleInlineEmailLogin} className="space-y-2.5">
+                      <input
+                        type="email"
+                        value={inlineEmail}
+                        onChange={(e) => setInlineEmail(e.target.value)}
+                        placeholder="Enter your email address..."
+                        required
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800/80 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-emerald-500"
+                      />
+                      <button
+                        type="submit"
+                        disabled={authLoading}
+                        className="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        <span>{authLoading ? 'Signing in...' : 'Sign In with Email'}</span>
+                      </button>
+                    </form>
+
+                    <p className="text-[11px] text-slate-500 text-center pt-1">
+                      By continuing, you agree to the pre-funded escrow rules.
+                    </p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleHeroQuoteSubmit} className="space-y-4">
+                    {/* Buy / Sell Switcher */}
+                    <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-800 border border-slate-700 text-xs font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setCalcSide('BUY')}
+                        className={`py-2 rounded-lg transition-colors ${
+                          calcSide === 'BUY'
+                            ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                            : 'text-slate-300 hover:text-white'
+                        }`}
+                      >
+                        {lang === 'am' ? 'USDT ግዛ' : 'Buy USDT'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCalcSide('SELL')}
+                        className={`py-2 rounded-lg transition-colors ${
+                          calcSide === 'SELL'
+                            ? 'bg-rose-500 text-white shadow-sm'
+                            : 'text-slate-300 hover:text-white'
+                        }`}
+                      >
+                        {lang === 'am' ? 'USDT ሽጥ' : 'Sell USDT'}
+                      </button>
+                    </div>
+
+                    {/* Birr Input Box */}
+                    <div className="rounded-2xl bg-slate-800 border border-slate-700 p-3 space-y-1.5">
+                      <div className="flex justify-between text-[11px] text-slate-400">
+                        <span>You {calcSide === 'BUY' ? 'pay' : 'receive'} (Birr)</span>
+                        <span>300 – 850,000 ETB</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <input
+                          type="number"
+                          value={etbInput}
+                          onChange={(e) => setEtbInput(e.target.value)}
+                          placeholder="15000"
+                          className="w-full bg-transparent text-xl font-bold text-white tabular-nums focus:outline-none"
+                        />
+                        <span className="px-2 py-0.5 rounded-lg bg-slate-700 text-xs font-bold text-slate-200">
+                          ETB
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Calculated USDT Output */}
+                    <div className="rounded-2xl bg-slate-800 border border-slate-700 p-3 space-y-1">
+                      <div className="text-[11px] text-slate-400">
+                        Estimated {calcSide === 'BUY' ? 'Received' : 'Sold'} (0% fee)
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xl font-bold text-emerald-400 tabular-nums">
+                          {calculatedUsdt.toFixed(2)}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-xs font-bold text-emerald-300">
+                          USDT
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2"
+                    >
+                      <span>Explore Market Offers</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </form>
+                )}
+              </div>
+            ) : (
+              <form onSubmit={handleHeroQuoteSubmit} className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                      Quick Calculator
+                    </span>
+                  </div>
+                  <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full tabular-nums">
+                    1 USDT ≈ {unitRate.toFixed(2)} ETB
+                  </span>
+                </div>
+
+                {/* Buy / Sell Switcher */}
+                <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-800 border border-slate-700 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setCalcSide('BUY')}
+                    className={`py-2.5 rounded-lg transition-colors ${
+                      calcSide === 'BUY'
+                        ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                        : 'text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    {lang === 'am' ? 'USDT ግዛ' : 'Buy USDT'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCalcSide('SELL')}
+                    className={`py-2.5 rounded-lg transition-colors ${
+                      calcSide === 'SELL'
+                        ? 'bg-rose-500 text-white shadow-sm'
+                        : 'text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    {lang === 'am' ? 'USDT ሽጥ' : 'Sell USDT'}
+                  </button>
+                </div>
+
+                {/* Birr Input Box */}
+                <div className="rounded-2xl bg-slate-800 border border-slate-700 p-3.5 space-y-2">
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>
+                      {calcSide === 'BUY'
+                        ? lang === 'am'
+                          ? 'የሚከፍሉት ብር'
+                          : 'You pay (Birr)'
+                        : lang === 'am'
+                        ? 'የሚቀበሉት ብር'
+                        : 'You get (Birr)'}
+                    </span>
+                    <span>300 – 850,000 ETB</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <input
+                      type="number"
+                      value={etbInput}
+                      onChange={(e) => setEtbInput(e.target.value)}
+                      placeholder="15000"
+                      className="w-full bg-transparent text-2xl font-bold text-white tabular-nums focus:outline-none"
+                    />
+                    <span className="px-2.5 py-1 rounded-lg bg-slate-700 text-xs font-bold text-slate-200 flex-shrink-0">
+                      ETB
+                    </span>
+                  </div>
+                  <div className="flex gap-1.5 pt-1">
+                    {['2000', '10000', '25000', '100000'].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setEtbInput(preset)}
+                        className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors ${
+                          etbInput === preset
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        }`}
+                      >
+                        {Number(preset).toLocaleString()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Calculated USDT Output */}
+                <div className="rounded-2xl bg-slate-800 border border-slate-700 p-3.5 space-y-1">
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>
+                      {calcSide === 'BUY'
+                        ? lang === 'am'
+                          ? 'የሚቀበሉት USDT (0% ክፍያ)'
+                          : 'You get (0% fee)'
+                        : lang === 'am'
+                        ? 'የሚሸጡት USDT'
+                        : 'You sell'}
+                    </span>
+                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-500" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl font-bold text-emerald-400 tabular-nums">
+                      {calculatedUsdt.toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-xs font-bold text-emerald-300">
+                      USDT
+                    </span>
+                  </div>
+                </div>
+
+                {/* Payment Method Quick Picker */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs text-slate-400">
+                    {lang === 'am' ? 'የክፍያ ዘዴ' : 'Payment Method'}
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5 text-xs">
+                    {(['TELEBIRR', 'CBE', 'ABYSSINIA', 'AWASH'] as PaymentMethod[]).map((m) => {
+                      const meta = PAYMENT_METHODS_META[m];
+                      const active = selectedRail === m;
+                      return (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setSelectedRail(m)}
+                          className={`px-3 py-2 rounded-xl border text-left flex items-center gap-2 transition-colors ${
+                            active
+                              ? 'bg-white text-slate-900 border-white font-semibold'
+                              : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className="w-1.5 h-3.5 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: meta.accentColor }}
+                          />
+                          <span className="truncate">{meta.shortName}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-sm ${
+                    calcSide === 'BUY'
+                      ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                      : 'bg-rose-500 hover:bg-rose-400 text-white'
+                  }`}
+                >
                   <span>
                     {calcSide === 'BUY'
                       ? lang === 'am'
-                        ? 'የሚቀበሉት USDT (0% ክፍያ)'
-                        : 'You get (0% fee)'
+                        ? 'የመግዣ ዋጋዎችን ይመልከቱ'
+                        : 'See Buy Offers'
                       : lang === 'am'
-                      ? 'የሚሸጡት USDT'
-                      : 'You sell'}
+                      ? 'የመሸጫ ዋጋዎችን ይመልከቱ'
+                      : 'See Sell Offers'}
                   </span>
-                  <ArrowUpDown className="w-3.5 h-3.5 text-slate-500" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-2xl font-bold text-emerald-400 tabular-nums">
-                    {calculatedUsdt.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </span>
-                  <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-xs font-bold text-emerald-300">
-                    USDT
-                  </span>
-                </div>
-              </div>
-
-              {/* Payment Method Quick Picker */}
-              <div className="space-y-1.5">
-                <label className="block text-xs text-slate-400">
-                  {lang === 'am' ? 'የክፍያ ዘዴ' : 'Payment Method'}
-                </label>
-                <div className="grid grid-cols-2 gap-1.5 text-xs">
-                  {(['TELEBIRR', 'CBE', 'ABYSSINIA', 'AWASH'] as PaymentMethod[]).map((m) => {
-                    const meta = PAYMENT_METHODS_META[m];
-                    const active = selectedRail === m;
-                    return (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setSelectedRail(m)}
-                        className={`px-3 py-2 rounded-xl border text-left flex items-center gap-2 transition-colors ${
-                          active
-                            ? 'bg-white text-slate-900 border-white font-semibold'
-                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                        }`}
-                      >
-                        <span
-                          className="w-1.5 h-3.5 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: meta.accentColor }}
-                        />
-                        <span className="truncate">{meta.shortName}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-sm ${
-                  calcSide === 'BUY'
-                    ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
-                    : 'bg-rose-500 hover:bg-rose-400 text-white'
-                }`}
-              >
-                <span>
-                  {calcSide === 'BUY'
-                    ? lang === 'am'
-                      ? 'የመግዣ ዋጋዎችን ይመልከቱ'
-                      : 'See Buy Offers'
-                    : lang === 'am'
-                    ? 'የመሸጫ ዋጋዎችን ይመልከቱ'
-                    : 'See Sell Offers'}
-                </span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </form>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </section>
@@ -571,7 +758,7 @@ export default function LandingPage() {
                 </span>
                 <span className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Cloudinary Receipt Verification</span>
+                  <span>Encrypted Payment Proofs</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />

@@ -10,7 +10,6 @@ import {
   Send,
   CheckCircle2,
   X,
-  Upload,
   Loader2,
   Building,
   FileText,
@@ -28,9 +27,7 @@ export function ApplyMerchantModal({
   const [businessName, setBusinessName] = useState(currentUser?.nickname || '');
   const [telegramHandle, setTelegramHandle] = useState(currentUser?.telegramHandle || '');
   const [terms, setTerms] = useState('Payment within 15 minutes. Fast release after checking bank.');
-  const [tradeExperience, setTradeExperience] = useState('1+ years P2P trading experience');
-  const [proofDocumentUrl, setProofDocumentUrl] = useState('');
-  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [tradeExperience, setTradeExperience] = useState('Active P2P trader');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,37 +35,6 @@ export function ApplyMerchantModal({
   if (!isOpen || !currentUser) return null;
 
   const hasEnoughBalance = currentUser.usdtBalance >= 10.0;
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadingDoc(true);
-    setError(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('folder', 'fetan_p2p/receipts');
-
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success && data.url) {
-        setProofDocumentUrl(data.url);
-        setNotification('Business/Trading document uploaded to Cloudinary!');
-      } else {
-        setError(data.error || 'Failed to upload document');
-      }
-    } catch {
-      setError('Network error while uploading document');
-    } finally {
-      setUploadingDoc(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,7 +51,6 @@ export function ApplyMerchantModal({
           telegramHandle: telegramHandle.trim(),
           terms: terms.trim(),
           tradeExperience: tradeExperience.trim(),
-          proofDocumentUrl: proofDocumentUrl || undefined,
         }),
       });
 
@@ -248,48 +213,9 @@ export function ApplyMerchantModal({
                 />
               </div>
 
-              {/* Cloudinary Document Upload */}
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Proof of Business or Trade History (Cloudinary Upload)
-                </label>
-
-                {proofDocumentUrl ? (
-                  <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50/50 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-emerald-900 text-xs font-semibold">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      <span>Document Uploaded</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setProofDocumentUrl('')}
-                      className="text-xs text-rose-600 hover:underline"
-                    >
-                      Change
-                    </button>
-                  </div>
-                ) : (
-                  <label className="flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 bg-slate-50 dark:bg-slate-950/40 cursor-pointer transition-colors text-xs font-medium text-slate-600 dark:text-slate-300">
-                    <input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                      disabled={uploadingDoc}
-                    />
-                    {uploadingDoc ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
-                    ) : (
-                      <Upload className="w-4 h-4 text-slate-400" />
-                    )}
-                    <span>{uploadingDoc ? 'Uploading to Cloudinary...' : 'Upload Business / Trade License'}</span>
-                  </label>
-                )}
-              </div>
-
               <button
                 type="submit"
-                disabled={loading || !hasEnoughBalance || uploadingDoc}
+                disabled={loading || !hasEnoughBalance}
                 className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-3.5 h-3.5" />}

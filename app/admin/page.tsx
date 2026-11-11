@@ -928,7 +928,7 @@ export default function AdminDashboardPage() {
                   <th className="py-3.5 px-4">User</th>
                   <th className="py-3.5 px-4">{t.docType}</th>
                   <th className="py-3.5 px-4">ID Number</th>
-                  <th className="py-3.5 px-4">ID Photo (Cloudinary)</th>
+                  <th className="py-3.5 px-4">ID Photo</th>
                   <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-4 text-right">Action</th>
                 </tr>
@@ -1062,7 +1062,7 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* Lightbox Modal: Inspect KYC ID Photo (Cloudinary) */}
+      {/* Lightbox Modal: Inspect KYC ID Photo */}
       {inspectKycModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-xl w-full border border-slate-200 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
@@ -1109,7 +1109,7 @@ export default function AdminDashboardPage() {
                       className="text-sky-400 hover:underline flex items-center gap-1"
                     >
                       <ExternalLink className="w-3 h-3" />
-                      Open Full Resolution on Cloudinary
+                      Open Full Resolution Image
                     </a>
                   </div>
                 </div>
@@ -1230,7 +1230,7 @@ export default function AdminDashboardPage() {
                     className="pt-2 text-sky-400 hover:underline flex items-center gap-1 text-[11px]"
                   >
                     <ExternalLink className="w-3 h-3" />
-                    Open Document on Cloudinary
+                    Open Full Image
                   </a>
                 </div>
               )}
