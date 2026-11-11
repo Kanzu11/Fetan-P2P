@@ -1,0 +1,150 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98.5%;
+    --foreground: 222.2 84% 4.9%;
+  }
+
+  * {
+    border-color: #e2e8f0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: #f8fafc;
+    color: #0f172a;
+    font-family: var(--font-inter), var(--font-amharic), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Ethiopic", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  /* Subtle institutional scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  /* Hide scrollbars on horizontal filter pill strips */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Institutional tabular numerals for financial data */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  /* Brand accent helpers */
+  .bg-brand-green {
+    background-color: #009B57;
+  }
+  .bg-brand-green-hover:hover {
+    background-color: #007A45;
+  }
+  .text-brand-green {
+    color: #009B57;
+  }
+  .border-brand-green {
+    border-color: #009B57;
+  }
+
+  .bg-brand-gold {
+    background-color: #F5C518;
+  }
+  .text-brand-gold {
+    color: #F5C518;
+  }
+
+  .bg-brand-ink {
+    background-color: #0B1F14;
+  }
+  .text-brand-ink {
+    color: #0B1F14;
+  }
+
+  .bg-brand-paper {
+    background-color: #F7F7F4;
+  }
+  .text-brand-paper {
+    color: #F7F7F4;
+  }
+
+  .bg-brand-line {
+    background-color: #E4E1D8;
+  }
+  .border-brand-line {
+    border-color: #E4E1D8;
+  }
+
+  .bg-brand-sell {
+    background-color: #D64531;
+  }
+  .text-brand-sell {
+    color: #D64531;
+  }
+
+  .bg-brand-buy {
+    background-color: #009B57;
+  }
+  .text-brand-buy {
+    color: #009B57;
+  }
+
+  .bg-brand-info {
+    background-color: #1E6FD6;
+  }
+  .text-brand-info {
+    color: #1E6FD6;
+  }
+
+  .bg-brand-warn {
+    background-color: #E0A916;
+  }
+  .text-brand-warn {
+    color: #E0A916;
+  }
+}
+
+/* Focus-visible improvement */
+:focus-visible {
+    outline: 2px solid #009B57;
+    outline-offset: 2px;
+}
+
+/* Reduced motion for prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+  }
+}

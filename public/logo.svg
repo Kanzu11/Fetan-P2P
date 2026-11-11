@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <rect width="120" height="120" fill="#F7F7F4"/>
+  <path fill="#009B57" d="M20 40 L80 40 L80 80 L20 80 Z"/>
+  <path fill="#F5C518" d="M40 20 L60 20 L60 40 L40 40 Z"/>
+  <path fill="#F5C518" d="M60 60 L80 60 L80 80 L60 80 Z"/>
+  <text x="60" y="78" fill="#0B1F14" font-family="Inter, system-ui, sans-serif" font-size="16" font-weight="700" text-anchor="middle">FETAN</text>
+</svg>

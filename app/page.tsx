@@ -97,7 +97,9 @@ export default function LandingPage() {
   const [selectedRail, setSelectedRail] = useState<PaymentMethod>('TELEBIRR');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
-  const unitRate = calcSide === 'BUY' ? 158.35 : 157.4;
+  // Reference rate: 1 USDT → ETB (configurable via NEXT_PUBLIC_REFERENCE_ETB_PER_USDT)
+const referenceRate = 158.35;
+const unitRate = calcSide === 'BUY' ? referenceRate : referenceRate * 0.994;
   const parsedEtb = parseFloat(etbInput) || 0;
   const calculatedUsdt = parsedEtb > 0 ? parsedEtb / unitRate : 0;
 
@@ -167,8 +169,8 @@ export default function LandingPage() {
           {/* Left Column: Value Proposition */}
           <div className="lg:col-span-7 p-6 sm:p-10 lg:p-12 flex flex-col justify-between space-y-6">
             <div className="space-y-5">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-buy border border-brand-line text-brand-buy font-semibold">
+                <ShieldCheck className="w-3.5 h-3.5 text-brand-buy" />
                 <span>{t.heroBadge}</span>
               </div>
 
