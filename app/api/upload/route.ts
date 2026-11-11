@@ -1,10 +1,22 @@
 import { NextResponse } from 'next/server';
 import { cloudinaryService, UploadFolder } from '@/server/cloudinary-service';
+import { rateLimiter, getClientIp } from '@/server/security/rate-limiter';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
+    const ip = getClientIp(req);
+
+    // Rate limit: 15 uploads per minute per IP
+    const limitCheck = rateLimiter.check(`upload:${ip}`, 15, 60);
+    if (!limitCheck.allowed) {
+      return rateLimiter.rateLimitResponse(
+        limitCheck.resetSeconds,
+        'Upload rate limit exceeded. Please wait a minute before uploading additional files.'
+      );
+    }
+
     const contentType = req.headers.get('content-type') || '';
 
     // 1. Multipart Form Data (Native <input type="file" />)

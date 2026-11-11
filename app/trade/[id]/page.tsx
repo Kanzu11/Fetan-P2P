@@ -550,61 +550,25 @@ export default function EscrowRoomPage() {
   return (
     <ProtectedRoute>
       <div className="space-y-4 pb-10">
-      {/* Role Perspective & 1-Click Test Switcher Bar */}
+      {/* Trade Room Security & Order Identification Header */}
       <div className="bg-slate-900 text-white rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
         <div className="flex items-center gap-2">
-          <UserCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
           <span>
-            Viewing as:{' '}
+            Trading as:{' '}
             <strong className="text-emerald-300">
               {isBuyer
                 ? `Buyer (${displayName(order.buyerName)})`
                 : isSeller
                 ? `Seller (${displayName(order.sellerName)})`
-                : isAdmin
-                ? `Admin (${displayName(currentUser?.name)})`
-                : displayName(currentUser?.name)}
+                : `Admin Inspector (${displayName(currentUser?.name)})`}
             </strong>
           </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] text-slate-400 mr-1">Switch role to test:</span>
-          <button
-            type="button"
-            onClick={() => setCurrentUserId(order.buyerId)}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
-              isBuyer
-                ? 'bg-emerald-500 text-slate-950 font-bold'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
-          >
-            Buyer ({displayName(order.buyerName).split(' ')[0]})
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentUserId(order.sellerId)}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
-              isSeller
-                ? 'bg-emerald-500 text-slate-950 font-bold'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
-          >
-            Seller ({displayName(order.sellerName).split(' ')[0]})
-          </button>
-          {adminAccount && (
-            <button
-              type="button"
-              onClick={() => setCurrentUserId(adminAccount.id)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
-                isAdmin && !isBuyer && !isSeller
-                  ? 'bg-amber-400 text-slate-950 font-bold'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              Admin
-            </button>
-          )}
+        <div className="flex items-center gap-2 text-slate-300 text-[11px]">
+          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+          <span>Fetan Encrypted Escrow Room</span>
         </div>
       </div>
 
@@ -1163,15 +1127,6 @@ export default function EscrowRoomPage() {
                             />
                           </div>
                         )}
-                        <div className="pt-1 flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setCurrentUserId(order.sellerId)}
-                            className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-[11px] font-semibold hover:bg-slate-800"
-                          >
-                            Switch to Seller to Complete Order →
-                          </button>
-                        </div>
                       </div>
                     )}
 
@@ -1276,13 +1231,6 @@ export default function EscrowRoomPage() {
                             className="py-2.5 px-4 rounded-xl bg-slate-200 text-slate-500 font-bold cursor-not-allowed"
                           >
                             Complete Order (Waiting for Buyer Payment)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setCurrentUserId(order.buyerId)}
-                            className="py-2.5 px-3.5 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800"
-                          >
-                            Switch to Buyer to Mark Paid →
                           </button>
                           <button
                             type="button"

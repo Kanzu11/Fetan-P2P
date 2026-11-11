@@ -198,7 +198,7 @@ export function AuthModal({
             </button>
           </form>
 
-          <div className="text-center pt-1">
+          <div className="text-center pt-2">
             <button
               type="button"
               onClick={() => {
@@ -211,29 +211,6 @@ export function AuthModal({
                 ? "Don't have an account? Sign up"
                 : 'Already have an account? Sign in'}
             </button>
-          </div>
-
-          {/* Quick Demo Switcher */}
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-            <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              <Zap className="w-3 h-3 text-amber-500" />
-              <span>Instant Test Profiles</span>
-            </div>
-            <div className="grid grid-cols-3 gap-1.5 text-[11px]">
-              {availableUsers.slice(0, 3).map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => handleQuickSwitch(u.id)}
-                  className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 text-left transition-colors"
-                >
-                  <div className="font-bold text-slate-900 dark:text-white truncate">
-                    {u.name.split(' ')[0]}
-                  </div>
-                  <div className="text-[10px] text-slate-400 font-mono">{u.role}</div>
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       </div>

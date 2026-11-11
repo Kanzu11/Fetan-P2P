@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRealtime } from '@/client/components/realtime-provider';
 import { useI18n } from '@/client/i18n';
-import { PAYMENT_METHODS_META, displayName } from '@/client/types';
+import { PAYMENT_METHODS_META, displayName, WalletTransaction } from '@/client/types';
 import {
   Wallet,
   Lock,
@@ -22,11 +22,15 @@ import {
   Bell,
   ExternalLink,
   MessageSquareWarning,
+  CheckCircle2,
+  History,
+  QrCode,
+  Info,
 } from 'lucide-react';
 import { ProtectedRoute } from '@/client/components/protected-route';
 
 export default function WalletPage() {
-  const { currentUser, refreshUser, depositUsdt, setNotification } = useRealtime();
+  const { currentUser, refreshUser, setNotification } = useRealtime();
   const { t } = useI18n();
 
   const [activeAction, setActiveAction] = useState<
@@ -34,7 +38,18 @@ export default function WalletPage() {
   >('DEPOSIT');
   const [network, setNetwork] = useState<'TRC20' | 'BEP20' | 'TON'>('TRC20');
   const [copied, setCopied] = useState(false);
+  const [copiedMemo, setCopiedMemo] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+
+  // Deposit verification state
+  const [verifyTxHash, setVerifyTxHash] = useState('');
+  const [verifyAmount, setVerifyAmount] = useState('');
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+
+  // Transactions ledger state
+  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
 
   // Withdraw state
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -81,6 +96,28 @@ export default function WalletPage() {
     }
   }, [currentUser]);
 
+  const fetchTransactions = async () => {
+    if (!currentUser?.id) return;
+    setLoadingTransactions(true);
+    try {
+      const res = await fetch(`/api/user/transactions?userId=${currentUser.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTransactions(data.transactions || []);
+      }
+    } catch (e) {
+      console.warn('Failed to fetch transactions', e);
+    } finally {
+      setLoadingTransactions(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser?.id) {
+      void fetchTransactions();
+    }
+  }, [currentUser?.id]);
+
   if (!currentUser) {
     return <div className="p-12 text-center text-slate-500 text-xs">Loading wallet...</div>;
   }
@@ -101,10 +138,19 @@ export default function WalletPage() {
   const depositReady = Boolean(depositAddresses[network]);
 
   const handleCopyAddress = () => {
+    if (!depositAddresses[network]) return;
     navigator.clipboard.writeText(depositAddresses[network]);
     setCopied(true);
     setNotification(`Copied ${network} deposit address`);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyMemo = () => {
+    if (!tonMemo) return;
+    navigator.clipboard.writeText(tonMemo);
+    setCopiedMemo(true);
+    setNotification(`Copied TON Memo: ${tonMemo}`);
+    setTimeout(() => setCopiedMemo(false), 2000);
   };
 
   const handleCopyLinkCode = () => {
@@ -120,27 +166,59 @@ export default function WalletPage() {
     setWithdrawLoading(true);
     setWithdrawError(null);
     try {
-      const res = await fetch('/api/user/profile', {
+      const res = await fetch('/api/user/withdraw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentUser.id,
-          action: 'WITHDRAW_USDT',
-          withdrawAmount: Number(withdrawAmount),
+          network,
+          amount: Number(withdrawAmount),
           destinationAddress: withdrawAddress,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not withdraw USDT');
+      if (!res.ok) throw new Error(data.error || 'Could not process withdrawal');
 
       setWithdrawAmount('');
       setWithdrawAddress('');
       await refreshUser();
-      setNotification(`Sent ${withdrawAmount} USDT to your external wallet!`);
+      await fetchTransactions();
+      setNotification(`Withdrawal of ${withdrawAmount} USDT submitted successfully.`);
     } catch (err: unknown) {
-      setWithdrawError(err instanceof Error ? err.message : 'Could not withdraw USDT');
+      setWithdrawError(err instanceof Error ? err.message : 'Could not process withdrawal');
     } finally {
       setWithdrawLoading(false);
+    }
+  };
+
+  const handleVerifyDeposit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!verifyTxHash.trim() || !verifyAmount) return;
+    setVerifyLoading(true);
+    setVerifyError(null);
+    try {
+      const res = await fetch('/api/user/deposit/verify-tx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          network,
+          txHash: verifyTxHash.trim(),
+          amount: Number(verifyAmount),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to verify transaction');
+
+      setVerifyTxHash('');
+      setVerifyAmount('');
+      await refreshUser();
+      await fetchTransactions();
+      setNotification(`Successfully credited +${data.transaction.amount} USDT to your wallet!`);
+    } catch (err: unknown) {
+      setVerifyError(err instanceof Error ? err.message : 'Failed to verify deposit');
+    } finally {
+      setVerifyLoading(false);
     }
   };
 
@@ -380,16 +458,17 @@ export default function WalletPage() {
       {/* Tab Content */}
       {activeAction === 'DEPOSIT' ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Permanent Assigned Address */}
           <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 space-y-5 shadow-sm text-xs">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Deposit USDT by Wallet Address</h2>
+              <h2 className="text-base font-bold text-slate-900">Your Dedicated Deposit Address</h2>
               <p className="text-slate-500 mt-0.5">
-                Choose a network and send USDT to add it to your Fetan wallet.
+                Send USDT from Binance, Bybit, OKX, or your private wallet directly to your account.
               </p>
             </div>
 
             <div className="space-y-1.5">
-              <label className="block font-semibold text-slate-700">Choose Network</label>
+              <label className="block font-semibold text-slate-700">Select Network</label>
               <div className="grid grid-cols-3 gap-2">
                 {(
                   [
@@ -421,51 +500,126 @@ export default function WalletPage() {
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-              <div className="flex justify-between items-center text-slate-500">
-                <span>Your {network} Deposit Address</span>
-                <span className="text-emerald-700 font-semibold">Arrives in ~1 min</span>
+            {depositReady ? (
+              <div className="space-y-3">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                  <div className="flex justify-between items-center text-slate-500">
+                    <span>Your {network} Deposit Address</span>
+                    <span className="text-emerald-700 font-semibold">1 Block Confirmation</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 bg-white p-3 rounded-lg border border-slate-200">
+                    <span className="font-mono font-bold text-slate-900 truncate">
+                      {depositAddresses[network]}
+                    </span>
+                    <button
+                      onClick={handleCopyAddress}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-900 text-white font-semibold hover:bg-slate-800 flex-shrink-0"
+                    >
+                      {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copied ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {network === 'TON' && tonMemo && (
+                  <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 space-y-2">
+                    <div className="flex justify-between items-center text-amber-900">
+                      <span className="font-bold">Required TON Transfer Memo</span>
+                      <span className="text-[10px] text-amber-700">Must include in transfer</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 bg-white p-3 rounded-lg border border-amber-200">
+                      <span className="font-mono font-bold text-amber-900">{tonMemo}</span>
+                      <button
+                        onClick={handleCopyMemo}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-900 text-white font-semibold hover:bg-amber-800 flex-shrink-0"
+                      >
+                        {copiedMemo ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedMemo ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="flex items-center justify-between gap-2 bg-white p-3 rounded-lg border border-slate-200">
-                <span className="font-mono font-bold text-slate-900 truncate">
-                  {depositAddresses[network]}
-                </span>
-                <button
-                  onClick={handleCopyAddress}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-900 text-white font-semibold hover:bg-slate-800 flex-shrink-0"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copied ? 'Copied' : 'Copy'}</span>
-                </button>
+            ) : (
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 space-y-2 text-amber-900">
+                <div className="flex items-center gap-2 font-bold">
+                  <Info className="w-4 h-4 text-amber-600" />
+                  <span>Platform Deposit Node Gateway</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-amber-800">
+                  On-chain address derivation requires master public key configuration (`DEPOSIT_XPUB` & `DEPOSIT_TON_ADDRESS` in `.env`). In the meantime, you can deposit by submitting a valid transaction hash on the right panel.
+                </p>
               </div>
+            )}
+
+            <div className="text-[11px] text-slate-500 space-y-1">
+              <div>• Minimum deposit: <strong>1.00 USDT</strong></div>
+              <div>• Deposits are credited automatically after required blockchain confirmations.</div>
             </div>
           </div>
 
-          {/* 1-Click Test Deposit Card */}
-          <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 flex flex-col justify-between space-y-4 shadow-sm text-xs">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold">
-                <PlusCircle className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Quick Test Deposit</span>
+          {/* On-Chain TxID Verification Card */}
+          <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-sm text-xs">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 text-white font-semibold">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Verify On-Chain Deposit</span>
               </div>
-              <h3 className="text-base font-bold text-slate-900">Add USDT in One Click</h3>
-              <p className="text-slate-600 leading-relaxed">
-                Need USDT right now to test selling on the market or applying to become a Merchant
-                (needs 10 USDT)? Tap any button below to add USDT to your wallet:
+              <h3 className="text-base font-bold text-slate-900">Confirm Blockchain TxID</h3>
+              <p className="text-slate-600 leading-relaxed text-[11px]">
+                Already sent USDT? Paste your transaction hash (TxID) below to instantly verify and credit your balance.
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 pt-2">
-              {[15, 100, 500].map((amt) => (
-                <button
-                  key={amt}
-                  onClick={() => depositUsdt(amt)}
-                  className="py-3 px-3 rounded-xl bg-slate-900 hover:bg-emerald-600 text-white font-bold transition-colors text-center tabular-nums"
-                >
-                  +{amt} USDT
-                </button>
-              ))}
-            </div>
+            {verifyError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                <span>{verifyError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleVerifyDeposit} className="space-y-3.5">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Transaction Hash (TxID)
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={verifyTxHash}
+                  onChange={(e) => setVerifyTxHash(e.target.value)}
+                  placeholder="Paste 64-character hash from TronScan / BscScan..."
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 font-mono text-xs focus:outline-none focus:border-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Amount Deposited (USDT)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={verifyAmount}
+                  onChange={(e) => setVerifyAmount(e.target.value)}
+                  placeholder="e.g. 100.00"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 font-bold text-xs tabular-nums focus:outline-none focus:border-slate-900"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={verifyLoading}
+                className="w-full py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-emerald-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {verifyLoading ? (
+                  <span>Verifying on Blockchain...</span>
+                ) : (
+                  <span>Verify & Credit Deposit</span>
+                )}
+              </button>
+            </form>
           </div>
         </div>
       ) : activeAction === 'WITHDRAW' ? (
@@ -473,8 +627,41 @@ export default function WalletPage() {
           <div>
             <h2 className="text-base font-bold text-slate-900">Withdraw USDT</h2>
             <p className="text-slate-500 mt-0.5">
-              Send your available USDT to another wallet address.
+              Send your available USDT to an external wallet or exchange address.
             </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block font-semibold text-slate-700">Select Withdrawal Network</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  { id: 'TRC20', name: 'Tron (TRC-20)' },
+                  { id: 'BEP20', name: 'BNB Chain' },
+                  { id: 'TON', name: 'TON Network' },
+                ] as const
+              ).map((net) => (
+                <button
+                  key={net.id}
+                  type="button"
+                  onClick={() => setNetwork(net.id)}
+                  className={`p-2.5 rounded-xl border text-left transition-colors ${
+                    network === net.id
+                      ? 'bg-slate-900 text-white border-slate-900'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="font-bold">{net.id}</div>
+                  <div
+                    className={`text-[10px] ${
+                      network === net.id ? 'text-slate-300' : 'text-slate-400'
+                    }`}
+                  >
+                    {net.name}
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
 
           {withdrawError && (
@@ -487,14 +674,20 @@ export default function WalletPage() {
           <form onSubmit={handleWithdraw} className="space-y-4">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Receiving Wallet Address ({network})
+                Recipient Wallet Address ({network})
               </label>
               <input
                 type="text"
                 required
                 value={withdrawAddress}
                 onChange={(e) => setWithdrawAddress(e.target.value)}
-                placeholder="Paste TRC-20 / BEP-20 / TON address..."
+                placeholder={
+                  network === 'TRC20'
+                    ? 'Starts with T (e.g. TX...)'
+                    : network === 'BEP20'
+                    ? 'Starts with 0x (e.g. 0x12...)'
+                    : 'Starts with EQ or UQ'
+                }
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-mono text-xs focus:outline-none focus:border-slate-900"
               />
             </div>
@@ -505,28 +698,36 @@ export default function WalletPage() {
                 <button
                   type="button"
                   onClick={() => setWithdrawAmount(currentUser.usdtBalance.toString())}
-                  className="text-emerald-700 font-bold"
+                  className="text-emerald-700 font-bold hover:underline"
                 >
-                  Max: {currentUser.usdtBalance.toFixed(2)} USDT
+                  Available: {currentUser.usdtBalance.toFixed(2)} USDT
                 </button>
               </div>
               <input
                 type="number"
                 step="0.01"
+                min="5"
+                max={currentUser.usdtBalance}
                 required
                 value={withdrawAmount}
                 onChange={(e) => setWithdrawAmount(e.target.value)}
-                placeholder="0.00"
+                placeholder="Min. 5.00"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-sm tabular-nums focus:outline-none focus:border-slate-900"
               />
             </div>
 
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-500 space-y-1">
+              <div>• Network fee: <strong>0.00 USDT (Covered by platform)</strong></div>
+              <div>• Minimum withdrawal: <strong>5.00 USDT</strong></div>
+              <div>• Processing time: <strong>5 - 15 minutes</strong></div>
+            </div>
+
             <button
               type="submit"
-              disabled={withdrawLoading}
+              disabled={withdrawLoading || currentUser.usdtBalance < 5}
               className="w-full py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors disabled:opacity-50"
             >
-              {withdrawLoading ? 'Sending...' : 'Withdraw USDT'}
+              {withdrawLoading ? 'Authorizing Withdrawal...' : 'Submit Withdrawal Request'}
             </button>
           </form>
         </div>
@@ -857,6 +1058,117 @@ export default function WalletPage() {
           </div>
         </div>
       )}
+
+      {/* On-Chain Ledger & Activity History */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-sm text-xs">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <History className="w-4 h-4 text-slate-700" />
+            <h3 className="text-sm font-bold text-slate-900">On-Chain Activity & Wallet Ledger</h3>
+          </div>
+          <span className="text-[11px] text-slate-400">
+            {transactions.length} record{transactions.length === 1 ? '' : 's'}
+          </span>
+        </div>
+
+        {loadingTransactions ? (
+          <div className="py-8 text-center text-slate-400">Loading wallet ledger...</div>
+        ) : transactions.length === 0 ? (
+          <div className="py-8 text-center text-slate-400">
+            No on-chain deposits or withdrawals recorded yet.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-slate-100 text-slate-400 font-semibold text-[11px]">
+                  <th className="pb-2">Type</th>
+                  <th className="pb-2">Amount</th>
+                  <th className="pb-2">Network</th>
+                  <th className="pb-2">TxID / Address</th>
+                  <th className="pb-2">Date</th>
+                  <th className="pb-2 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {transactions.map((tx) => {
+                  const isDeposit = tx.type === 'DEPOSIT';
+                  const explorerLink = tx.txHash
+                    ? tx.network === 'TRC20'
+                      ? `https://tronscan.org/#/transaction/${tx.txHash}`
+                      : tx.network === 'BEP20'
+                      ? `https://bscscan.com/tx/${tx.txHash}`
+                      : `https://tonviewer.com/transaction/${tx.txHash}`
+                    : null;
+
+                  return (
+                    <tr key={tx.id} className="text-slate-700">
+                      <td className="py-3">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                            isDeposit
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-rose-50 text-rose-700 border border-rose-200'
+                          }`}
+                        >
+                          {isDeposit ? (
+                            <ArrowDownLeft className="w-3 h-3" />
+                          ) : (
+                            <ArrowUpRight className="w-3 h-3" />
+                          )}
+                          <span>{tx.type}</span>
+                        </span>
+                      </td>
+                      <td className="py-3 font-bold tabular-nums">
+                        <span className={isDeposit ? 'text-emerald-600' : 'text-slate-900'}>
+                          {isDeposit ? '+' : '-'}
+                          {tx.amount.toFixed(2)} USDT
+                        </span>
+                      </td>
+                      <td className="py-3 font-semibold text-slate-600">{tx.network}</td>
+                      <td className="py-3 font-mono text-[11px] max-w-[180px] truncate text-slate-500">
+                        {explorerLink ? (
+                          <a
+                            href={explorerLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sky-600 hover:underline inline-flex items-center gap-1"
+                          >
+                            <span>{tx.txHash ? `${tx.txHash.slice(0, 10)}...` : 'View'}</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        ) : (
+                          tx.address ? `${tx.address.slice(0, 10)}...` : '—'
+                        )}
+                      </td>
+                      <td className="py-3 text-slate-400 text-[11px]">
+                        {new Date(tx.createdAt).toLocaleDateString()}{' '}
+                        {new Date(tx.createdAt).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </td>
+                      <td className="py-3 text-right">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                            tx.status === 'COMPLETED'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : tx.status === 'PENDING'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          {tx.status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
     </ProtectedRoute>
   );

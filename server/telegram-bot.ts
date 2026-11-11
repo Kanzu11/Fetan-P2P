@@ -149,6 +149,22 @@ class TelegramBotManager {
   }
 
   /**
+   * Broadcast an urgent operational alert (deposit, withdrawal, kyc) to Superadmin (@kanzedin)
+   */
+  async broadcastAdminAlert(message: string): Promise<boolean> {
+    const superChatId = this.getSuperadminChatId();
+    if (!superChatId) return false;
+    return this.sendTelegramMessage(superChatId, message);
+  }
+
+  /**
+   * Send a direct notification message to a user by chatId
+   */
+  async sendMessage(chatId: string | number, message: string): Promise<boolean> {
+    return this.sendTelegramMessage(chatId, message);
+  }
+
+  /**
    * Sync shared database state & notifications with Telegram Serverless Cloud (TGCloud)
    */
   async syncWithTelegramCloud(action: string, payload: Record<string, unknown> = {}) {

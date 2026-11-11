@@ -7,6 +7,7 @@ import {
   ChatMessage,
   PaymentMethod,
   SupportTicket,
+  WalletTransaction,
   OPEN_ORDER_STATUSES,
 } from '../../client/types';
 import { generateUserDepositAddresses } from '../crypto-address-service';
@@ -47,6 +48,7 @@ export class DatabaseStore {
   private kycSubmissions: Map<string, KycSubmission> = new Map();
   private supportTickets: Map<string, SupportTicket> = new Map();
   private chatMessages: Map<string, ChatMessage[]> = new Map();
+  private walletTransactions: Map<string, WalletTransaction> = new Map();
   private orderSeq = 200;
 
   constructor() {
@@ -918,6 +920,31 @@ export class DatabaseStore {
   saveSupportTicket(ticket: SupportTicket): SupportTicket {
     this.supportTickets.set(ticket.id, ticket);
     return ticket;
+  }
+
+  // ---------- Wallet Transactions (Deposits & Withdrawals) ----------
+
+  getWalletTransactions(userId?: string): WalletTransaction[] {
+    let list = Array.from(this.walletTransactions.values());
+    if (userId) {
+      list = list.filter((t) => t.userId === userId);
+    }
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  saveWalletTransaction(tx: WalletTransaction): WalletTransaction {
+    this.walletTransactions.set(tx.id, tx);
+    return tx;
+  }
+
+  findWalletTransactionByTxHash(txHash: string): WalletTransaction | undefined {
+    const clean = txHash.trim().toLowerCase();
+    for (const tx of this.walletTransactions.values()) {
+      if (tx.txHash && tx.txHash.trim().toLowerCase() === clean) {
+        return tx;
+      }
+    }
+    return undefined;
   }
 }
 

@@ -350,6 +350,19 @@ export interface SupportTicket {
   updatedAt: string;
 }
 
+export interface WalletTransaction {
+  id: string;
+  userId: string;
+  type: 'DEPOSIT' | 'WITHDRAW';
+  amount: number;
+  network: 'TRC20' | 'BEP20' | 'TON';
+  txHash?: string;
+  address?: string;
+  status: 'COMPLETED' | 'PENDING' | 'REJECTED';
+  createdAt: string;
+  note?: string;
+}
+
 export function displayName(
   input?: string | Pick<User, 'name' | 'nickname'> | null
 ): string {

@@ -1,8 +1,21 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/server/database/store';
+import { rateLimiter, getClientIp } from '@/server/security/rate-limiter';
+import { sanitizeString } from '@/server/security/sanitize';
 
 export async function POST(req: Request) {
   try {
+    const ip = getClientIp(req);
+
+    // Rate limit: 10 login attempts per 10 minutes per IP
+    const limitCheck = rateLimiter.check(`login:${ip}`, 10, 600);
+    if (!limitCheck.allowed) {
+      return rateLimiter.rateLimitResponse(
+        limitCheck.resetSeconds,
+        'Too many login attempts from this network. Please wait a few minutes before trying again.'
+      );
+    }
+
     const body = await req.json();
     const { email, name, provider, role = 'USER' } = body;
 
@@ -12,7 +25,7 @@ export async function POST(req: Request) {
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanName = (name && typeof name === 'string' && name.trim())
-      ? name.trim()
+      ? sanitizeString(name.trim(), 60)
       : cleanEmail.split('@')[0];
 
     // Find existing user by email
@@ -36,7 +49,7 @@ export async function POST(req: Request) {
         role: assignedRole,
         kycStatus: isSuperadminEmail ? 'VERIFIED' : 'UNVERIFIED',
         merchantStatus: 'NONE',
-        usdtBalance: isSuperadminEmail ? 5000.0 : 100.0, // Welcome demo balance
+        usdtBalance: 0.0, // Production default: real wallet starting at 0
         usdtLocked: 0,
         completedTrades: 0,
         completionRate: 100,

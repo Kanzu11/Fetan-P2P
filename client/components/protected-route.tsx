@@ -89,16 +89,6 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
           </div>
 
           <div className="space-y-2.5 pt-2">
-            {adminUser && (
-              <button
-                onClick={() => setCurrentUserId(adminUser.id)}
-                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-colors"
-              >
-                <Zap className="w-3.5 h-3.5 text-amber-400" />
-                <span>Switch to {adminUser.name} ({adminUser.role})</span>
-              </button>
-            )}
-
             <Link
               href="/market"
               className="inline-flex items-center justify-center gap-1.5 w-full py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors"

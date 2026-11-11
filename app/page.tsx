@@ -23,9 +23,11 @@ import {
   ExternalLink,
   Sparkles,
   Camera,
+  Scale,
 } from 'lucide-react';
 import { ApplyMerchantModal } from '@/client/components/apply-merchant-modal';
 import { KycModal } from '@/client/components/kyc-modal';
+import { TermsModal } from '@/client/components/terms-modal';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -41,6 +43,7 @@ export default function LandingPage() {
 
   const [merchantModalOpen, setMerchantModalOpen] = useState(false);
   const [kycModalOpen, setKycModalOpen] = useState(false);
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
 
   // Inline Email Login State
   const [inlineEmail, setInlineEmail] = useState('');
@@ -647,46 +650,26 @@ export default function LandingPage() {
         </section>
       )}
 
-      {/* 1.7. Four Pillars of Fetan P2P Architecture */}
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-2 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center font-bold">
-            <Zap className="w-5 h-5" />
+      {/* 1.7. Platform Safety, Escrow Standards & Terms of Service */}
+      <section className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Scale className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <h3 className="font-bold text-sm text-slate-900">Platform Safety &amp; Escrow Agreement</h3>
+            </div>
+            <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
+              Every trade on Fetan P2P is governed by mandatory pre-funding escrow, verified Ethiopian legal identity
+              matching, and strict anti-fraud payment remark regulations.
+            </p>
           </div>
-          <h3 className="text-sm font-bold text-slate-900">Automatic Escrow Release</h3>
-          <p className="text-xs text-slate-600 leading-relaxed">
-            Funds locked in escrow are automatically released directly to the buyer upon confirmed payment completion.
-          </p>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-2 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200 text-sky-600 flex items-center justify-center font-bold">
-            <Camera className="w-5 h-5" />
-          </div>
-          <h3 className="text-sm font-bold text-slate-900">Cloudinary Image Uploads</h3>
-          <p className="text-xs text-slate-600 leading-relaxed">
-            Upload and view payment receipts in live trade chat. Admins review Fayda/Passport photos with click-to-zoom inspection.
-          </p>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-2 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center font-bold">
-            <Smartphone className="w-5 h-5" />
-          </div>
-          <h3 className="text-sm font-bold text-slate-900">Telegram Bot & Mini App</h3>
-          <p className="text-xs text-slate-600 leading-relaxed">
-            Trade anywhere with @fetanp2probot, native menu button launcher, and real-time order alerts sent directly to your phone.
-          </p>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-2 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center font-bold">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <h3 className="text-sm font-bold text-slate-900">Platform KYC & Merchant Roles</h3>
-          <p className="text-xs text-slate-600 leading-relaxed">
-            Mandatory KYC ensures safe trading for all users, with a distinct certified merchant program and protected superadmin controls.
-          </p>
+          <button
+            type="button"
+            onClick={() => setTermsModalOpen(true)}
+            className="px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-bold transition-colors whitespace-nowrap self-start md:self-auto shadow-sm"
+          >
+            Review Terms &amp; Conditions
+          </button>
         </div>
       </section>
 
@@ -976,12 +959,20 @@ export default function LandingPage() {
           <Link href={`/trade/${latestActiveOrderId}`} className="hover:text-slate-900">
             Active Order
           </Link>
+          <button
+            type="button"
+            onClick={() => setTermsModalOpen(true)}
+            className="hover:text-slate-900 underline text-slate-500"
+          >
+            Terms &amp; Escrow Agreement
+          </button>
         </div>
       </footer>
 
       {/* Modals */}
       <ApplyMerchantModal isOpen={merchantModalOpen} onClose={() => setMerchantModalOpen(false)} />
       <KycModal isOpen={kycModalOpen} onClose={() => setKycModalOpen(false)} />
+      <TermsModal isOpen={termsModalOpen} onClose={() => setTermsModalOpen(false)} />
     </div>
   );
 }
