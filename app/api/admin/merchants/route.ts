@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
+import { db } from '@/server/database/store';
 import { telegramBot } from '@/server/telegram-bot';
 
 export async function GET() {

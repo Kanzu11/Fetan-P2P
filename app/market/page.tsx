@@ -2,15 +2,15 @@
 
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useRealtime } from '@/components/realtime-provider';
-import { useI18n } from '@/lib/i18n';
+import { useRealtime } from '@/client/components/realtime-provider';
+import { useI18n } from '@/client/i18n';
 import {
   P2POffer,
   PaymentMethod,
   OfferType,
   PAYMENT_METHODS_META,
   displayName,
-} from '@/lib/types';
+} from '@/client/types';
 import {
   ShieldCheck,
   Plus,
@@ -24,10 +24,10 @@ import {
   AlertCircle,
   Search,
 } from 'lucide-react';
-import { CreateOfferModal } from '@/components/create-offer-modal';
-import { ApplyMerchantModal } from '@/components/apply-merchant-modal';
-import { KycModal } from '@/components/kyc-modal';
-import { LivePriceTicker } from '@/components/live-price-ticker';
+import { CreateOfferModal } from '@/client/components/create-offer-modal';
+import { ApplyMerchantModal } from '@/client/components/apply-merchant-modal';
+import { KycModal } from '@/client/components/kyc-modal';
+import { LivePriceTicker } from '@/client/components/live-price-ticker';
 
 function MarketContent() {
   const router = useRouter();

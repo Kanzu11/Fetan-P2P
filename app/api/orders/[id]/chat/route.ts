@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
+import { db } from '@/server/database/store';
 import { wsGateway } from '@/server/websocket-gateway';
-import { ChatMessage } from '@/lib/types';
+import { ChatMessage } from '@/client/types';
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const messages = db.getChatMessages(params.id);

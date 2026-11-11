@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
+import { db } from '@/server/database/store';
 import { wsGateway } from '@/server/websocket-gateway';
 import { telegramBot } from '@/server/telegram-bot';
-import { KycSubmission, KycDocType } from '@/lib/types';
+import { KycSubmission, KycDocType } from '@/client/types';
 
 const VALID_DOC_TYPES: KycDocType[] = ['NATIONAL_ID', 'PASSPORT', 'DRIVERS_LICENSE'];
 

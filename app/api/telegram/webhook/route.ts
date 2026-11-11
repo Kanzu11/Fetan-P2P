@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { telegramBot } from '@/server/telegram-bot';
 import { escrowController } from '@/server/escrow-controller';
-import { db } from '@/lib/db/store';
+import { db } from '@/server/database/store';
 
 function isAuthorizedWebhook(req: Request): boolean {
   const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET || process.env.TELEGRAM_BOT_TOKEN;

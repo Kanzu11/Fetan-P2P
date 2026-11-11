@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { pricingService } from '@/lib/pricing';
+import { pricingService } from '@/client/pricing';
 
 export const dynamic = 'force-dynamic';
 

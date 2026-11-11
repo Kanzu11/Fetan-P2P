@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
+import { db } from '@/server/database/store';
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {

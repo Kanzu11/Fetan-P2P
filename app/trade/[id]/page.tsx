@@ -2,15 +2,15 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useRealtime } from '@/components/realtime-provider';
-import { useI18n } from '@/lib/i18n';
+import { useRealtime } from '@/client/components/realtime-provider';
+import { useI18n } from '@/client/i18n';
 import {
   P2POrder,
   ChatMessage,
   PAYMENT_METHODS_META,
   displayName,
   isAdminRole,
-} from '@/lib/types';
+} from '@/client/types';
 import {
   Clock,
   CheckCircle2,

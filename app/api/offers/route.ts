@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
-import { PaymentMethod, P2POffer } from '@/lib/types';
-import { pricingService } from '@/lib/pricing';
+import { db } from '@/server/database/store';
+import { PaymentMethod, P2POffer } from '@/client/types';
+import { pricingService } from '@/client/pricing';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
+import { db } from '@/server/database/store';
 import { telegramBot } from '@/server/telegram-bot';
 import { wsGateway } from '@/server/websocket-gateway';
-import { SupportTicket } from '@/lib/types';
+import { SupportTicket } from '@/client/types';
 
 export async function GET() {
   return NextResponse.json({

@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRealtime } from '@/components/realtime-provider';
-import { useI18n } from '@/lib/i18n';
-import { PAYMENT_METHODS_META, displayName } from '@/lib/types';
+import { useRealtime } from '@/client/components/realtime-provider';
+import { useI18n } from '@/client/i18n';
+import { PAYMENT_METHODS_META, displayName } from '@/client/types';
 import {
   Wallet,
   Lock,

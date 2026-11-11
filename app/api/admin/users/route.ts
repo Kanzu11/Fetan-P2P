@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
+import { db } from '@/server/database/store';
 import { wsGateway } from '@/server/websocket-gateway';
-import { Role, KycStatus } from '@/lib/types';
+import { Role, KycStatus } from '@/client/types';
 
 export async function GET() {
   const users = db.getAllUsers();

@@ -3,15 +3,15 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useRealtime } from '@/components/realtime-provider';
-import { useI18n } from '@/lib/i18n';
+import { useRealtime } from '@/client/components/realtime-provider';
+import { useI18n } from '@/client/i18n';
 import {
   P2POrder,
   P2POffer,
   PAYMENT_METHODS_META,
   displayName,
   isAdminRole,
-} from '@/lib/types';
+} from '@/client/types';
 import {
   ClipboardList,
   ArrowRight,
@@ -24,7 +24,7 @@ import {
   Trash2,
   Power,
 } from 'lucide-react';
-import { CreateOfferModal } from '@/components/create-offer-modal';
+import { CreateOfferModal } from '@/client/components/create-offer-modal';
 
 function OrdersContent() {
   const searchParams = useSearchParams();

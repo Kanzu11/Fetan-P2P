@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRealtime } from '@/components/realtime-provider';
-import { useI18n } from '@/lib/i18n';
+import { useRealtime } from '@/client/components/realtime-provider';
+import { useI18n } from '@/client/i18n';
 import {
   MerchantApplication,
   KycSubmission,
@@ -12,7 +12,7 @@ import {
   KycStatus,
   P2POrder,
   displayName,
-} from '@/lib/types';
+} from '@/client/types';
 import {
   ShieldCheck,
   Building2,

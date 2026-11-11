@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRealtime } from './realtime-provider';
-import { displayName } from '@/lib/types';
+import { displayName } from '@/client/types';
 import {
   Bot,
   PlusCircle,

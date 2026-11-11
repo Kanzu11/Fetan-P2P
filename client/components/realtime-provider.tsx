@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { User, P2POrder, displayName, isAdminRole } from '@/lib/types';
+import { User, P2POrder, displayName, isAdminRole } from '@/client/types';
 
 interface RealtimeContextType {
   currentUser: User | null;

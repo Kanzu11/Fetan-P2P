@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
+import { db } from '@/server/database/store';
 import { escrowController } from '@/server/escrow-controller';
 
 export async function GET(req: Request) {

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
+import { db } from '@/server/database/store';
 import { escrowController } from '@/server/escrow-controller';
 import { telegramBot } from '@/server/telegram-bot';
-import { KycDocType } from '@/lib/types';
+import { KycDocType } from '@/client/types';
 
 function verifySyncAuth(req: Request): boolean {
   const syncSecret = process.env.TELEGRAM_SYNC_SECRET || process.env.TGCLOUD_TOKEN || process.env.TELEGRAM_BOT_TOKEN;

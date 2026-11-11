@@ -30,7 +30,8 @@ The repository is organized into three distinct, modular layers:
 │   │   └── role-switcher-toolbar.tsx
 │   ├── i18n.tsx               # Bilingual English / Amharic (አማርኛ) localization
 │   ├── pricing.ts             # Live ETB/USDT rate feeds with CBE, Telebirr & parallel bounds
-│   └── types.ts               # Universal TypeScript type definitions
+│   ├── types.ts               # Universal TypeScript type definitions
+│   └── utils.ts               # Classnames, formatting & helper utilities
 │
 ├── telegram/                  # Telegram Serverless Bot & Mini App
 │   ├── dist/
@@ -41,9 +42,7 @@ The repository is organized into three distinct, modular layers:
 │   │   └── schema.js          # SQLite schema for serverless bot runtime
 │   └── tgcloud.jsonc          # Deployment configuration for TGCloud
 │
-├── app/                       # Next.js App Router (pages and API routes)
-├── components/                # Modular re-exports pointing to client/components/
-└── lib/                       # Standardized re-exports pointing to server/ and client/
+└── app/                       # Next.js App Router (pages and API routes)
 ```
 
 ---

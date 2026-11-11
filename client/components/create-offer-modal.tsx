@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRealtime } from './realtime-provider';
-import { useI18n } from '@/lib/i18n';
-import { OfferType, PaymentMethod, PAYMENT_METHODS_META } from '@/lib/types';
-import { MarketPriceStats } from '@/lib/pricing';
+import { useI18n } from '@/client/i18n';
+import { OfferType, PaymentMethod, PAYMENT_METHODS_META } from '@/client/types';
+import { MarketPriceStats } from '@/client/pricing';
 import { Tag, Plus, Check, ShieldAlert, X } from 'lucide-react';
 
 export function CreateOfferModal({

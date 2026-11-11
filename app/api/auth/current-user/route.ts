@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
+import { db } from '@/server/database/store';
 
 // Default active user ID session simulation
 let activeUserId = 'usr-buyer-dawit';

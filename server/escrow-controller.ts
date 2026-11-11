@@ -1,4 +1,4 @@
-import { db } from '../lib/db/store';
+import { db } from './database/store';
 import {
   P2POrder,
   PaymentMethod,
@@ -6,7 +6,7 @@ import {
   User,
   displayName,
   isAdminRole,
-} from '../lib/types';
+} from '../client/types';
 import { wsGateway } from './websocket-gateway';
 import { telegramBot } from './telegram-bot';
 

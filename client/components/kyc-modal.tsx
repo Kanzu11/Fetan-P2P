@@ -12,7 +12,7 @@ import {
   Send,
   ExternalLink,
 } from 'lucide-react';
-import { useRealtime } from '@/components/realtime-provider';
+import { useRealtime } from '@/client/components/realtime-provider';
 import { KycDocType } from '@/client/types';
 
 interface KycModalProps {

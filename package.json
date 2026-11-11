@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate --schema=server/database/schema.prisma"
+  },
+  "prisma": {
+    "schema": "server/database/schema.prisma"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",

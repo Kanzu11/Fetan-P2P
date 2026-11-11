@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import { RealtimeProvider } from '@/components/realtime-provider';
-import { I18nProvider } from '@/lib/i18n';
-import { RoleSwitcherToolbar } from '@/components/role-switcher-toolbar';
-import { Navigation } from '@/components/navigation';
+import { RealtimeProvider } from '@/client/components/realtime-provider';
+import { I18nProvider } from '@/client/i18n';
+import { RoleSwitcherToolbar } from '@/client/components/role-switcher-toolbar';
+import { Navigation } from '@/client/components/navigation';
 
 export const metadata: Metadata = {
   title: 'Fetan P2P — Buy & Sell USDT in Ethiopia | Telebirr, CBE, BoA',

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRealtime } from './realtime-provider';
-import { KycDocType } from '@/lib/types';
+import { KycDocType } from '@/client/types';
 import { ShieldCheck, AlertTriangle, Send, CheckCircle2, X, PlusCircle } from 'lucide-react';
 
 export function ApplyMerchantModal({

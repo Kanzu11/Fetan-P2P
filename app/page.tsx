@@ -3,9 +3,9 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useRealtime } from '@/components/realtime-provider';
-import { useI18n } from '@/lib/i18n';
-import { PaymentMethod, PAYMENT_METHODS_META } from '@/lib/types';
+import { useRealtime } from '@/client/components/realtime-provider';
+import { useI18n } from '@/client/i18n';
+import { PaymentMethod, PAYMENT_METHODS_META } from '@/client/types';
 import {
   ShieldCheck,
   ArrowRight,
@@ -18,8 +18,8 @@ import {
   AlertCircle,
   CheckCircle2,
 } from 'lucide-react';
-import { ApplyMerchantModal } from '@/components/apply-merchant-modal';
-import { KycModal } from '@/components/kyc-modal';
+import { ApplyMerchantModal } from '@/client/components/apply-merchant-modal';
+import { KycModal } from '@/client/components/kyc-modal';
 
 export default function LandingPage() {
   const router = useRouter();

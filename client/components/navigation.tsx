@@ -4,8 +4,8 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useRealtime } from './realtime-provider';
-import { useI18n } from '@/lib/i18n';
-import { displayName, isAdminRole } from '@/lib/types';
+import { useI18n } from '@/client/i18n';
+import { displayName, isAdminRole } from '@/client/types';
 import {
   ShieldCheck,
   ArrowLeftRight,
