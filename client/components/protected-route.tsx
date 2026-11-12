@@ -5,15 +5,7 @@ import Link from 'next/link';
 import { useRealtime } from './realtime-provider';
 import { AuthModal } from './auth-modal';
 import { isAdminRole } from '@/client/types';
-import {
-  Lock,
-  ShieldAlert,
-  ArrowRight,
-  ShieldCheck,
-  UserCheck,
-  ArrowLeft,
-  Zap,
-} from 'lucide-react';
+import { Lock, ShieldAlert, ArrowRight, ArrowLeft } from 'lucide-react';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -21,8 +13,18 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
-  const { currentUser, availableUsers, setCurrentUserId } = useRealtime();
+  const { currentUser, loadingUser } = useRealtime();
   const [authModalOpen, setAuthModalOpen] = useState(false);
+
+  if (loadingUser) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center p-4">
+        <div className="text-xs font-medium text-slate-500 animate-pulse">
+          Verifying secure session...
+        </div>
+      </div>
+    );
+  }
 
   // 1. Unauthenticated Wall
   if (!currentUser) {
@@ -42,18 +44,18 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
             </p>
           </div>
 
-          <div className="space-y-2 pt-2">
+          <div className="space-y-2.5 pt-2">
             <button
               onClick={() => setAuthModalOpen(true)}
-              className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors"
+              className="w-full py-3 px-4 rounded-xl bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
             >
-              <span>Sign In with Email or Google</span>
-              <ArrowRight className="w-4 h-4" />
+              <span>Sign In with Email Code or Google</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
 
             <Link
               href="/"
-              className="block w-full py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 transition-colors"
+              className="w-full py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
             >
               Back to Home
             </Link>
@@ -67,10 +69,6 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
 
   // 2. Admin Role Requirement Check
   if (requireAdmin && !isAdminRole(currentUser.role)) {
-    const adminUser =
-      availableUsers.find((u) => u.role === 'SUPERADMIN') ||
-      availableUsers.find((u) => u.role === 'ADMIN');
-
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-4">
         <div className="max-w-md w-full rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-white dark:bg-slate-900 p-6 sm:p-8 text-center space-y-5 shadow-lg">
@@ -83,7 +81,7 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
               Admin Access Required
             </h2>
             <p className="text-xs text-slate-500 leading-relaxed">
-              This area is restricted to administrators and Superadmin (@kanzedin). Your current account role is{' '}
+              This area is restricted to authorized administrators and Superadmin. Your current account role is{' '}
               <b className="text-slate-900 dark:text-white uppercase font-mono">{currentUser.role}</b>.
             </p>
           </div>
@@ -91,7 +89,7 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
           <div className="space-y-2.5 pt-2">
             <Link
               href="/market"
-              className="inline-flex items-center justify-center gap-1.5 w-full py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors"
+              className="w-full py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Return to P2P Market</span>
@@ -104,4 +102,3 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
 
   return <>{children}</>;
 }
-

@@ -4,6 +4,6 @@ import { pricingService } from '@/client/pricing';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const stats = pricingService.getLiveStats();
+  const stats = await pricingService.getLiveStats();
   return NextResponse.json({ stats });
 }

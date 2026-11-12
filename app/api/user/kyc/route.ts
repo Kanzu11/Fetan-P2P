@@ -1,83 +1,129 @@
+import crypto from 'crypto';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { db } from '@/server/database/store';
-import { wsGateway } from '@/server/websocket-gateway';
-import { telegramBot } from '@/server/telegram-bot';
-import { KycSubmission, KycDocType } from '@/client/types';
+import { requireAuth } from '@/server/security/session';
 import { rateLimiter, getClientIp } from '@/server/security/rate-limiter';
 import { sanitizeString } from '@/server/security/sanitize';
+import { telegramBot } from '@/server/telegram-bot';
+import { wsGateway } from '@/server/websocket-gateway';
+import type { KycSubmission } from '@/client/types';
 
-const VALID_DOC_TYPES: KycDocType[] = ['NATIONAL_ID', 'PASSPORT', 'DRIVERS_LICENSE'];
+export const dynamic = 'force-dynamic';
+
+function isAllowedDocUrl(url: string): boolean {
+  return url.startsWith('/api/uploads/') || url.startsWith('https://');
+}
+
+const kycSchema = z.object({
+  docType: z.enum(['NATIONAL_ID', 'PASSPORT', 'DRIVERS_LICENSE']),
+  docNumber: z.string().min(4, 'Document ID number must be at least 4 characters.').max(60),
+  docPhotoUrl: z.string().min(5).max(500).optional(),
+  source: z
+    .enum(['WEB', 'MINI_APP', 'TELEGRAM_MINIAPP', 'TELEGRAM_BOT'])
+    .default('WEB')
+    .transform((v): 'WEB' | 'MINI_APP' | 'TELEGRAM_BOT' =>
+      v === 'TELEGRAM_MINIAPP' ? 'MINI_APP' : v
+    ),
+});
 
 export async function POST(req: Request) {
   try {
-    const ip = getClientIp(req);
+    const auth = await requireAuth(req);
+    if (!auth.ok) return auth.response;
 
-    // Rate limit: 5 KYC attempts per hour per IP
-    const limitCheck = rateLimiter.check(`kyc:${ip}`, 5, 3600);
-    if (!limitCheck.allowed) {
+    const ip = getClientIp(req);
+    const limit = await rateLimiter.checkAsync(`kyc:${auth.user.id}:${ip}`, 5, 3600);
+    if (!limit.allowed) {
       return rateLimiter.rateLimitResponse(
-        limitCheck.resetSeconds,
-        'KYC submission rate limit reached. Please wait before submitting additional applications.'
+        limit.resetSeconds,
+        'Too many KYC submissions. Please wait before submitting again.'
       );
     }
 
-    const { userId, docType, docNumber, docPhotoUrl, source } = await req.json();
-
-    if (!userId || !docType || !docNumber) {
-      return NextResponse.json({ error: 'userId, docType, and docNumber are required' }, { status: 400 });
+    if (auth.user.kycStatus === 'VERIFIED') {
+      return NextResponse.json(
+        { error: 'Your identity is already KYC verified.' },
+        { status: 400 }
+      );
     }
 
-    if (!docPhotoUrl || typeof docPhotoUrl !== 'string' || !docPhotoUrl.startsWith('http')) {
-      return NextResponse.json({ error: 'A clear photo of your government ID or Fayda slip is required.' }, { status: 400 });
+    if (auth.user.kycStatus === 'PENDING') {
+      return NextResponse.json(
+        { error: 'A KYC submission is already pending admin review.' },
+        { status: 409 }
+      );
     }
 
-    if (!VALID_DOC_TYPES.includes(docType as KycDocType)) {
-      return NextResponse.json({ error: 'Invalid document type. Allowed: NATIONAL_ID, PASSPORT, DRIVERS_LICENSE' }, { status: 400 });
+    const rawBody = await req.json();
+    const parsed = kycSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message || 'Invalid KYC submission data.' },
+        { status: 400 }
+      );
     }
 
-    const cleanDocNumber = sanitizeString(docNumber, 50);
+    const cleanDocNumber = sanitizeString(parsed.data.docNumber, 60);
     if (cleanDocNumber.length < 4) {
-      return NextResponse.json({ error: 'Document number must be at least 4 characters long' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Valid document ID number is required.' },
+        { status: 400 }
+      );
     }
 
-    const user = db.getUser(userId);
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    const cleanPhotoUrl = parsed.data.docPhotoUrl?.trim();
+    if (cleanPhotoUrl && !isAllowedDocUrl(cleanPhotoUrl)) {
+      return NextResponse.json(
+        { error: 'Uploaded ID image URL must come from secure platform upload (/api/uploads/...) or HTTPS.' },
+        { status: 400 }
+      );
     }
-
-    db.updateUser(userId, {
-      kycStatus: 'PENDING',
-      kycDocType: docType as KycDocType,
-      kycDocNumber: cleanDocNumber,
-      kycSubmittedAt: new Date().toISOString(),
-    });
 
     const submission: KycSubmission = {
-      id: `kyc-${Date.now()}`,
-      userId,
-      userEmail: user.email,
-      userName: user.name,
-      telegramHandle: user.telegramHandle,
-      source: source || 'WEB',
-      kycDocType: docType as KycDocType,
+      id: `kyc-${crypto.randomUUID()}`,
+      userId: auth.user.id,
+      userEmail: auth.user.email,
+      userName: auth.user.name,
+      telegramHandle: auth.user.telegramHandle,
+      source: parsed.data.source,
+      kycDocType: parsed.data.docType,
       kycDocNumber: cleanDocNumber,
-      docPhotoUrl,
+      docPhotoUrl: cleanPhotoUrl,
       status: 'PENDING',
       submittedAt: new Date().toISOString(),
     };
 
-    db.saveKycSubmission(submission);
+    const saved = await db.saveKycSubmission(submission);
+    const updatedUser = await db.updateUser(auth.user.id, {
+      kycStatus: 'PENDING',
+      kycDocType: parsed.data.docType,
+      kycDocNumber: cleanDocNumber,
+      kycSubmittedAt: submission.submittedAt,
+    });
 
-    wsGateway.emitToRoom('admin:dashboard', 'new_kyc_submission', submission);
-    void telegramBot.sendKycSubmissionAlert(submission);
+    await db.logAudit({
+      actorId: auth.user.id,
+      actorRole: auth.user.role,
+      action: 'KYC_SUBMITTED',
+      targetType: 'KycSubmission',
+      targetId: saved.id,
+      ip,
+      details: { docType: parsed.data.docType, source: parsed.data.source },
+    });
+
+    await telegramBot.sendKycSubmissionAlert(saved);
+    wsGateway.emitToRoom('admin:dashboard', 'kyc_submitted', { submission: saved });
+    wsGateway.emitToUser(auth.user.id, 'user_updated', { user: updatedUser });
 
     return NextResponse.json({
       success: true,
-      submission,
-      message: 'ID submitted. Superadmin (@kanzedin) notified via Telegram and email.',
+      submission: saved,
+      user: updatedUser,
+      message: 'KYC verification submitted and sent to admins for review.',
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Internal error';
+    const message = err instanceof Error ? err.message : 'KYC submission failed';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

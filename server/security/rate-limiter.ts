@@ -1,68 +1,120 @@
 import { NextResponse } from 'next/server';
+import { prisma } from '@/server/database/prisma';
 
-interface RateLimitRecord {
+interface MemoryRateLimitRecord {
   count: number;
   resetAt: number;
 }
 
 /**
- * In-memory sliding-window rate limiter for production edge protection.
- * Can be swapped for Redis / Upstash in multi-node clusters.
+ * PostgreSQL-backed sliding/fixed window rate limiter with fast in-memory fallback.
+ * Survives serverless cold starts and multi-worker instances using Neon Postgres.
  */
 class RateLimiter {
-  private records: Map<string, RateLimitRecord> = new Map();
+  private memoryFallback: Map<string, MemoryRateLimitRecord> = new Map();
 
-  constructor() {
-    // Periodic garbage collector every 5 minutes to prevent memory leaks
-    if (typeof setInterval !== 'undefined') {
-      setInterval(() => this.cleanup(), 5 * 60 * 1000);
-    }
-  }
-
-  private cleanup() {
-    const now = Date.now();
-    for (const [key, record] of this.records.entries()) {
-      if (now > record.resetAt) {
-        this.records.delete(key);
-      }
-    }
-  }
-
-  /**
-   * Check if a request exceeds limits.
-   * @param key Unique key (e.g. `ip:action` or `userId:action`)
-   * @param maxRequests Maximum allowed requests within window
-   * @param windowSeconds Window length in seconds
-   */
-  check(
+  private checkInMemory(
     key: string,
     maxRequests: number,
     windowSeconds: number
   ): { allowed: boolean; remaining: number; resetSeconds: number } {
     const now = Date.now();
     const windowMs = windowSeconds * 1000;
-    const record = this.records.get(key);
+    const record = this.memoryFallback.get(key);
 
     if (!record || now > record.resetAt) {
-      this.records.set(key, { count: 1, resetAt: now + windowMs });
+      this.memoryFallback.set(key, { count: 1, resetAt: now + windowMs });
       return { allowed: true, remaining: maxRequests - 1, resetSeconds: windowSeconds };
     }
 
     if (record.count >= maxRequests) {
-      const resetSeconds = Math.ceil((record.resetAt - now) / 1000);
+      const resetSeconds = Math.max(1, Math.ceil((record.resetAt - now) / 1000));
       return { allowed: false, remaining: 0, resetSeconds };
     }
 
     record.count += 1;
-    const remaining = maxRequests - record.count;
-    const resetSeconds = Math.ceil((record.resetAt - now) / 1000);
-    return { allowed: true, remaining, resetSeconds };
+    return {
+      allowed: true,
+      remaining: Math.max(0, maxRequests - record.count),
+      resetSeconds: Math.max(1, Math.ceil((record.resetAt - now) / 1000)),
+    };
   }
 
   /**
-   * Helper to generate a 429 response with standard Retry-After header.
+   * Distributed rate-limit check backed by Postgres `RateLimitRecord` table.
    */
-  rateLimitResponse(resetSeconds: number, message: string = 'Too many requests. Please try again later.') {
+  async checkAsync(
+    key: string,
+    maxRequests: number,
+    windowSeconds: number
+  ): Promise<{ allowed: boolean; remaining: number; resetSeconds: number }> {
+    const now = new Date();
+    const nextResetAt = new Date(now.getTime() + windowSeconds * 1000);
+
+    try {
+      const result = await prisma.$transaction(
+        async (tx) => {
+          const existing = await tx.rateLimitRecord.findUnique({ where: { key } });
+
+          if (!existing || existing.resetAt <= now) {
+            const created = await tx.rateLimitRecord.upsert({
+              where: { key },
+              create: { key, count: 1, resetAt: nextResetAt },
+              update: { count: 1, resetAt: nextResetAt },
+            });
+            return {
+              allowed: true,
+              remaining: Math.max(0, maxRequests - created.count),
+              resetSeconds: windowSeconds,
+            };
+          }
+
+          if (existing.count >= maxRequests) {
+            const resetSeconds = Math.max(
+              1,
+              Math.ceil((existing.resetAt.getTime() - now.getTime()) / 1000)
+            );
+            return { allowed: false, remaining: 0, resetSeconds };
+          }
+
+          const updated = await tx.rateLimitRecord.update({
+            where: { key },
+            data: { count: { increment: 1 } },
+          });
+          const resetSeconds = Math.max(
+            1,
+            Math.ceil((updated.resetAt.getTime() - now.getTime()) / 1000)
+          );
+          return {
+            allowed: true,
+            remaining: Math.max(0, maxRequests - updated.count),
+            resetSeconds,
+          };
+        },
+        { maxWait: 10000, timeout: 25000 }
+      );
+
+      return result;
+    } catch {
+      return this.checkInMemory(key, maxRequests, windowSeconds);
+    }
+  }
+
+  /**
+   * Synchronous helper kept for backward compatibility (prefer checkAsync).
+   */
+  check(
+    key: string,
+    maxRequests: number,
+    windowSeconds: number
+  ): { allowed: boolean; remaining: number; resetSeconds: number } {
+    return this.checkInMemory(key, maxRequests, windowSeconds);
+  }
+
+  rateLimitResponse(
+    resetSeconds: number,
+    message: string = 'Too many requests. Please try again later.'
+  ) {
     return NextResponse.json(
       {
         error: message,
@@ -81,9 +133,6 @@ class RateLimiter {
 
 export const rateLimiter = new RateLimiter();
 
-/**
- * Extracts client IP from request headers across various proxies (Cloudflare, Vercel, Nginx).
- */
 export function getClientIp(req: Request): string {
   const forwarded = req.headers.get('x-forwarded-for');
   if (forwarded) {
@@ -95,4 +144,3 @@ export function getClientIp(req: Request): string {
   if (cfIp) return cfIp.trim();
   return '127.0.0.1';
 }
-

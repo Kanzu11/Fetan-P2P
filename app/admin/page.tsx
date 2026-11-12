@@ -11,6 +11,7 @@ import {
   Role,
   KycStatus,
   P2POrder,
+  WalletTransaction,
   displayName,
 } from '@/client/types';
 import {
@@ -34,8 +35,14 @@ export default function AdminDashboardPage() {
   const { currentUser, connected, refreshUser, setNotification } = useRealtime();
   const { t } = useI18n();
 
+  type AdminWithdrawalItem = WalletTransaction & {
+    userName?: string;
+    userEmail?: string;
+    telegramHandle?: string;
+  };
+
   const [activeTab, setActiveTab] = useState<
-    'DISPUTES' | 'USERS' | 'MERCHANTS' | 'KYC' | 'SUPERADMIN'
+    'DISPUTES' | 'USERS' | 'MERCHANTS' | 'KYC' | 'WITHDRAWALS' | 'SUPERADMIN'
   >('DISPUTES');
 
   // State
@@ -43,6 +50,9 @@ export default function AdminDashboardPage() {
   const [kycSubmissions, setKycSubmissions] = useState<KycSubmission[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [allOrders, setAllOrders] = useState<P2POrder[]>([]);
+  const [withdrawals, setWithdrawals] = useState<AdminWithdrawalItem[]>([]);
+  const [withdrawTxHashes, setWithdrawTxHashes] = useState<Record<string, string>>({});
+  const [withdrawNotes, setWithdrawNotes] = useState<Record<string, string>>({});
   const [orderStatusFilter, setOrderStatusFilter] = useState<
     'ALL' | 'OPEN' | 'DISPUTED' | 'COMPLETED' | 'CANCELLED'
   >('ALL');
@@ -62,11 +72,12 @@ export default function AdminDashboardPage() {
   const fetchAdminData = async () => {
     try {
       setLoading(true);
-      const [merchantsRes, kycRes, usersRes, ordersRes] = await Promise.all([
+      const [merchantsRes, kycRes, usersRes, ordersRes, withdrawalsRes] = await Promise.all([
         fetch('/api/admin/merchants'),
         fetch('/api/admin/kyc'),
         fetch('/api/admin/users'),
         fetch('/api/orders'),
+        fetch('/api/admin/withdrawals'),
       ]);
 
       if (merchantsRes.ok) {
@@ -87,6 +98,11 @@ export default function AdminDashboardPage() {
       if (ordersRes.ok) {
         const oData = await ordersRes.json();
         setAllOrders(oData.orders || []);
+      }
+
+      if (withdrawalsRes.ok) {
+        const wData = await withdrawalsRes.json();
+        setWithdrawals(wData.withdrawals || []);
       }
     } catch (e) {
       console.error(e);
@@ -219,10 +235,10 @@ export default function AdminDashboardPage() {
     }
   };
 
-  // Admin & Superadmin Action: Promote/Demote ADMIN
+  // Superadmin Action: Promote/Demote ADMIN
   const handleToggleAdminRole = async (targetUser: User) => {
-    if (currentUser?.role !== 'SUPERADMIN' && currentUser?.role !== 'ADMIN') {
-      setAdminError('Only Administrators or Superadmin can manage Admin privileges.');
+    if (currentUser?.role !== 'SUPERADMIN') {
+      setAdminError('Only Superadmin can promote or demote Admin roles.');
       return;
     }
 
@@ -309,6 +325,43 @@ export default function AdminDashboardPage() {
       if (!res.ok) throw new Error(data.error || 'Could not review ID');
 
       setNotification(`ID check ${action.toLowerCase()}d`);
+      await fetchAdminData();
+    } catch (err: unknown) {
+      setAdminError(err instanceof Error ? err.message : 'Error');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleReviewWithdrawal = async (txId: string, action: 'APPROVE' | 'REJECT') => {
+    setActionLoadingId(txId);
+    setAdminError(null);
+    try {
+      const txHash = (withdrawTxHashes[txId] || '').trim();
+      const note = (withdrawNotes[txId] || '').trim();
+      if (action === 'APPROVE' && !txHash) {
+        throw new Error('Enter the verified payout blockchain TxHash before approving.');
+      }
+
+      const res = await fetch('/api/admin/withdrawals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          txId,
+          action,
+          txHash: txHash || undefined,
+          note: note || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not process withdrawal review');
+
+      setNotification(
+        action === 'APPROVE'
+          ? 'Withdrawal approved & TxHash recorded.'
+          : 'Withdrawal rejected & USDT refunded to user balance.'
+      );
       await fetchAdminData();
     } catch (err: unknown) {
       setAdminError(err instanceof Error ? err.message : 'Error');
@@ -466,7 +519,18 @@ export default function AdminDashboardPage() {
           {t.tabKyc} ({kycSubmissions.filter((k) => k.status === 'PENDING').length})
         </button>
 
-        {(isSuperadmin || currentUser?.role === 'ADMIN') && (
+        <button
+          onClick={() => setActiveTab('WITHDRAWALS')}
+          className={`px-4 py-2 rounded-xl font-bold whitespace-nowrap transition-colors ${
+            activeTab === 'WITHDRAWALS'
+              ? 'bg-slate-900 text-white'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          Withdrawals ({withdrawals.filter((w) => w.status === 'PENDING').length})
+        </button>
+
+        {isSuperadmin && (
           <button
             onClick={() => setActiveTab('SUPERADMIN')}
             className={`px-4 py-2 rounded-xl font-bold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
@@ -1010,6 +1074,93 @@ export default function AdminDashboardPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      ) : activeTab === 'WITHDRAWALS' ? (
+        /* TAB: WITHDRAWAL PAYOUT QUEUE */
+        <div className="space-y-3 text-xs">
+          {withdrawals.length === 0 ? (
+            <div className="p-10 text-center bg-white rounded-2xl border border-slate-200 text-slate-500">
+              No withdrawal requests recorded yet.
+            </div>
+          ) : (
+            withdrawals.map((w) => (
+              <div
+                key={w.id}
+                className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+              >
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-slate-900 text-sm">
+                      {displayName(w.userName)}
+                    </span>
+                    <span className="text-slate-400">({w.userEmail || w.userId})</span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        w.status === 'PENDING'
+                          ? 'bg-amber-100 text-amber-800'
+                          : w.status === 'COMPLETED'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-rose-100 text-rose-800'
+                      }`}
+                    >
+                      {w.status}
+                    </span>
+                  </div>
+                  <div className="text-slate-700 font-semibold">
+                    Amount: <span className="text-rose-700 font-bold">{w.amount.toFixed(2)} USDT</span> ({w.network})
+                  </div>
+                  <div className="font-mono text-[11px] text-slate-600 break-all">
+                    To Address: {w.address || 'N/A'}
+                  </div>
+                  {w.txHash && (
+                    <div className="font-mono text-[11px] text-emerald-700 break-all">
+                      TxHash: {w.txHash}
+                    </div>
+                  )}
+                  {w.note && <div className="text-[11px] text-slate-500">Note: {w.note}</div>}
+                </div>
+
+                {w.status === 'PENDING' && (
+                  <div className="flex flex-col sm:flex-row gap-2 lg:min-w-[420px]">
+                    <input
+                      type="text"
+                      value={withdrawTxHashes[w.id] || ''}
+                      onChange={(e) =>
+                        setWithdrawTxHashes((prev) => ({ ...prev, [w.id]: e.target.value }))
+                      }
+                      placeholder="On-chain payout TxHash..."
+                      className="flex-1 px-3 py-2 rounded-lg border border-slate-300 font-mono text-[11px] focus:outline-none focus:border-slate-900"
+                    />
+                    <input
+                      type="text"
+                      value={withdrawNotes[w.id] || ''}
+                      onChange={(e) =>
+                        setWithdrawNotes((prev) => ({ ...prev, [w.id]: e.target.value }))
+                      }
+                      placeholder="Optional note / reason..."
+                      className="sm:w-40 px-3 py-2 rounded-lg border border-slate-300 text-[11px] focus:outline-none focus:border-slate-900"
+                    />
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => handleReviewWithdrawal(w.id, 'APPROVE')}
+                        disabled={actionLoadingId === w.id}
+                        className="px-3 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleReviewWithdrawal(w.id, 'REJECT')}
+                        disabled={actionLoadingId === w.id}
+                        className="px-3 py-2 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700 disabled:opacity-50"
+                      >
+                        Reject &amp; Refund
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
       ) : (
         /* TAB: SUPERADMIN ROLE MANAGEMENT */

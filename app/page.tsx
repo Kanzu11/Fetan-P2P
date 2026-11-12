@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRealtime } from '@/client/components/realtime-provider';
+import { GoogleSignInButton } from '@/client/components/google-signin-button';
 import { useI18n } from '@/client/i18n';
 import { PaymentMethod, PAYMENT_METHODS_META } from '@/client/types';
 import {
@@ -35,8 +36,10 @@ export default function LandingPage() {
     currentUser,
     latestActiveOrderId,
     openAuthModal,
+    requestLoginOtp,
+    verifyLoginOtp,
     loginWithGoogle,
-    loginWithEmail,
+    googleClientId,
     setNotification,
   } = useRealtime();
   const { lang, t } = useI18n();
@@ -46,12 +49,15 @@ export default function LandingPage() {
   const [termsModalOpen, setTermsModalOpen] = useState(false);
   const [heroTab, setHeroTab] = useState<'LOGIN' | 'CALCULATOR'>('LOGIN');
 
-  // Inline Email Login State
+  // Inline Email OTP Login State
   const [inlineEmail, setInlineEmail] = useState('');
+  const [inlineOtpStep, setInlineOtpStep] = useState<'EMAIL' | 'CODE'>('EMAIL');
+  const [inlineOtpCode, setInlineOtpCode] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authInfo, setAuthInfo] = useState<string | null>(null);
 
-  const handleInlineEmailLogin = async (e: React.FormEvent) => {
+  const handleInlineRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inlineEmail.trim()) {
       setAuthError('Please enter your email.');
@@ -59,26 +65,53 @@ export default function LandingPage() {
     }
     setAuthLoading(true);
     setAuthError(null);
+    setAuthInfo(null);
     try {
-      const res = await loginWithEmail(inlineEmail.trim());
-      if (res.success && res.user) {
-        setNotification(`Welcome to Fetan P2P, ${res.user.name}!`);
-        setInlineEmail('');
+      const res = await requestLoginOtp(inlineEmail.trim());
+      if (res.success) {
+        setInlineOtpStep('CODE');
+        setAuthInfo(res.message || `6-digit code sent to ${inlineEmail.trim()}.`);
       } else {
-        setAuthError(res.error || 'Login failed');
+        setAuthError(res.error || 'Could not send verification code');
       }
     } catch (err: unknown) {
-      setAuthError(err instanceof Error ? err.message : 'Login failed');
+      setAuthError(err instanceof Error ? err.message : 'Request failed');
     } finally {
       setAuthLoading(false);
     }
   };
 
-  const handleInlineGoogleLogin = async () => {
+  const handleInlineVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!/^\d{6}$/.test(inlineOtpCode.trim())) {
+      setAuthError('Enter the 6-digit verification code sent to your email.');
+      return;
+    }
     setAuthLoading(true);
     setAuthError(null);
     try {
-      const res = await loginWithGoogle();
+      const res = await verifyLoginOtp(inlineEmail.trim(), inlineOtpCode.trim());
+      if (res.success && res.user) {
+        setNotification(`Welcome to Fetan P2P, ${res.user.name}!`);
+        setInlineEmail('');
+        setInlineOtpCode('');
+        setInlineOtpStep('EMAIL');
+        setAuthInfo(null);
+      } else {
+        setAuthError(res.error || 'Invalid or expired code');
+      }
+    } catch (err: unknown) {
+      setAuthError(err instanceof Error ? err.message : 'Verification failed');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleInlineGoogleToken = async (idToken: string) => {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const res = await loginWithGoogle(idToken);
       if (res.success && res.user) {
         setNotification(`Signed in with Google as ${res.user.name}!`);
       } else {
@@ -96,10 +129,22 @@ export default function LandingPage() {
   const [etbInput, setEtbInput] = useState<string>('15000');
   const [selectedRail, setSelectedRail] = useState<PaymentMethod>('TELEBIRR');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [referenceRate, setReferenceRate] = useState<number>(
+    Number(process.env.NEXT_PUBLIC_REFERENCE_ETB_PER_USDT || 158.35)
+  );
 
-  // Reference rate: 1 USDT → ETB (configurable via NEXT_PUBLIC_REFERENCE_ETB_PER_USDT)
-const referenceRate = 158.35;
-const unitRate = calcSide === 'BUY' ? referenceRate : referenceRate * 0.994;
+  useEffect(() => {
+    fetch('/api/prices/live')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.stats?.referencePriceEtb) {
+          setReferenceRate(Number(data.stats.referencePriceEtb));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const unitRate = calcSide === 'BUY' ? referenceRate : referenceRate * 0.994;
   const parsedEtb = parseFloat(etbInput) || 0;
   const calculatedUsdt = parsedEtb > 0 ? parsedEtb / unitRate : 0;
 
@@ -215,7 +260,7 @@ const unitRate = calcSide === 'BUY' ? referenceRate : referenceRate * 0.994;
                   <>
                     <button
                       type="button"
-                      onClick={handleInlineGoogleLogin}
+                      onClick={() => openAuthModal()}
                       disabled={authLoading}
                       className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-slate-300 text-slate-800 text-sm font-bold hover:bg-slate-50 shadow-sm transition-colors"
                     >
@@ -250,7 +295,7 @@ const unitRate = calcSide === 'BUY' ? referenceRate : referenceRate * 0.994;
                     </button>
 
                     <Link
-                      href={`/trade/${latestActiveOrderId}`}
+                      href={latestActiveOrderId ? `/trade/${latestActiveOrderId}` : '/market'}
                       className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
                     >
                       <Lock className="w-4 h-4 text-emerald-600" />
@@ -341,60 +386,83 @@ const unitRate = calcSide === 'BUY' ? referenceRate : referenceRate * 0.994;
                       </div>
                     )}
 
+                    {authInfo && (
+                      <div className="p-2.5 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs">
+                        {authInfo}
+                      </div>
+                    )}
+
                     {/* Google OAuth Button */}
-                    <button
-                      type="button"
-                      onClick={handleInlineGoogleLogin}
+                    <GoogleSignInButton
+                      clientId={googleClientId}
+                      onIdToken={handleInlineGoogleToken}
                       disabled={authLoading}
-                      className="w-full py-3 px-4 rounded-xl bg-white hover:bg-slate-100 text-slate-900 text-xs font-bold flex items-center justify-center gap-2.5 shadow transition-colors disabled:opacity-50"
-                    >
-                      <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
-                        <path
-                          fill="#4285F4"
-                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                        />
-                        <path
-                          fill="#34A853"
-                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                        />
-                        <path
-                          fill="#FBBC05"
-                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                        />
-                        <path
-                          fill="#EA4335"
-                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                        />
-                      </svg>
-                      <span>{authLoading ? 'Signing in...' : 'Continue with Google'}</span>
-                    </button>
+                      variant="dark"
+                    />
 
                     <div className="relative flex items-center justify-center">
                       <div className="border-t border-slate-800 w-full" />
                       <span className="bg-slate-900 px-2 text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
-                        or email
+                        or email code
                       </span>
                     </div>
 
-                    {/* Direct Email Form */}
-                    <form onSubmit={handleInlineEmailLogin} className="space-y-2.5">
-                      <input
-                        type="email"
-                        value={inlineEmail}
-                        onChange={(e) => setInlineEmail(e.target.value)}
-                        placeholder="Enter your email address..."
-                        required
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800/80 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-emerald-500"
-                      />
-                      <button
-                        type="submit"
-                        disabled={authLoading}
-                        className="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                      >
-                        <Mail className="w-3.5 h-3.5" />
-                        <span>{authLoading ? 'Signing in...' : 'Sign In with Email'}</span>
-                      </button>
-                    </form>
+                    {/* Email OTP Form */}
+                    {inlineOtpStep === 'EMAIL' ? (
+                      <form onSubmit={handleInlineRequestOtp} className="space-y-2.5">
+                        <input
+                          type="email"
+                          value={inlineEmail}
+                          onChange={(e) => setInlineEmail(e.target.value)}
+                          placeholder="Enter your email address..."
+                          required
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800/80 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-emerald-500"
+                        />
+                        <button
+                          type="submit"
+                          disabled={authLoading}
+                          className="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>{authLoading ? 'Sending code...' : 'Send 6-Digit Email Code'}</span>
+                        </button>
+                      </form>
+                    ) : (
+                      <form onSubmit={handleInlineVerifyOtp} className="space-y-2.5">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={inlineOtpCode}
+                          onChange={(e) =>
+                            setInlineOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                          }
+                          placeholder="Enter 6-digit code..."
+                          required
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800/80 text-white placeholder-slate-500 font-mono text-xs tracking-[0.2em] focus:outline-none focus:border-emerald-500"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="submit"
+                            disabled={authLoading || inlineOtpCode.length !== 6}
+                            className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition-colors disabled:opacity-50"
+                          >
+                            {authLoading ? 'Verifying...' : 'Verify & Sign In'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setInlineOtpStep('EMAIL');
+                              setInlineOtpCode('');
+                              setAuthInfo(null);
+                            }}
+                            className="px-3 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700"
+                          >
+                            Back
+                          </button>
+                        </div>
+                      </form>
+                    )}
 
                     <p className="text-[11px] text-slate-500 text-center pt-1">
                       By continuing, you agree to the pre-funded escrow rules.
@@ -709,7 +777,7 @@ const unitRate = calcSide === 'BUY' ? referenceRate : referenceRate * 0.994;
                   <span className="text-xs text-emerald-400 font-mono">USDT</span>
                 </div>
                 <div className="text-[11px] text-slate-400">
-                  ≈ {(currentUser.usdtBalance * 158.35).toLocaleString()} ETB
+                  ≈ {(currentUser.usdtBalance * referenceRate).toLocaleString()} ETB
                 </div>
               </div>
 
@@ -782,58 +850,81 @@ const unitRate = calcSide === 'BUY' ? referenceRate : referenceRate * 0.994;
                 </div>
               )}
 
+              {authInfo && (
+                <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs">
+                  {authInfo}
+                </div>
+              )}
+
               {/* 1. Google OAuth Button */}
-              <button
-                type="button"
-                onClick={handleInlineGoogleLogin}
+              <GoogleSignInButton
+                clientId={googleClientId}
+                onIdToken={handleInlineGoogleToken}
                 disabled={authLoading}
-                className="w-full py-3 px-4 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 text-xs font-bold flex items-center justify-center gap-2.5 shadow-sm transition-colors disabled:opacity-50"
-              >
-                <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-                <span>{authLoading ? 'Signing in...' : 'Continue with Google'}</span>
-              </button>
+                variant="light"
+              />
 
               <div className="relative flex items-center justify-center">
                 <div className="border-t border-slate-200 w-full" />
-                <span className="bg-slate-50 px-2 text-[11px] text-slate-400 font-medium uppercase">or email</span>
+                <span className="bg-slate-50 px-2 text-[11px] text-slate-400 font-medium uppercase">or email code</span>
               </div>
 
-              {/* 2. Direct Email Form */}
-              <form onSubmit={handleInlineEmailLogin} className="space-y-2">
-                <input
-                  type="email"
-                  value={inlineEmail}
-                  onChange={(e) => setInlineEmail(e.target.value)}
-                  placeholder="Enter your email address..."
-                  required
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-slate-900 bg-white"
-                />
-                <button
-                  type="submit"
-                  disabled={authLoading}
-                  className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                >
-                  <Mail className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{authLoading ? 'Connecting...' : 'Continue with Email'}</span>
-                </button>
-              </form>
+              {/* 2. Email OTP Form */}
+              {inlineOtpStep === 'EMAIL' ? (
+                <form onSubmit={handleInlineRequestOtp} className="space-y-2">
+                  <input
+                    type="email"
+                    value={inlineEmail}
+                    onChange={(e) => setInlineEmail(e.target.value)}
+                    placeholder="Enter your email address..."
+                    required
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-slate-900 bg-white"
+                  />
+                  <button
+                    type="submit"
+                    disabled={authLoading}
+                    className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>{authLoading ? 'Sending Code...' : 'Send 6-Digit Email Code'}</span>
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleInlineVerifyOtp} className="space-y-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={inlineOtpCode}
+                    onChange={(e) =>
+                      setInlineOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                    }
+                    placeholder="Enter 6-digit email code..."
+                    required
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-mono text-xs tracking-[0.2em] focus:outline-none focus:border-slate-900 bg-white"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={authLoading || inlineOtpCode.length !== 6}
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors disabled:opacity-50"
+                    >
+                      {authLoading ? 'Verifying...' : 'Verify & Sign In'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInlineOtpStep('EMAIL');
+                        setInlineOtpCode('');
+                        setAuthInfo(null);
+                      }}
+                      className="px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-100"
+                    >
+                      Back
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         </section>

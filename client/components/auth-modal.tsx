@@ -2,44 +2,78 @@
 
 import React, { useState } from 'react';
 import { useRealtime } from './realtime-provider';
+import { GoogleSignInButton } from './google-signin-button';
 import {
   X,
   Mail,
   ShieldCheck,
-  CheckCircle2,
-  AlertCircle,
+  User as UserIcon,
   ArrowRight,
-  User,
-  Zap,
+  KeyRound,
+  RotateCcw,
 } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  title?: string;
-  subtitle?: string;
 }
 
-export function AuthModal({
-  isOpen,
-  onClose,
-  title = 'Sign In to Fetan P2P',
-  subtitle = 'Ethiopia’s secure peer-to-peer crypto exchange',
-}: AuthModalProps) {
-  const { loginWithEmail, loginWithGoogle, setCurrentUserId, availableUsers, setNotification } = useRealtime();
+export function AuthModal({ isOpen, onClose }: AuthModalProps) {
+  const { requestLoginOtp, verifyLoginOtp, loginWithGoogle, googleClientId, setNotification } =
+    useRealtime();
 
-  const [mode, setMode] = useState<'LOGIN' | 'SIGNUP'>('LOGIN');
+  const [mode, setMode] = useState<'SIGNIN' | 'SIGNUP'>('SIGNIN');
+  const [step, setStep] = useState<'EMAIL' | 'CODE'>('EMAIL');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  const [otpCode, setOtpCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [infoMsg, setInfoMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
+  const resetForm = () => {
+    setStep('EMAIL');
+    setOtpCode('');
+    setError(null);
+    setInfoMsg(null);
+  };
+
+  const handleRequestCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
-      setError('Please enter a valid email address.');
+      setError('Please enter your email address.');
+      return;
+    }
+    if (mode === 'SIGNUP' && !name.trim()) {
+      setError('Please enter your full name.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setInfoMsg(null);
+
+    try {
+      const res = await requestLoginOtp(email.trim());
+      if (res.success) {
+        setStep('CODE');
+        setInfoMsg(
+          res.message || `We sent a 6-digit verification code to ${email.trim()}.`
+        );
+      } else {
+        setError(res.error || 'Could not send verification code.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!/^\d{6}$/.test(otpCode.trim())) {
+      setError('Enter the 6-digit verification code from your email.');
       return;
     }
 
@@ -47,174 +81,230 @@ export function AuthModal({
     setError(null);
 
     try {
-      const res = await loginWithEmail(email.trim(), mode === 'SIGNUP' ? name.trim() : undefined);
+      const res = await verifyLoginOtp(
+        email.trim(),
+        otpCode.trim(),
+        mode === 'SIGNUP' ? name.trim() : undefined
+      );
       if (res.success && res.user) {
-        setNotification(`Welcome, ${res.user.name}!`);
+        setNotification(`Welcome back, ${res.user.name}!`);
+        resetForm();
         onClose();
       } else {
-        setError(res.error || 'Authentication failed');
+        setError(res.error || 'Invalid or expired code.');
       }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleIdToken = async (idToken: string) => {
     setLoading(true);
     setError(null);
-
     try {
-      const res = await loginWithGoogle();
+      const res = await loginWithGoogle(idToken);
       if (res.success && res.user) {
         setNotification(`Signed in with Google as ${res.user.name}!`);
+        resetForm();
         onClose();
       } else {
-        setError(res.error || 'Google Sign-In failed');
+        setError(res.error || 'Google authentication failed.');
       }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Google login error');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickSwitch = async (userId: string) => {
-    await setCurrentUserId(userId);
-    onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+      <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full overflow-hidden shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-900 text-white">
+        <div className="p-5 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400">
+            <div className="w-8 h-8 rounded-xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold tracking-tight">{title}</h3>
-              <p className="text-[11px] text-slate-400">{subtitle}</p>
+              <h3 className="font-bold text-sm tracking-tight">
+                {mode === 'SIGNIN' ? 'Sign In to Fetan P2P' : 'Create Fetan P2P Account'}
+              </h3>
+              <p className="text-[11px] text-slate-400">Verified Email Code or Google OAuth</p>
             </div>
           </div>
+
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="text-slate-400 hover:text-white p-1.5 rounded-lg transition-colors"
+            aria-label="Close"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-5 sm:p-6 space-y-4">
-          {error && (
-            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-center gap-2 text-xs text-rose-700 dark:text-rose-300">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* 1. Google OAuth Button */}
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={loading}
-            className="w-full py-2.5 px-4 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 font-semibold text-xs flex items-center justify-center gap-2.5 transition-all shadow-sm active:scale-[0.99]"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-              />
-            </svg>
-            <span>Continue with Google</span>
-          </button>
-
-          <div className="relative flex items-center justify-center">
-            <div className="border-t border-slate-200 dark:border-slate-800 w-full" />
-            <span className="bg-white dark:bg-slate-900 px-2.5 text-[10px] font-semibold tracking-wider text-slate-400 uppercase absolute">
-              or email
-            </span>
-          </div>
-
-          {/* 2. Email Login Form */}
-          <form onSubmit={handleEmailSubmit} className="space-y-3">
-            {mode === 'SIGNUP' && (
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Full Name (Matching Bank/Telebirr Account)
-                </label>
-                <div className="relative">
-                  <User className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Dawit Mekonnen"
-                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-600"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-600"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-sm disabled:opacity-50"
-            >
-              <span>{mode === 'LOGIN' ? 'Sign In with Email' : 'Create Free Account'}</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </form>
-
-          <div className="text-center pt-2">
+        <div className="p-6 space-y-5 text-xs">
+          {/* Tabs: Sign In / Create Account */}
+          <div className="grid grid-cols-2 p-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-semibold">
             <button
               type="button"
               onClick={() => {
-                setMode(mode === 'LOGIN' ? 'SIGNUP' : 'LOGIN');
+                setMode('SIGNIN');
                 setError(null);
               }}
-              className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold hover:underline"
+              className={`py-2 rounded-lg transition-colors ${
+                mode === 'SIGNIN'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
             >
-              {mode === 'LOGIN'
-                ? "Don't have an account? Sign up"
-                : 'Already have an account? Sign in'}
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('SIGNUP');
+                setError(null);
+              }}
+              className={`py-2 rounded-lg transition-colors ${
+                mode === 'SIGNUP'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              Sign Up
             </button>
           </div>
+
+          {error && (
+            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 font-medium">
+              {error}
+            </div>
+          )}
+
+          {infoMsg && (
+            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 font-medium">
+              {infoMsg}
+            </div>
+          )}
+
+          <GoogleSignInButton
+            clientId={googleClientId}
+            onIdToken={handleGoogleIdToken}
+            disabled={loading}
+            variant="light"
+          />
+
+          <div className="relative flex items-center justify-center">
+            <div className="border-t border-slate-200 dark:border-slate-800 w-full" />
+            <span className="bg-white dark:bg-slate-950 px-3 text-[11px] text-slate-400 font-medium">
+              OR VIA EMAIL CODE
+            </span>
+          </div>
+
+          {step === 'EMAIL' ? (
+            <form onSubmit={handleRequestCode} className="space-y-3.5">
+              {mode === 'SIGNUP' && (
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Full Legal Name (For Ethiopian Banks)
+                  </label>
+                  <div className="relative">
+                    <UserIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. Abebe Bikila"
+                      required={mode === 'SIGNUP'}
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:border-slate-900"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    required
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:border-slate-900"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 px-4 rounded-xl bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-2 shadow-sm transition-colors disabled:opacity-50"
+              >
+                <span>{loading ? 'Sending Verification Code...' : 'Send 6-Digit Email Code'}</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyCode} className="space-y-3.5">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300">
+                    Verification Code for {email}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep('EMAIL');
+                      setOtpCode('');
+                      setError(null);
+                      setInfoMsg(null);
+                    }}
+                    className="text-[11px] font-semibold text-emerald-700 hover:underline inline-flex items-center gap-1"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Change email</span>
+                  </button>
+                </div>
+                <div className="relative">
+                  <KeyRound className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="Enter 6-digit code"
+                    required
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono text-sm tracking-[0.25em] focus:outline-none focus:border-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={loading || otpCode.length !== 6}
+                  className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-2 shadow-sm transition-colors disabled:opacity-50"
+                >
+                  <span>{loading ? 'Verifying...' : 'Verify & Sign In'}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={handleRequestCode}
+                  className="px-3 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-900"
+                >
+                  Resend
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     </div>
   );
 }
-

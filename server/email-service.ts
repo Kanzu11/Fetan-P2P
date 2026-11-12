@@ -15,11 +15,67 @@ class EmailService {
     }
   }
 
+  isConfigured(): boolean {
+    return Boolean(this.transporter && process.env.EMAIL_USER);
+  }
+
   private getSuperadminEmails(): string[] {
     const list = new Set<string>();
     if (process.env.SUPERADMIN_EMAIL) list.add(process.env.SUPERADMIN_EMAIL);
     if (process.env.ADMIN_EMAIL) list.add(process.env.ADMIN_EMAIL);
     return Array.from(list);
+  }
+
+  /**
+   * Sends a one-time verification code strictly to the target recipient (never CC/redirect to admin).
+   */
+  async sendOtpEmail(params: {
+    to: string;
+    code: string;
+    purpose: 'LOGIN' | 'WITHDRAW';
+    amountUsdt?: number;
+    network?: string;
+    destinationAddress?: string;
+  }): Promise<void> {
+    if (!this.transporter || !process.env.EMAIL_USER) {
+      throw new Error('Email SMTP is not configured on the server.');
+    }
+
+    const { to, code, purpose, amountUsdt, network, destinationAddress } = params;
+    const isWithdraw = purpose === 'WITHDRAW';
+
+    const title = isWithdraw ? 'Confirm Your USDT Withdrawal' : 'Your Fetan P2P Sign-In Code';
+    const badge = isWithdraw ? 'Security 2FA Code' : 'Login Verification';
+
+    const detailHtml = isWithdraw
+      ? `<p>You requested a withdrawal on Fetan P2P:</p>
+         <ul style="padding-left: 18px;">
+           <li><strong>Amount:</strong> ${amountUsdt?.toFixed(2) || ''} USDT</li>
+           <li><strong>Network:</strong> ${network || ''}</li>
+           <li><strong>Destination:</strong> <code>${destinationAddress || ''}</code></li>
+         </ul>
+         <p>If you did not request this withdrawal, ignore this email and lock your account immediately.</p>`
+      : `<p>Enter this 6-digit verification code to sign in to your Fetan P2P account. It expires in <strong>10 minutes</strong>.</p>`;
+
+    const html = this.wrapTemplate(
+      title,
+      badge,
+      `${detailHtml}
+       <div style="margin: 20px 0; padding: 16px; border-radius: 10px; background: #f8fafc; border: 1px solid #cbd5e1; text-align: center;">
+         <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 6px;">Verification Code</div>
+         <div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #0f172a;">${code}</div>
+       </div>
+       <p style="font-size: 12px; color: #64748b;">Never share this code with anyone, including Fetan support staff.</p>`
+    );
+
+    await this.transporter.sendMail({
+      from: `"Fetan P2P Security" <${process.env.EMAIL_USER}>`,
+      to,
+      subject: isWithdraw
+        ? `[Fetan P2P] Withdrawal Confirmation Code: ${code}`
+        : `[Fetan P2P] Your Verification Code: ${code}`,
+      html,
+    });
   }
 
   async sendEmail(to: string | string[], subject: string, html: string) {
@@ -30,8 +86,8 @@ class EmailService {
       ? to.filter((e) => e && !e.endsWith('@fetan.et') && !e.endsWith('@telegram.fetan.et'))
       : [to].filter((e) => e && !e.endsWith('@fetan.et') && !e.endsWith('@telegram.fetan.et'));
 
-    // Always include superadmin for copy if recipient is demo address
     const finalRecipients = recipients.length > 0 ? recipients : this.getSuperadminEmails();
+    if (finalRecipients.length === 0) return;
 
     try {
       await this.transporter.sendMail({
@@ -50,15 +106,15 @@ class EmailService {
     const miniAppUrl = process.env.TELEGRAM_MINIAPP_URL || '';
     return `
       <div style="font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; max-width: 560px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #ffffff; color: #0f172a;">
-        <div style="background: #0f172a; padding: 20px 24px; color: #ffffff;">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #10b981; font-weight: 700;">${badge}</div>
+        <div style="background: #0B1F14; padding: 20px 24px; color: #ffffff;">
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #009B57; font-weight: 700;">${badge}</div>
           <div style="font-size: 18px; font-weight: 700; margin-top: 4px;">${title}</div>
         </div>
         <div style="padding: 24px; font-size: 14px; line-height: 1.6; color: #334155;">
           ${bodyHtml}
-          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; display: flex; gap: 12px;">
-            <a href="${appUrl}" style="display: inline-block; background: #059669; color: #ffffff; text-decoration: none; padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; margin-right: 8px;">Open Website</a>
-            <a href="${miniAppUrl}" style="display: inline-block; background: #0f172a; color: #ffffff; text-decoration: none; padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 13px;">Open Telegram Mini App</a>
+          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0;">
+            <a href="${appUrl}" style="display: inline-block; background: #009B57; color: #ffffff; text-decoration: none; padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; margin-right: 8px;">Open Fetan P2P</a>
+            ${miniAppUrl ? `<a href="${miniAppUrl}" style="display: inline-block; background: #0B1F14; color: #ffffff; text-decoration: none; padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 13px;">Open Mini App</a>` : ''}
           </div>
         </div>
       </div>
@@ -111,7 +167,7 @@ class EmailService {
   async notifyOrderDisputed(order: P2POrder) {
     const html = this.wrapTemplate(
       `Order Complaint / Appeal #${order.id}`,
-      'Superadmin Alert (@kanzedin)',
+      'Superadmin Alert',
       `<p>An appeal/complaint was opened on Order <strong>#${order.id}</strong>.</p>
        <ul style="padding-left: 18px;">
          <li><strong>Buyer:</strong> ${order.buyerName}</li>
@@ -119,8 +175,7 @@ class EmailService {
          <li><strong>Locked Escrow:</strong> ${order.usdtAmount.toFixed(2)} USDT (${order.etbAmount.toLocaleString()} ETB)</li>
          <li><strong>Opened By:</strong> ${order.appealedBy || 'Trader'}</li>
          <li><strong>Complaint Reason:</strong> ${order.disputeReason || 'No reason provided'}</li>
-       </ul>
-       <p>You can resolve this complaint from the Admin Desk or directly inside <strong>@fetanp2probot</strong> on Telegram.</p>`
+       </ul>`
     );
     await this.sendEmail(
       this.getSuperadminEmails(),
@@ -133,7 +188,7 @@ class EmailService {
     const html = this.wrapTemplate(
       `New KYC Verification: ${kyc.userName}`,
       'KYC Review Needed',
-      `<p>A user submitted identity verification (required for all Fetan P2P users).</p>
+      `<p>A user submitted identity verification.</p>
        <ul style="padding-left: 18px;">
          <li><strong>Name:</strong> ${kyc.userName} (${kyc.userEmail})</li>
          <li><strong>Telegram:</strong> ${kyc.telegramHandle || 'Not linked'}</li>
@@ -206,4 +261,3 @@ class EmailService {
 }
 
 export const emailService = new EmailService();
-

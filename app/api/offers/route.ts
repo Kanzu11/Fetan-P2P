@@ -1,23 +1,111 @@
+import crypto from 'crypto';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { db } from '@/server/database/store';
-import { PaymentMethod, P2POffer } from '@/client/types';
+import { requireAuth, getSessionUser } from '@/server/security/session';
 import { pricingService } from '@/client/pricing';
+import { sanitizeString } from '@/server/security/sanitize';
+import { getClientIp } from '@/server/security/rate-limiter';
+import {
+  displayName,
+  isAdminRole,
+  PAYMENT_METHODS_META,
+  type OfferType,
+  type P2POffer,
+  type PaymentMethod,
+} from '@/client/types';
+
+export const dynamic = 'force-dynamic';
+
+const paymentMethodEnum = z.enum([
+  'TELEBIRR',
+  'CBE',
+  'ABYSSINIA',
+  'AWASH',
+  'CBE_BIRR',
+  'DASHEN',
+]);
+
+const createOfferSchema = z.object({
+  offerType: z.enum(['BUY', 'SELL']),
+  pricePerUsdtEtb: z.number().positive(),
+  minLimitEtb: z.number().min(100, 'Minimum trade limit must be at least 100 ETB.'),
+  maxLimitEtb: z.number().min(100),
+  totalAvailable: z.number().min(1, 'Available USDT amount must be at least 1 USDT.'),
+  paymentMethods: z.array(paymentMethodEnum).min(1, 'Select at least one payment method.'),
+  terms: z.string().max(1000).optional(),
+});
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const type = searchParams.get('type') as 'SELL' | 'BUY' | null;
-  const paymentMethod = searchParams.get('paymentMethod') as PaymentMethod | null;
-  const includeInactive = searchParams.get('includeInactive') === 'true';
+  try {
+    const { searchParams } = new URL(req.url);
+    const offerType = searchParams.get('offerType') as OfferType | null;
+    const paymentMethod = searchParams.get('paymentMethod') as PaymentMethod | null;
+    const includeInactive = searchParams.get('includeInactive') === 'true';
 
-  const offers = db.getOffers(type || undefined, paymentMethod || undefined, includeInactive);
-  return NextResponse.json({ offers });
+    const sessionUser = includeInactive ? await getSessionUser(req) : null;
+    const allOffers = await db.getOffers(
+      offerType === 'BUY' || offerType === 'SELL' ? offerType : undefined,
+      paymentMethod || undefined,
+      Boolean(includeInactive && sessionUser)
+    );
+
+    const filtered = includeInactive
+      ? allOffers.filter(
+          (o) =>
+            o.isActive ||
+            (sessionUser && (o.merchantId === sessionUser.id || isAdminRole(sessionUser.role)))
+        )
+      : allOffers;
+
+    return NextResponse.json({ offers: filtered });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to load offers';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const auth = await requireAuth(req);
+    if (!auth.ok) return auth.response;
+
+    if (auth.user.kycStatus !== 'VERIFIED') {
+      return NextResponse.json(
+        { error: 'Please complete KYC verification before publishing offers.' },
+        { status: 403 }
+      );
+    }
+
+    const isMerchant =
+      auth.user.role === 'MERCHANT' ||
+      auth.user.merchantStatus === 'APPROVED' ||
+      isAdminRole(auth.user.role);
+
+    if (!isMerchant) {
+      return NextResponse.json(
+        { error: 'Only verified merchants can publish P2P marketplace offers.' },
+        { status: 403 }
+      );
+    }
+
+    const rawBody = await req.json();
+    const parsed = createOfferSchema.safeParse({
+      ...rawBody,
+      pricePerUsdtEtb: Number(rawBody?.pricePerUsdtEtb),
+      minLimitEtb: Number(rawBody?.minLimitEtb),
+      maxLimitEtb: Number(rawBody?.maxLimitEtb),
+      totalAvailable: Number(rawBody?.totalAvailable),
+    });
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message || 'Invalid offer payload.' },
+        { status: 400 }
+      );
+    }
+
     const {
-      merchantId,
       offerType,
       pricePerUsdtEtb,
       minLimitEtb,
@@ -25,84 +113,89 @@ export async function POST(req: Request) {
       totalAvailable,
       paymentMethods,
       terms,
-    } = body;
+    } = parsed.data;
 
-    const user = db.getUser(merchantId);
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    if (user.kycStatus !== 'VERIFIED') {
+    if (minLimitEtb > maxLimitEtb) {
       return NextResponse.json(
-        { error: 'Identity verification (KYC) is required before publishing ads.' },
-        { status: 403 }
-      );
-    }
-
-    if (user.role !== 'MERCHANT' && user.role !== 'ADMIN' && user.role !== 'SUPERADMIN') {
-      return NextResponse.json(
-        { error: 'Unauthorized: Only verified merchants can publish advertisements.' },
-        { status: 403 }
-      );
-    }
-
-    if (
-      !offerType ||
-      !pricePerUsdtEtb ||
-      !minLimitEtb ||
-      !maxLimitEtb ||
-      !totalAvailable ||
-      !paymentMethods?.length
-    ) {
-      return NextResponse.json({ error: 'Missing required offer fields' }, { status: 400 });
-    }
-
-    if (Number(minLimitEtb) > Number(maxLimitEtb)) {
-      return NextResponse.json(
-        { error: 'Minimum limit cannot exceed maximum limit.' },
+        { error: 'Minimum trade limit cannot exceed maximum trade limit.' },
         { status: 400 }
       );
     }
 
-    const priceValidation = pricingService.validatePrice(Number(pricePerUsdtEtb));
-    if (!priceValidation.valid) {
-      return NextResponse.json({ error: priceValidation.error }, { status: 400 });
-    }
-
-    if (offerType === 'SELL' && Number(totalAvailable) > user.usdtBalance) {
+    const priceCheck = await pricingService.validatePrice(pricePerUsdtEtb);
+    if (!priceCheck.valid) {
       return NextResponse.json(
-        { error: `Not enough USDT in wallet. You have ${user.usdtBalance.toFixed(2)} USDT available.` },
+        { error: priceCheck.error || 'Offered price is outside allowed market band.' },
         { status: 400 }
       );
     }
 
-    const newOffer: P2POffer = {
-      id: `off-${Date.now()}`,
-      merchantId: user.id,
-      merchantName: user.nickname || user.name,
-      merchantRating: 5.0,
-      completedTrades: user.completedTrades || 12,
-      completionRate: user.completionRate || 100.0,
-      avgReleaseTimeMins: user.avgReleaseTimeMins || 1,
-      isOnline: true,
-      isVerifiedMerchant: true,
+    if (offerType === 'SELL') {
+      if (auth.user.usdtBalance < totalAvailable) {
+        return NextResponse.json(
+          {
+            error: `Insufficient wallet USDT (${auth.user.usdtBalance.toFixed(2)} available) to back a ${totalAvailable} USDT SELL ad.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      const pd = auth.user.paymentDetails || {};
+      const missingMethods = paymentMethods.filter((method) => {
+        const meta = PAYMENT_METHODS_META[method];
+        const value = meta ? pd[meta.accountField] : undefined;
+        return !value || String(value).trim().length === 0;
+      });
+
+      if (missingMethods.length > 0) {
+        return NextResponse.json(
+          {
+            error: `Save your payout account details in Wallet / Profile for: ${missingMethods.join(', ')} before posting a SELL ad.`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const offer: P2POffer = {
+      id: `off-${crypto.randomUUID()}`,
+      merchantId: auth.user.id,
+      merchantName: displayName(auth.user),
+      completedTrades: auth.user.completedTrades ?? 0,
+      completionRate: auth.user.completionRate ?? 100,
+      merchantRating: auth.user.rating,
+      avgReleaseTimeMins: auth.user.avgReleaseTimeMins,
       offerType,
-      pricePerUsdtEtb: Number(pricePerUsdtEtb),
-      minLimitEtb: Number(minLimitEtb),
-      maxLimitEtb: Number(maxLimitEtb),
-      totalAvailable: Number(totalAvailable),
+      pricePerUsdtEtb: Number(pricePerUsdtEtb.toFixed(2)),
+      minLimitEtb: Number(minLimitEtb.toFixed(2)),
+      maxLimitEtb: Number(maxLimitEtb.toFixed(2)),
+      totalAvailable: Number(totalAvailable.toFixed(6)),
       paymentMethods,
-      terms:
-        terms ||
-        'I am online now. Please send from your own account and leave the payment note blank.',
+      terms: sanitizeString(terms, 800) || undefined,
       isActive: true,
+      isOnline: true,
+      isVerifiedMerchant:
+        auth.user.role === 'MERCHANT' ||
+        auth.user.merchantStatus === 'APPROVED' ||
+        isAdminRole(auth.user.role),
       createdAt: new Date().toISOString(),
     };
 
-    db.createOffer(newOffer);
-    return NextResponse.json({ success: true, offer: newOffer });
+    const created = await db.createOffer(offer);
+
+    await db.logAudit({
+      actorId: auth.user.id,
+      actorRole: auth.user.role,
+      action: 'OFFER_CREATED',
+      targetType: 'P2POffer',
+      targetId: created.id,
+      ip: getClientIp(req),
+      details: { offerType, pricePerUsdtEtb, totalAvailable },
+    });
+
+    return NextResponse.json({ success: true, offer: created });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Internal error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    const message = err instanceof Error ? err.message : 'Could not publish offer';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

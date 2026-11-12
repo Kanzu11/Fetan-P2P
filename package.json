@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "prisma:generate": "prisma generate --schema=server/database/schema.prisma"
+    "prisma:generate": "prisma generate --schema=server/database/schema.prisma",
+    "test": "tsx --test tests/*.test.ts"
   },
   "prisma": {
     "schema": "server/database/schema.prisma"
@@ -15,7 +16,6 @@
   "dependencies": {
     "@prisma/client": "^5.20.0",
     "@types/nodemailer": "^8.0.2",
-    "cloudinary": "^2.11.0",
     "clsx": "^2.1.1",
     "ethers": "^6.17.0",
     "lucide-react": "^0.441.0",
@@ -25,7 +25,8 @@
     "react-dom": "^18.3.1",
     "tailwind-merge": "^2.5.2",
     "telegraf": "^4.16.3",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^20.16.5",
@@ -36,6 +37,7 @@
     "postcss": "^8.4.47",
     "prisma": "^5.20.0",
     "tailwindcss": "^3.4.13",
+    "tsx": "^4.23.15",
     "typescript": "^5.6.2"
   }
 }

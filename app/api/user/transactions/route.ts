@@ -1,25 +1,26 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/server/database/store';
+import { requireAuth } from '@/server/security/session';
+import { isAdminRole } from '@/client/types';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const userId = searchParams.get('userId');
+  const auth = await requireAuth(req);
+  if (!auth.ok) return auth.response;
 
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
-    }
+  const { searchParams } = new URL(req.url);
+  const requestedUserId = searchParams.get('userId');
 
-    const transactions = db.getWalletTransactions(userId);
-    return NextResponse.json({
-      success: true,
-      transactions,
-    });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Failed to fetch transactions';
-    return NextResponse.json({ error: message }, { status: 500 });
+  const isAdmin = isAdminRole(auth.user.role);
+  if (requestedUserId && requestedUserId !== auth.user.id && !isAdmin) {
+    return NextResponse.json(
+      { error: 'Forbidden: you can only view your own wallet transactions.' },
+      { status: 403 }
+    );
   }
-}
 
+  const targetUserId = requestedUserId && isAdmin ? requestedUserId : auth.user.id;
+  const transactions = await db.getWalletTransactions(targetUserId);
+  return NextResponse.json({ transactions });
+}

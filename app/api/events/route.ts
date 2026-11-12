@@ -1,54 +1,84 @@
+import { NextResponse } from 'next/server';
+import { db } from '@/server/database/store';
+import { requireAuth } from '@/server/security/session';
 import { wsGateway } from '@/server/websocket-gateway';
+import { isAdminRole } from '@/client/types';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
+  const auth = await requireAuth(req);
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
-  const userId = searchParams.get('userId');
-  const orderId = searchParams.get('orderId');
-  const role = searchParams.get('role');
+  const requestedOrderId = searchParams.get('orderId')?.trim();
+
+  const isAdmin = isAdminRole(auth.user.role);
+  let allowedOrderId: string | null = null;
+
+  if (requestedOrderId) {
+    const order = await db.getOrder(requestedOrderId);
+    if (!order) {
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    }
+    if (order.buyerId !== auth.user.id && order.sellerId !== auth.user.id && !isAdmin) {
+      return NextResponse.json(
+        { error: 'Forbidden: cannot subscribe to events for this order.' },
+        { status: 403 }
+      );
+    }
+    allowedOrderId = order.id;
+  }
 
   const encoder = new TextEncoder();
+  const userId = auth.user.id;
 
   const stream = new ReadableStream({
     start(controller) {
-      // Send initial connection ping
-      controller.enqueue(
-        encoder.encode(`data: ${JSON.stringify({ event: 'connected', timestamp: new Date().toISOString() })}\n\n`)
-      );
+      let closed = false;
+
+      const safeEnqueue = (chunk: string) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(chunk));
+        } catch {
+          cleanup();
+        }
+      };
 
       const handleEvent = ({ room, event, data }: { room: string; event: string; data: unknown }) => {
-        // Filter whether this client should receive this event
-        const isUserMatch = userId && room === `user:${userId}`;
-        const isTradeMatch = orderId && room === `trade:${orderId}`;
-        const isAdminMatch = (role === 'ADMIN' || role === 'SUPERADMIN') && room === 'admin:dashboard';
+        const isUserMatch = room === `user:${userId}`;
+        const isTradeMatch = allowedOrderId !== null && room === `trade:${allowedOrderId}`;
+        const isAdminMatch = isAdmin && room === 'admin:dashboard';
 
         if (isUserMatch || isTradeMatch || isAdminMatch || room === 'public') {
-          try {
-            const payload = JSON.stringify({ room, event, data, timestamp: new Date().toISOString() });
-            controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
-          } catch {
-            // Stream may have closed
-          }
+          const payload = JSON.stringify({
+            room,
+            event,
+            data,
+            timestamp: new Date().toISOString(),
+          });
+          safeEnqueue(`data: ${payload}\n\n`);
         }
       };
 
       const unsubscribe = wsGateway.onAnyEvent(handleEvent);
-
-      // Heartbeat every 20s
       const timer = setInterval(() => {
-        try {
-          controller.enqueue(encoder.encode(`: ping\n\n`));
-        } catch {
-          clearInterval(timer);
-          unsubscribe();
-        }
+        safeEnqueue(`: ping\n\n`);
       }, 20000);
 
-      req.signal.addEventListener('abort', () => {
+      const cleanup = () => {
+        if (closed) return;
+        closed = true;
         clearInterval(timer);
         unsubscribe();
-      });
+      };
+
+      req.signal.addEventListener('abort', cleanup);
+
+      safeEnqueue(
+        `data: ${JSON.stringify({ event: 'connected', userId, timestamp: new Date().toISOString() })}\n\n`
+      );
     },
   });
 

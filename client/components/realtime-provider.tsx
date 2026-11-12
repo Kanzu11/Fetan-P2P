@@ -9,20 +9,26 @@ export interface AuthResult {
   error?: string;
 }
 
+export interface OtpRequestResult {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+
 interface RealtimeContextType {
   currentUser: User | null;
-  availableUsers: User[];
+  googleClientId: string | null;
+  loadingUser: boolean;
   isLoggedIn: boolean;
   isAuthModalOpen: boolean;
   setAuthModalOpen: (open: boolean) => void;
   openAuthModal: () => void;
   closeAuthModal: () => void;
-  loginWithEmail: (email: string, name?: string) => Promise<AuthResult>;
-  loginWithGoogle: () => Promise<AuthResult>;
+  requestLoginOtp: (email: string) => Promise<OtpRequestResult>;
+  verifyLoginOtp: (email: string, code: string, name?: string) => Promise<AuthResult>;
+  loginWithGoogle: (idToken: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
-  setCurrentUserId: (id: string) => Promise<void>;
   refreshUser: () => Promise<void>;
-  depositUsdt: (amount: number) => Promise<void>;
   connected: boolean;
   notification: string | null;
   setNotification: (msg: string | null) => void;
@@ -34,11 +40,14 @@ const RealtimeContext = createContext<RealtimeContextType | undefined>(undefined
 
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [googleClientId, setGoogleClientId] = useState<string | null>(
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || null
+  );
+  const [loadingUser, setLoadingUser] = useState<boolean>(true);
   const [connected, setConnected] = useState<boolean>(false);
   const [notification, setNotification] = useState<string | null>(null);
-  const [activeOrdersCount, setActiveOrdersCount] = useState<number>(1);
-  const [latestActiveOrderId, setLatestActiveOrderId] = useState<string>('20261109000101');
+  const [activeOrdersCount, setActiveOrdersCount] = useState<number>(0);
+  const [latestActiveOrderId, setLatestActiveOrderId] = useState<string>('');
   const [isAuthModalOpen, setAuthModalOpen] = useState<boolean>(false);
 
   const fetchCurrentUser = useCallback(async () => {
@@ -46,8 +55,10 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/auth/current-user');
       if (res.ok) {
         const data = await res.json();
-        setCurrentUser(data.user);
-        setAvailableUsers(data.availableUsers || []);
+        setCurrentUser(data.user || null);
+        if (data.googleClientId !== undefined) {
+          setGoogleClientId(data.googleClientId || null);
+        }
 
         if (data.user?.id) {
           const isAdmin = isAdminRole(data.user.role);
@@ -68,57 +79,81 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
               setLatestActiveOrderId(active[0].id);
             } else if (orders.length > 0) {
               setLatestActiveOrderId(orders[0].id);
+            } else {
+              setLatestActiveOrderId('');
             }
           }
+        } else {
+          setActiveOrdersCount(0);
+          setLatestActiveOrderId('');
         }
       }
     } catch (e) {
       console.error('Failed to fetch user:', e);
+    } finally {
+      setLoadingUser(false);
     }
   }, []);
 
-  const loginWithEmail = async (email: string, name?: string): Promise<AuthResult> => {
+  const requestLoginOtp = async (email: string): Promise<OtpRequestResult> => {
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch('/api/auth/request-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, provider: 'email' }),
+        body: JSON.stringify({ email: email.trim(), purpose: 'LOGIN' }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setCurrentUser(data.user);
-        await fetchCurrentUser();
-        return { success: true, user: data.user };
+        return { success: true, message: data.message };
       }
-      return { success: false, error: data.error || 'Login failed' };
+      return { success: false, error: data.error || 'Could not send verification code' };
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : 'Network error' };
     }
   };
 
-  const loginWithGoogle = async (): Promise<AuthResult> => {
+  const verifyLoginOtp = async (
+    email: string,
+    code: string,
+    name?: string
+  ): Promise<AuthResult> => {
     try {
-      // Realistic Google Identity Profile simulation / integration
-      const googleUser = {
-        email: 'dawit.google@fetan.et',
-        name: 'Dawit Mekonnen (Google)',
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop',
-        provider: 'google',
-      };
-
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch('/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(googleUser),
+        body: JSON.stringify({
+          email: email.trim(),
+          code: code.trim(),
+          ...(name?.trim() ? { name: name.trim() } : {}),
+        }),
       });
-
       const data = await res.json();
-      if (res.ok && data.success) {
+      if (res.ok && data.success && data.user) {
         setCurrentUser(data.user);
         await fetchCurrentUser();
         return { success: true, user: data.user };
       }
-      return { success: false, error: data.error || 'Google login failed' };
+      return { success: false, error: data.error || 'Invalid or expired verification code' };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Network error' };
+    }
+  };
+
+  const loginWithGoogle = async (idToken: string): Promise<AuthResult> => {
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.user) {
+        setCurrentUser(data.user);
+        await fetchCurrentUser();
+        return { success: true, user: data.user };
+      }
+      return { success: false, error: data.error || 'Google authentication failed' };
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : 'Google OAuth error' };
     }
@@ -128,46 +163,11 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
       setCurrentUser(null);
+      setActiveOrdersCount(0);
+      setLatestActiveOrderId('');
       setNotification('Logged out successfully.');
     } catch (e) {
       console.error('Logout failed:', e);
-    }
-  };
-
-  const setCurrentUserId = async (id: string) => {
-    try {
-      const res = await fetch('/api/auth/current-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: id }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCurrentUser(data.user);
-        await fetchCurrentUser();
-        setNotification(
-          `Switched to ${displayName(data.user.name)} (${data.user.role})`
-        );
-      }
-    } catch (e) {
-      console.error('Failed to switch user:', e);
-    }
-  };
-
-  const depositUsdt = async (amount: number) => {
-    if (!currentUser) return;
-    try {
-      const res = await fetch('/api/user/deposit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser.id, amountUsdt: amount }),
-      });
-      if (res.ok) {
-        await fetchCurrentUser();
-        setNotification(`Added +${amount.toFixed(2)} USDT to your wallet.`);
-      }
-    } catch (e) {
-      console.error('Failed deposit:', e);
     }
   };
 
@@ -175,16 +175,11 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     fetchCurrentUser();
   }, [fetchCurrentUser]);
 
-  // Connect to SSE stream
+  // Connect to authenticated SSE stream
   useEffect(() => {
     if (!currentUser) return;
 
-    const query = new URLSearchParams({
-      userId: currentUser.id,
-      role: currentUser.role,
-    });
-
-    const eventSource = new EventSource(`/api/events?${query.toString()}`);
+    const eventSource = new EventSource('/api/events');
 
     eventSource.onopen = () => {
       setConnected(true);
@@ -196,8 +191,11 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         if (data.event === 'balance_updated') {
           fetchCurrentUser();
           setNotification(
-            `Wallet balance updated: ${Number(data.data.usdtBalance).toFixed(2)} USDT`
+            data.data?.message ||
+              `Wallet balance updated: ${Number(data.data.usdtBalance).toFixed(2)} USDT`
           );
+        } else if (data.event === 'user_updated') {
+          fetchCurrentUser();
         } else if (data.event === 'merchant_status_updated') {
           fetchCurrentUser();
           setNotification('Merchant account approved! You can now post Buy & Sell ads.');
@@ -241,18 +239,18 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     <RealtimeContext.Provider
       value={{
         currentUser,
-        availableUsers,
+        googleClientId,
+        loadingUser,
         isLoggedIn: Boolean(currentUser),
         isAuthModalOpen,
         setAuthModalOpen,
         openAuthModal: () => setAuthModalOpen(true),
         closeAuthModal: () => setAuthModalOpen(false),
-        loginWithEmail,
+        requestLoginOtp,
+        verifyLoginOtp,
         loginWithGoogle,
         logout,
-        setCurrentUserId,
         refreshUser: fetchCurrentUser,
-        depositUsdt,
         connected,
         notification,
         setNotification,

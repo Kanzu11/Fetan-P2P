@@ -14,31 +14,50 @@ export interface MarketPriceStats {
 }
 
 class PricingService {
-  private baseReferencePrice: number = 158.45;
-  private high24h: number = 160.20;
-  private low24h: number = 156.10;
-  private lastTick: number = Date.now();
+  private getFallbackRate(): number {
+    const envRate = Number(process.env.REFERENCE_ETB_PER_USDT);
+    return Number.isFinite(envRate) && envRate > 0 ? envRate : 158.45;
+  }
 
-  getLiveStats(): MarketPriceStats {
-    const sellOffers = db.getOffers('SELL');
-    const buyOffers = db.getOffers('BUY');
+  async getLiveStats(): Promise<MarketPriceStats> {
+    const [sellOffers, buyOffers, orders] = await Promise.all([
+      db.getOffers('SELL'),
+      db.getOffers('BUY'),
+      db.getAllOrders(),
+    ]);
 
-    let bestBuy = this.baseReferencePrice;
-    if (sellOffers.length > 0) {
-      bestBuy = Math.min(...sellOffers.map((o) => o.pricePerUsdtEtb));
-    }
+    const fallback = this.getFallbackRate();
 
-    let bestSell = this.baseReferencePrice * 0.985;
-    if (buyOffers.length > 0) {
-      bestSell = Math.max(...buyOffers.map((o) => o.pricePerUsdtEtb));
-    }
+    const bestBuy =
+      sellOffers.length > 0
+        ? Math.min(...sellOffers.map((o) => o.pricePerUsdtEtb))
+        : fallback;
+
+    const bestSell =
+      buyOffers.length > 0
+        ? Math.max(...buyOffers.map((o) => o.pricePerUsdtEtb))
+        : Number((bestBuy * 0.99).toFixed(2));
 
     const reference = Number(((bestBuy + bestSell) / 2).toFixed(2));
     const spread = Number(Math.max(0, bestBuy - bestSell).toFixed(2));
-    const spreadPct = Number(((spread / reference) * 100).toFixed(2));
+    const spreadPct = reference > 0 ? Number(((spread / reference) * 100).toFixed(2)) : 0;
 
-    const minLimit = Number((reference * 0.90).toFixed(2));
-    const maxLimit = Number((reference * 1.10).toFixed(2));
+    const cutoff24h = Date.now() - 24 * 60 * 60 * 1000;
+    const recentPrices = [
+      ...sellOffers.map((o) => o.pricePerUsdtEtb),
+      ...buyOffers.map((o) => o.pricePerUsdtEtb),
+      ...orders
+        .filter((o) => new Date(o.createdAt).getTime() >= cutoff24h)
+        .map((o) => o.unitPriceEtb),
+    ];
+
+    const high24hEtb =
+      recentPrices.length > 0 ? Math.max(...recentPrices) : reference;
+    const low24hEtb =
+      recentPrices.length > 0 ? Math.min(...recentPrices) : reference;
+
+    const minLimit = Number((reference * 0.85).toFixed(2));
+    const maxLimit = Number((reference * 1.15).toFixed(2));
 
     return {
       referencePriceEtb: reference,
@@ -48,29 +67,32 @@ class PricingService {
       spreadPercent: spreadPct,
       minPriceLimitEtb: minLimit,
       maxPriceLimitEtb: maxLimit,
-      high24hEtb: this.high24h,
-      low24hEtb: this.low24h,
-      lastUpdated: new Date(this.lastTick).toISOString(),
+      high24hEtb,
+      low24hEtb,
+      lastUpdated: new Date().toISOString(),
     };
   }
 
-  calculateFloatingPrice(marginPercent: number): number {
-    const stats = this.getLiveStats();
+  async calculateFloatingPrice(marginPercent: number): Promise<number> {
+    const stats = await this.getLiveStats();
     return Number((stats.referencePriceEtb * (marginPercent / 100)).toFixed(2));
   }
 
-  validatePrice(price: number): { valid: boolean; error?: string } {
-    const stats = this.getLiveStats();
+  async validatePrice(price: number): Promise<{ valid: boolean; error?: string }> {
+    const stats = await this.getLiveStats();
+    if (!Number.isFinite(price) || price <= 0) {
+      return { valid: false, error: 'Price must be a valid positive number.' };
+    }
     if (price < stats.minPriceLimitEtb) {
       return {
         valid: false,
-        error: `Price ${price} ETB is too low. Minimum allowed price is ${stats.minPriceLimitEtb} ETB (90% of market rate).`,
+        error: `Price ${price} ETB is too low. Minimum allowed price is ${stats.minPriceLimitEtb} ETB.`,
       };
     }
     if (price > stats.maxPriceLimitEtb) {
       return {
         valid: false,
-        error: `Price ${price} ETB is too high. Maximum allowed price is ${stats.maxPriceLimitEtb} ETB (110% of market rate).`,
+        error: `Price ${price} ETB is too high. Maximum allowed price is ${stats.maxPriceLimitEtb} ETB.`,
       };
     }
     return { valid: true };
@@ -80,4 +102,3 @@ class PricingService {
 const globalForPricing = global as unknown as { pricingService?: PricingService };
 export const pricingService = globalForPricing.pricingService || new PricingService();
 if (process.env.NODE_ENV !== 'production') globalForPricing.pricingService = pricingService;
-

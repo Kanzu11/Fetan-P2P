@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { MarketPriceStats } from '@/client/pricing';
+import type { MarketPriceStats } from '@/client/pricing';
 import { useI18n } from '@/client/i18n';
 import {
   ArrowDownRight,

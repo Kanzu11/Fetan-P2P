@@ -1,121 +1,171 @@
+import crypto from 'crypto';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { db } from '@/server/database/store';
-import { escrowController } from '@/server/escrow-controller';
 import { telegramBot } from '@/server/telegram-bot';
-import { KycDocType } from '@/client/types';
+import { escrowController } from '@/server/escrow-controller';
+import { requireAdmin } from '@/server/security/session';
+import { sanitizeString } from '@/server/security/sanitize';
+import { wsGateway } from '@/server/websocket-gateway';
+import type { KycSubmission } from '@/client/types';
 
-function verifySyncAuth(req: Request): boolean {
-  const syncSecret = process.env.TELEGRAM_SYNC_SECRET || process.env.TGCLOUD_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
-  // In development without configured secrets, permit localhost requests
-  if (!syncSecret) {
-    return true;
-  }
+export const dynamic = 'force-dynamic';
+
+function hasValidSyncSecret(req: Request): boolean {
+  const syncSecret = (
+    process.env.TELEGRAM_SYNC_SECRET ||
+    process.env.TGCLOUD_TOKEN ||
+    process.env.TELEGRAM_BOT_TOKEN ||
+    ''
+  ).trim();
+  if (!syncSecret) return false;
+
   const authHeader = req.headers.get('authorization') || '';
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
   const xSecret = req.headers.get('x-telegram-sync-secret') || '';
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  const candidate = bearerToken || xSecret;
+  if (!candidate) return false;
 
-  return token === syncSecret || xSecret === syncSecret;
+  const a = Buffer.from(candidate);
+  const b = Buffer.from(syncSecret);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-/**
- * Shared Database Synchronization Endpoint between Website & Telegram Serverless (@tgcloud/bot)
- */
+const syncBodySchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('LINK_TELEGRAM'),
+    codeOrUserId: z.string().min(1),
+    chatId: z.union([z.string(), z.number()]),
+    username: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal('TELEGRAM_KYC'),
+    telegramHandle: z.string().min(1),
+    docType: z.enum(['NATIONAL_ID', 'PASSPORT', 'DRIVERS_LICENSE']),
+    docNumber: z.string().min(4).max(60),
+    docPhotoUrl: z.string().max(500).optional(),
+  }),
+  z.object({
+    action: z.literal('ADMIN_ORDER_ACTION'),
+    orderId: z.string().min(1),
+    orderAction: z.enum(['RELEASE', 'CANCEL']),
+    actorTelegram: z.string().min(1),
+    note: z.string().max(300).optional(),
+  }),
+]);
+
 export async function GET(req: Request) {
-  if (!verifySyncAuth(req)) {
-    return NextResponse.json({ error: 'Unauthorized sync request' }, { status: 401 });
+  const isSecret = hasValidSyncSecret(req);
+  if (!isSecret) {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
-  // Sanitize user list: remove sensitive internal fields
-  const safeUsers = db.getAllUsers().map((u) => ({
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    role: u.role,
-    kycStatus: u.kycStatus,
-    telegramHandle: u.telegramHandle,
-    telegramChatId: u.telegramChatId,
-    usdtBalance: u.usdtBalance,
-    usdtLocked: u.usdtLocked,
-    completedTrades: u.completedTrades,
-    completionRate: u.completionRate,
-  }));
-
   return NextResponse.json({
-    ok: true,
+    status: 'online',
     botUsername: telegramBot.getBotUsername(),
     miniAppUrl: telegramBot.getMiniAppUrl(),
-    users: safeUsers,
-    offers: db.getOffers(undefined, undefined, true),
-    orders: db.getAllOrders(),
-    kycSubmissions: db.getKycSubmissions(),
-    merchantApplications: db.getMerchantApplications(),
-    supportTickets: db.getSupportTickets(),
   });
 }
 
 export async function POST(req: Request) {
   try {
-    if (!verifySyncAuth(req)) {
+    if (!hasValidSyncSecret(req)) {
       return NextResponse.json({ error: 'Unauthorized sync action' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { action } = body;
-
-    if (action === 'LINK_TELEGRAM') {
-      const { code, chatId, username } = body;
-      const linkedUser = db.linkTelegramAccount(String(code), String(chatId), username);
-      if (!linkedUser) {
-        return NextResponse.json({ error: 'Invalid link code or user ID' }, { status: 404 });
-      }
-      return NextResponse.json({ success: true, user: linkedUser });
+    const rawBody = await req.json();
+    const parsed = syncBodySchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message || 'Invalid sync action payload' },
+        { status: 400 }
+      );
     }
 
-    if (action === 'TELEGRAM_KYC') {
-      const { tgId, username, name, email, docType, docNumber } = body;
-      if (!docNumber || !docType) {
-        return NextResponse.json({ error: 'Missing KYC document details' }, { status: 400 });
+    const data = parsed.data;
+
+    if (data.action === 'LINK_TELEGRAM') {
+      const linked = await db.linkTelegramAccount(
+        data.codeOrUserId,
+        String(data.chatId),
+        data.username
+      );
+      if (!linked) {
+        return NextResponse.json(
+          { error: 'No matching account found for that code or handle.' },
+          { status: 404 }
+        );
       }
-      const user = db.createOrGetTelegramUser({ tgId: String(tgId), username, name, email });
-      db.updateUser(user.id, {
-        kycStatus: 'PENDING',
-        kycDocType: (docType as KycDocType) || 'NATIONAL_ID',
-        kycDocNumber: String(docNumber).trim(),
-        kycSubmittedAt: new Date().toISOString(),
-      });
-      const sub = db.saveKycSubmission({
-        id: `kyc-tg-${Date.now()}`,
-        userId: user.id,
-        userEmail: user.email,
-        userName: user.name,
-        telegramHandle: user.telegramHandle,
+      wsGateway.emitToUser(linked.id, 'user_updated', { user: linked });
+      return NextResponse.json({ success: true, user: linked });
+    }
+
+    if (data.action === 'TELEGRAM_KYC') {
+      const targetUser = await db.getUserByTelegram(data.telegramHandle);
+      if (!targetUser) {
+        return NextResponse.json(
+          { error: 'Telegram user is not linked to a Fetan P2P account.' },
+          { status: 404 }
+        );
+      }
+
+      const cleanDoc = sanitizeString(data.docNumber, 60);
+      const sub: KycSubmission = {
+        id: `kyc-${crypto.randomUUID()}`,
+        userId: targetUser.id,
+        userEmail: targetUser.email,
+        userName: targetUser.name,
+        telegramHandle: targetUser.telegramHandle,
         source: 'TELEGRAM_BOT',
-        kycDocType: (docType as KycDocType) || 'NATIONAL_ID',
-        kycDocNumber: String(docNumber).trim(),
+        kycDocType: data.docType,
+        kycDocNumber: cleanDoc,
+        docPhotoUrl: data.docPhotoUrl?.trim() || undefined,
         status: 'PENDING',
         submittedAt: new Date().toISOString(),
+      };
+
+      const saved = await db.saveKycSubmission(sub);
+      await db.updateUser(targetUser.id, {
+        kycStatus: 'PENDING',
+        kycDocType: data.docType,
+        kycDocNumber: cleanDoc,
+        kycSubmittedAt: saved.submittedAt,
       });
-      void telegramBot.sendKycSubmissionAlert(sub);
-      return NextResponse.json({ success: true, submission: sub, user: db.getUser(user.id) });
+      await telegramBot.sendKycSubmissionAlert(saved);
+      return NextResponse.json({ success: true, submission: saved });
     }
 
-    if (action === 'ADMIN_ORDER_ACTION') {
-      const { orderId, decision, note } = body;
-      const superadmin = db.getSuperadminUser();
-      const actorId = superadmin?.id || 'usr-super-yared';
-      if (decision === 'RELEASE') {
-        const order = await escrowController.releaseEscrow(orderId, actorId, note || 'Released via Telegram Bot');
-        return NextResponse.json({ success: true, order });
+    if (data.action === 'ADMIN_ORDER_ACTION') {
+      const adminUser = await db.getUserByTelegram(data.actorTelegram);
+      if (!adminUser || (adminUser.role !== 'ADMIN' && adminUser.role !== 'SUPERADMIN')) {
+        return NextResponse.json(
+          { error: 'Telegram actor is not an authorized Admin or Superadmin.' },
+          { status: 403 }
+        );
       }
-      if (decision === 'CANCEL') {
-        const order = await escrowController.cancelEscrow(orderId, actorId, note || 'Cancelled via Telegram Bot');
-        return NextResponse.json({ success: true, order });
-      }
+
+      const order =
+        data.orderAction === 'RELEASE'
+          ? await escrowController.releaseEscrow(
+              data.orderId,
+              adminUser.id,
+              sanitizeString(data.note, 250) || 'Released via Admin Sync'
+            )
+          : await escrowController.cancelEscrow(
+              data.orderId,
+              adminUser.id,
+              sanitizeString(data.note, 250) || 'Cancelled via Admin Sync'
+            );
+
+      return NextResponse.json({ success: true, order });
     }
 
     return NextResponse.json({ error: 'Unknown sync action' }, { status: 400 });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Sync failed';
+    const message = err instanceof Error ? err.message : 'Telegram sync failed';
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

@@ -1,135 +1,167 @@
+import crypto from 'crypto';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { db } from '@/server/database/store';
+import { requireAuth } from '@/server/security/session';
 import { rateLimiter, getClientIp } from '@/server/security/rate-limiter';
-import { validateCryptoAddress, sanitizeAmount } from '@/server/security/sanitize';
+import { verifyAndConsumeOtp } from '@/server/security/otp';
+import { sanitizeAmount, validateCryptoAddress } from '@/server/security/sanitize';
 import { wsGateway } from '@/server/websocket-gateway';
 import { telegramBot } from '@/server/telegram-bot';
-import { WalletTransaction } from '@/client/types';
 
 export const dynamic = 'force-dynamic';
 
+const withdrawSchema = z.object({
+  amountUsdt: z.number().min(5, 'Minimum withdrawal is 5.00 USDT.').max(100000),
+  network: z.enum(['TRC20', 'BEP20', 'TON']),
+  destinationAddress: z.string().min(8, 'Valid destination address required.').max(120),
+  otpCode: z.string().regex(/^\d{6}$/, '6-digit email verification code is required.'),
+});
+
 export async function POST(req: Request) {
   try {
+    const auth = await requireAuth(req);
+    if (!auth.ok) return auth.response;
+
     const ip = getClientIp(req);
-
-    // Rate limit: 5 withdrawal attempts per 30 minutes per IP
-    const limitCheck = rateLimiter.check(`withdraw:${ip}`, 5, 1800);
-    if (!limitCheck.allowed) {
+    const limit = await rateLimiter.checkAsync(`withdraw:${auth.user.id}:${ip}`, 5, 900);
+    if (!limit.allowed) {
       return rateLimiter.rateLimitResponse(
-        limitCheck.resetSeconds,
-        'Withdrawal rate limit reached. For security, withdrawals are limited to 5 per 30 minutes.'
+        limit.resetSeconds,
+        'Too many withdrawal requests. Please wait before trying again.'
       );
     }
 
-    const body = await req.json();
-    const { userId, destinationAddress, network = 'TRC20', amount } = body;
-
-    if (!userId || typeof userId !== 'string') {
-      return NextResponse.json({ error: 'User ID is required.' }, { status: 400 });
-    }
-
-    // 1. Validate Amount
-    const amountCheck = sanitizeAmount(amount, 5, 500_000);
-    if (!amountCheck.valid) {
+    if (auth.user.kycStatus !== 'VERIFIED') {
       return NextResponse.json(
-        { error: amountCheck.error || 'Minimum withdrawal is 5 USDT.' },
-        { status: 400 }
-      );
-    }
-    const withdrawAmount = amountCheck.amount;
-
-    // 2. Validate Network & Destination Address
-    const supportedNetworks = ['TRC20', 'BEP20', 'TON'];
-    const cleanNetwork = String(network).toUpperCase() as 'TRC20' | 'BEP20' | 'TON';
-    if (!supportedNetworks.includes(cleanNetwork)) {
-      return NextResponse.json(
-        { error: 'Unsupported network. Supported networks are TRC20, BEP20, and TON.' },
-        { status: 400 }
+        { error: 'KYC verification must be approved before requesting withdrawals.' },
+        { status: 403 }
       );
     }
 
-    const addrCheck = validateCryptoAddress(destinationAddress, cleanNetwork);
-    if (!addrCheck.valid) {
-      return NextResponse.json({ error: addrCheck.error }, { status: 400 });
-    }
-
-    // 3. User verification and atomic balance deduction
-    const tx = await db.withUserLock(userId, async (user) => {
-      // Security Check: KYC must be verified to withdraw
-      if (user.kycStatus !== 'VERIFIED') {
-        throw new Error(
-          'Account KYC verification is required before initiating external crypto withdrawals. Please submit your ID under KYC verification.'
-        );
-      }
-
-      if (user.usdtBalance < withdrawAmount) {
-        throw new Error(
-          `Insufficient available balance. You have ${user.usdtBalance.toFixed(2)} USDT available, but attempted to withdraw ${withdrawAmount} USDT.`
-        );
-      }
-
-      // Deduct available balance
-      const newBalance = Math.round((user.usdtBalance - withdrawAmount) * 100) / 100;
-      db.updateUser(user.id, {
-        usdtBalance: newBalance,
-      });
-
-      const txRecord: WalletTransaction = {
-        id: `tx-wd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-        userId: user.id,
-        type: 'WITHDRAW',
-        amount: withdrawAmount,
-        network: cleanNetwork,
-        address: destinationAddress.trim(),
-        status: 'PENDING',
-        createdAt: new Date().toISOString(),
-        note: `Withdrawal of ${withdrawAmount} USDT to ${destinationAddress.trim()} via ${cleanNetwork}`,
-      };
-
-      db.saveWalletTransaction(txRecord);
-      return { txRecord, newBalance, user };
+    const rawBody = await req.json();
+    const rawAmount = rawBody?.amountUsdt ?? rawBody?.amount;
+    const parsed = withdrawSchema.safeParse({
+      ...rawBody,
+      amountUsdt: sanitizeAmount(rawAmount, 6) ?? rawAmount,
     });
 
-    // 4. Notify Superadmin and User
-    try {
-      wsGateway.emitToRoom('admin:dashboard', 'new_withdrawal', tx.txRecord);
-      wsGateway.emitToUser(userId, 'balance_updated', {
-        usdtBalance: tx.newBalance,
-        transaction: tx.txRecord,
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message || 'Invalid withdrawal request.' },
+        { status: 400 }
+      );
+    }
+
+    const { amountUsdt, network, otpCode } = parsed.data;
+    const cleanAddress = parsed.data.destinationAddress.trim();
+
+    const addrCheck = validateCryptoAddress(cleanAddress, network);
+    if (!addrCheck.valid) {
+      return NextResponse.json(
+        { error: addrCheck.error || `Invalid ${network} destination wallet address.` },
+        { status: 400 }
+      );
+    }
+
+    const otpCheck = await verifyAndConsumeOtp({
+      email: auth.user.email,
+      purpose: 'WITHDRAW',
+      code: otpCode,
+    });
+
+    if (!otpCheck.valid) {
+      await db.logAudit({
+        actorId: auth.user.id,
+        actorRole: auth.user.role,
+        action: 'WITHDRAW_OTP_FAILED',
+        targetType: 'User',
+        targetId: auth.user.id,
+        ip,
+        details: { reason: otpCheck.error },
+      });
+      return NextResponse.json(
+        { error: otpCheck.error || 'Invalid or expired withdrawal confirmation code.' },
+        { status: 401 }
+      );
+    }
+
+    const meta = otpCheck.metadata;
+    if (meta) {
+      const metaAmount = typeof meta.amountUsdt === 'number' ? Number(meta.amountUsdt) : null;
+      const metaNet = typeof meta.network === 'string' ? meta.network : null;
+      const metaAddr =
+        typeof meta.destinationAddress === 'string' ? meta.destinationAddress.trim() : null;
+
+      if (
+        (metaAmount !== null && Math.abs(metaAmount - amountUsdt) > 0.000001) ||
+        (metaNet && metaNet !== network) ||
+        (metaAddr && metaAddr !== cleanAddress)
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'Withdrawal amount, network, or destination address changed after your verification code was issued. Please request a fresh code.',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const result = await db.withUserLock(auth.user.id, async (lockedUser) => {
+      if (lockedUser.usdtBalance < amountUsdt) {
+        throw new Error(
+          `Insufficient available balance (${lockedUser.usdtBalance.toFixed(2)} USDT available).`
+        );
+      }
+
+      const newBalance = Number((lockedUser.usdtBalance - amountUsdt).toFixed(6));
+      const updatedUser = await db.updateUser(lockedUser.id, { usdtBalance: newBalance });
+
+      const tx = await db.saveWalletTransaction({
+        id: `wdr-${crypto.randomUUID()}`,
+        userId: lockedUser.id,
+        type: 'WITHDRAW',
+        amount: amountUsdt,
+        network,
+        address: cleanAddress,
+        status: 'PENDING',
+        createdAt: new Date().toISOString(),
+        note: `Pending admin review & on-chain payout (${network})`,
       });
 
-      // Telegram alert to superadmin
-      const adminAlert =
-        `🚨 <b>New Withdrawal Request</b>\n` +
-        `• <b>User:</b> ${tx.user.name} (${tx.user.telegramHandle || tx.user.email})\n` +
-        `• <b>Amount:</b> ${withdrawAmount} USDT\n` +
-        `• <b>Network:</b> ${cleanNetwork}\n` +
-        `• <b>To Address:</b> <code>${destinationAddress.trim()}</code>\n` +
-        `• <b>Status:</b> PENDING ONSITE DISPATCH`;
-      await telegramBot.broadcastAdminAlert(adminAlert);
+      return { updatedUser, tx };
+    });
 
-      // Telegram alert to user if linked
-      if (tx.user.telegramChatId) {
-        const userMsg =
-          `📤 <b>Withdrawal Submitted</b>\n` +
-          `You have requested a withdrawal of <b>${withdrawAmount} USDT</b> on the <b>${cleanNetwork}</b> network.\n` +
-          `• <b>Destination:</b> <code>${destinationAddress.trim()}</code>\n` +
-          `Your remaining available balance is <b>${tx.newBalance} USDT</b>.`;
-        await telegramBot.sendMessage(tx.user.telegramChatId, userMsg);
-      }
-    } catch (notifyErr) {
-      console.warn('Notification delivery error:', notifyErr);
-    }
+    await db.logAudit({
+      actorId: auth.user.id,
+      actorRole: auth.user.role,
+      action: 'WITHDRAWAL_REQUESTED',
+      targetType: 'WalletTransaction',
+      targetId: result.tx.id,
+      ip,
+      details: { amountUsdt, network, destinationAddress: cleanAddress },
+    });
+
+    wsGateway.emitToUser(auth.user.id, 'balance_updated', {
+      usdtBalance: result.updatedUser.usdtBalance,
+      usdtLocked: result.updatedUser.usdtLocked,
+      message: `Withdrawal request submitted: -${amountUsdt.toFixed(2)} USDT (${network}) pending review.`,
+    });
+    wsGateway.emitToRoom('admin:dashboard', 'withdrawal_requested', { tx: result.tx });
+
+    await telegramBot.broadcastAdminAlert(
+      `📤 *New Withdrawal Request*\nUser: *${auth.user.name}* (${auth.user.email})\nAmount: *${amountUsdt.toFixed(2)} USDT*\nNetwork: *${network}*\nTo: \`${cleanAddress}\`\nReview in Admin Console.`
+    );
 
     return NextResponse.json({
       success: true,
-      transaction: tx.txRecord,
-      newBalance: tx.newBalance,
-      message: `Withdrawal of ${withdrawAmount} USDT initiated. Transaction ID: ${tx.txRecord.id}`,
+      user: result.updatedUser,
+      transaction: result.tx,
+      message: `Withdrawal of ${amountUsdt.toFixed(2)} USDT queued for payout verification.`,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Withdrawal processing failed';
+    const message = err instanceof Error ? err.message : 'Withdrawal failed';
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }
-

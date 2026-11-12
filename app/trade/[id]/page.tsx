@@ -43,8 +43,6 @@ export default function EscrowRoomPage() {
 
   const {
     currentUser,
-    availableUsers,
-    setCurrentUserId,
     refreshUser,
     setNotification,
   } = useRealtime();
@@ -510,15 +508,13 @@ export default function EscrowRoomPage() {
   const isBuyer = currentUser?.id === order.buyerId;
   const isSeller = currentUser?.id === order.sellerId;
   const isAdmin = isAdminRole(currentUser?.role);
-  const adminAccount =
-    availableUsers.find((u) => u.role === 'ADMIN') ||
-    availableUsers.find((u) => u.role === 'SUPERADMIN');
-
   const railMeta = PAYMENT_METHODS_META[order.paymentMethod] || PAYMENT_METHODS_META.TELEBIRR;
   const activeReceiptUrl = order.proofReceiptUrl || receiptUrl;
   const isImageReceipt =
     activeReceiptUrl &&
-    (activeReceiptUrl.startsWith('http') || activeReceiptUrl.startsWith('data:image'));
+    (activeReceiptUrl.startsWith('/api/uploads/') ||
+      activeReceiptUrl.startsWith('http') ||
+      activeReceiptUrl.startsWith('data:image'));
 
   const currentStep =
     order.status === 'PENDING_PAYMENT'

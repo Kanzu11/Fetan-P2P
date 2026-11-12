@@ -7,7 +7,7 @@ import {
   KycSubmission,
   P2POrder,
   SupportTicket,
-  User,
+  isAdminRole,
 } from '../client/types';
 
 export interface TelegramLog {
@@ -47,32 +47,69 @@ class TelegramBotManager {
     return process.env.TGCLOUD_TOKEN || '';
   }
 
+  private async isAuthorizedAdminTelegramActor(
+    tgId?: number,
+    username?: string
+  ): Promise<{ authorized: boolean; label: string }> {
+    const cleanUser = (username || '').replace(/^@/, '').toLowerCase();
+    const superTg = (process.env.ADMIN_TELEGRAM_USERNAME || '').replace(/^@/, '').toLowerCase();
+
+    if (superTg && cleanUser && cleanUser === superTg) {
+      return { authorized: true, label: `@${cleanUser}` };
+    }
+
+    if (tgId) {
+      const user = await db.getUserByTelegram(String(tgId));
+      if (user && isAdminRole(user.role)) {
+        return { authorized: true, label: user.telegramHandle || user.name };
+      }
+    }
+
+    return { authorized: false, label: '' };
+  }
+
   private initBot(token: string) {
     try {
       this.bot = new Telegraf(token);
       void this.setupBotMenuButton();
 
-      this.bot.action(/^approve_merchant:(.+)$/, async (ctx) => {
-        const applicationId = ctx.match[1];
-        await this.handleMerchantApproval(applicationId, '@kanzedin', true);
+      this.bot.action(/^(?:approve_merchant|merchant_approve):(.+)$/, async (ctx) => {
+        const check = await this.isAuthorizedAdminTelegramActor(ctx.from?.id, ctx.from?.username);
+        if (!check.authorized) {
+          await ctx.answerCbQuery('Unauthorized: Admin access required', { show_alert: true });
+          return;
+        }
+        await this.handleMerchantApproval(ctx.match[1], check.label, true);
         await ctx.answerCbQuery('Merchant Approved');
       });
 
-      this.bot.action(/^reject_merchant:(.+)$/, async (ctx) => {
-        const applicationId = ctx.match[1];
-        await this.handleMerchantApproval(applicationId, '@kanzedin', false);
+      this.bot.action(/^(?:reject_merchant|merchant_reject):(.+)$/, async (ctx) => {
+        const check = await this.isAuthorizedAdminTelegramActor(ctx.from?.id, ctx.from?.username);
+        if (!check.authorized) {
+          await ctx.answerCbQuery('Unauthorized: Admin access required', { show_alert: true });
+          return;
+        }
+        await this.handleMerchantApproval(ctx.match[1], check.label, false);
         await ctx.answerCbQuery('Merchant Rejected');
       });
 
-      this.bot.action(/^approve_kyc:(.+)$/, async (ctx) => {
-        const kycId = ctx.match[1];
-        await this.handleKycApproval(kycId, '@kanzedin', true);
+      this.bot.action(/^(?:approve_kyc|kyc_approve):(.+)$/, async (ctx) => {
+        const check = await this.isAuthorizedAdminTelegramActor(ctx.from?.id, ctx.from?.username);
+        if (!check.authorized) {
+          await ctx.answerCbQuery('Unauthorized: Admin access required', { show_alert: true });
+          return;
+        }
+        await this.handleKycApproval(ctx.match[1], check.label, true);
         await ctx.answerCbQuery('KYC Approved');
       });
 
-      this.bot.action(/^reject_kyc:(.+)$/, async (ctx) => {
-        const kycId = ctx.match[1];
-        await this.handleKycApproval(kycId, '@kanzedin', false);
+      this.bot.action(/^(?:reject_kyc|kyc_reject):(.+)$/, async (ctx) => {
+        const check = await this.isAuthorizedAdminTelegramActor(ctx.from?.id, ctx.from?.username);
+        if (!check.authorized) {
+          await ctx.answerCbQuery('Unauthorized: Admin access required', { show_alert: true });
+          return;
+        }
+        await this.handleKycApproval(ctx.match[1], check.label, false);
         await ctx.answerCbQuery('KYC Rejected');
       });
     } catch (err) {
@@ -92,7 +129,7 @@ class TelegramBotManager {
         body: JSON.stringify({
           menu_button: {
             type: 'web_app',
-            text: '📱 Open Fetan P2P',
+            text: 'Open Fetan P2P',
             web_app: { url: miniAppUrl },
           },
         }),
@@ -103,12 +140,12 @@ class TelegramBotManager {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           commands: [
-            { command: 'start', description: '🚀 Open Fetan P2P Platform' },
-            { command: 'app', description: '📱 Launch Mini App' },
-            { command: 'kyc', description: '🪪 Verify Your Identity' },
-            { command: 'merchant', description: '🏪 Apply as Merchant' },
-            { command: 'support', description: '💬 Support & Complaints' },
-            { command: 'admin', description: '🛡️ Admin Dashboard' },
+            { command: 'start', description: 'Open Fetan P2P Platform' },
+            { command: 'app', description: 'Launch Mini App' },
+            { command: 'kyc', description: 'Verify Your Identity' },
+            { command: 'merchant', description: 'Apply as Merchant' },
+            { command: 'support', description: 'Support & Complaints' },
+            { command: 'admin', description: 'Admin Dashboard' },
           ],
         }),
       });
@@ -119,13 +156,12 @@ class TelegramBotManager {
     }
   }
 
-  /**
-   * Direct Telegram Bot API message sender with Inline Buttons & Mini App link
-   */
   async sendTelegramMessage(
     chatId: string | number | undefined,
     text: string,
-    inlineKeyboard: Array<Array<{ text: string; callback_data?: string; web_app?: { url: string }; url?: string }>> = []
+    inlineKeyboard: Array<
+      Array<{ text: string; callback_data?: string; web_app?: { url: string }; url?: string }>
+    > = []
   ): Promise<boolean> {
     if (!chatId) return false;
     const token = this.getBotToken();
@@ -148,25 +184,16 @@ class TelegramBotManager {
     }
   }
 
-  /**
-   * Broadcast an urgent operational alert (deposit, withdrawal, kyc) to Superadmin (@kanzedin)
-   */
   async broadcastAdminAlert(message: string): Promise<boolean> {
-    const superChatId = this.getSuperadminChatId();
+    const superChatId = await this.getSuperadminChatId();
     if (!superChatId) return false;
     return this.sendTelegramMessage(superChatId, message);
   }
 
-  /**
-   * Send a direct notification message to a user by chatId
-   */
   async sendMessage(chatId: string | number, message: string): Promise<boolean> {
     return this.sendTelegramMessage(chatId, message);
   }
 
-  /**
-   * Sync shared database state & notifications with Telegram Serverless Cloud (TGCloud)
-   */
   async syncWithTelegramCloud(action: string, payload: Record<string, unknown> = {}) {
     const cloudToken = this.getTgCloudToken();
     if (!cloudToken) return null;
@@ -187,42 +214,36 @@ class TelegramBotManager {
         return await res.json();
       }
     } catch {
-      // Cloud sync is non-blocking so local web operations remain instant
+      // Non-blocking sync
     }
     return null;
   }
 
-  private getSuperadminChatId(): string | undefined {
-    const superUser = db.getSuperadminUser();
+  private async getSuperadminChatId(): Promise<string | undefined> {
+    const superUser = await db.getSuperadminUser();
     return superUser?.telegramChatId || process.env.TELEGRAM_ADMIN_CHAT_ID;
   }
 
-  /**
-   * Notify Merchant & Buyer on Telegram when a new Order is created (if they enabled notifications)
-   */
   async sendOrderNotification(
     order: P2POrder,
     event: 'CREATED' | 'PAID' | 'COMPLETED' | 'CANCELLED' | 'DISPUTED'
   ) {
-    const buyer = db.getUser(order.buyerId);
-    const seller = db.getUser(order.sellerId);
+    const [buyer, seller] = await Promise.all([
+      db.getUser(order.buyerId),
+      db.getUser(order.sellerId),
+    ]);
     const miniAppUrl = this.getMiniAppUrl();
 
     if (event === 'CREATED') {
       await emailService.notifyOrderCreated(order, buyer, seller);
-      // Sync order to Telegram Serverless DB
       void this.syncWithTelegramCloud('UPSERT_ORDER', { order });
 
       const textForSeller =
-        `🔔 <b>New P2P Order #${order.id}</b>\n\n` +
+        `<b>New P2P Order #${order.id}</b>\n\n` +
         `• Buyer: <b>${order.buyerName}</b>\n` +
         `• Amount: <b>${order.usdtAmount.toFixed(2)} USDT</b> (${order.etbAmount.toLocaleString()} ETB)\n` +
         `• Method: <b>${order.paymentMethod}</b> (${order.paymentDetails.accountNumber})\n` +
         `• Status: Waiting for buyer to send Birr`;
-
-      const buttons = [
-        { text: 'Open Order in Mini App', callbackData: `order_view:${order.id}` },
-      ];
 
       this.logEvent({
         id: `tg-${Date.now()}-ord`,
@@ -230,77 +251,57 @@ class TelegramBotManager {
         type: 'ORDER_ALERT',
         recipient: seller?.telegramHandle || order.sellerName,
         text: textForSeller.replace(/<[^>]+>/g, ''),
-        buttons,
+        buttons: [{ text: 'Open Order in Mini App', callbackData: `order_view:${order.id}` }],
         status: 'DELIVERED',
       });
 
       if (seller?.telegramChatId && seller.telegramNotifications !== false) {
         await this.sendTelegramMessage(seller.telegramChatId, textForSeller, [
-          [{ text: '📱 Open in Mini App', web_app: { url: miniAppUrl } }],
-          [{ text: '📋 View Order Status', callback_data: `order_view:${order.id}` }],
-        ]);
+          miniAppUrl ? [{ text: 'Open in Mini App', web_app: { url: miniAppUrl } }] : [],
+        ].filter((row) => row.length > 0));
       }
 
       if (buyer?.telegramChatId && buyer.telegramNotifications !== false) {
         const textForBuyer =
-          `✅ <b>Order #${order.id} Created</b>\n\n` +
+          `<b>Order #${order.id} Created</b>\n\n` +
           `<b>${order.usdtAmount.toFixed(2)} USDT</b> is locked in escrow.\n` +
           `Send <b>${order.etbAmount.toLocaleString()} ETB</b> via <b>${order.paymentMethod}</b> to:\n` +
           `• Account: <code>${order.paymentDetails.accountNumber}</code>\n` +
           `• Name: <b>${order.paymentDetails.accountName}</b>`;
-        await this.sendTelegramMessage(buyer.telegramChatId, textForBuyer, [
-          [
-            { text: '✅ I Have Paid', callback_data: `order_paid:${order.id}` },
-            { text: '❌ Cancel Order', callback_data: `order_cancel:${order.id}` },
-          ],
-          [{ text: '📱 Open in Mini App', web_app: { url: miniAppUrl } }],
-        ]);
+        await this.sendTelegramMessage(
+          buyer.telegramChatId,
+          textForBuyer,
+          miniAppUrl ? [[{ text: 'Open in Mini App', web_app: { url: miniAppUrl } }]] : []
+        );
       }
     } else if (event === 'PAID') {
       await emailService.notifyOrderPaid(order, seller);
       void this.syncWithTelegramCloud('UPSERT_ORDER', { order });
 
       const textForSeller =
-        `💸 <b>Buyer Marked Order #${order.id} as Paid!</b>\n\n` +
+        `<b>Buyer Marked Order #${order.id} as Paid</b>\n\n` +
         `• Buyer: <b>${order.buyerName}</b>\n` +
         `• Amount: <b>${order.etbAmount.toLocaleString()} ETB</b> (${order.usdtAmount.toFixed(2)} USDT)\n` +
         `• Method: <b>${order.paymentMethod}</b>\n\n` +
         `Check your bank/Telebirr balance first, then release the USDT.`;
 
-      this.logEvent({
-        id: `tg-${Date.now()}-paid`,
-        timestamp: new Date().toISOString(),
-        type: 'ORDER_ALERT',
-        recipient: seller?.telegramHandle || order.sellerName,
-        text: textForSeller.replace(/<[^>]+>/g, ''),
-        buttons: [
-          { text: '🔓 Release USDT', callbackData: `order_release:${order.id}` },
-          { text: '⚠️ Open Complaint', callbackData: `order_appeal:${order.id}` },
-        ],
-        status: 'PENDING',
-      });
-
       if (seller?.telegramChatId && seller.telegramNotifications !== false) {
-        await this.sendTelegramMessage(seller.telegramChatId, textForSeller, [
-          [
-            { text: '🔓 Confirm & Release USDT', callback_data: `order_release:${order.id}` },
-            { text: '⚠️ Appeal', callback_data: `order_appeal:${order.id}` },
-          ],
-          [{ text: '📱 Open in Mini App', web_app: { url: miniAppUrl } }],
-        ]);
+        await this.sendTelegramMessage(
+          seller.telegramChatId,
+          textForSeller,
+          miniAppUrl ? [[{ text: 'Open in Mini App', web_app: { url: miniAppUrl } }]] : []
+        );
       }
     } else if (event === 'COMPLETED') {
       await emailService.notifyOrderCompleted(order, buyer, seller);
       void this.syncWithTelegramCloud('UPSERT_ORDER', { order });
 
       const msg =
-        `🎉 <b>Order #${order.id} Completed</b>\n\n` +
+        `<b>Order #${order.id} Completed</b>\n\n` +
         `<b>${order.usdtAmount.toFixed(2)} USDT</b> has been released to <b>${order.buyerName}</b>.`;
 
       if (buyer?.telegramChatId && buyer.telegramNotifications !== false) {
-        await this.sendTelegramMessage(buyer.telegramChatId, msg, [
-          [{ text: '📱 Open Wallet in Mini App', web_app: { url: miniAppUrl } }],
-        ]);
+        await this.sendTelegramMessage(buyer.telegramChatId, msg);
       }
       if (seller?.telegramChatId && seller.telegramNotifications !== false) {
         await this.sendTelegramMessage(seller.telegramChatId, msg);
@@ -308,7 +309,7 @@ class TelegramBotManager {
     } else if (event === 'CANCELLED') {
       void this.syncWithTelegramCloud('UPSERT_ORDER', { order });
       const msg =
-        `↩️ <b>Order #${order.id} Cancelled</b>\n\n` +
+        `<b>Order #${order.id} Cancelled</b>\n\n` +
         `Locked <b>${order.usdtAmount.toFixed(2)} USDT</b> was returned to <b>${order.sellerName}</b>.`;
 
       if (buyer?.telegramChatId && buyer.telegramNotifications !== false) {
@@ -320,104 +321,88 @@ class TelegramBotManager {
     }
   }
 
-  /**
-   * Send Merchant Application Alert with Inline Buttons to Superadmin (@kanzedin)
-   */
   async sendMerchantApplicationAlert(app: MerchantApplication) {
     await emailService.notifyMerchantApplication(app);
     void this.syncWithTelegramCloud('UPSERT_MERCHANT_APP', { app });
 
     const text =
-      `🏪 <b>NEW MERCHANT APPLICATION</b>\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `<b>NEW MERCHANT APPLICATION</b>\n` +
       `• User: <b>${app.userName}</b> (${app.userEmail})\n` +
       `• Telegram: ${app.telegramHandle || 'N/A'}\n` +
       `• Wallet: <b>${app.usdtBalance.toFixed(2)} USDT</b>\n` +
       `• ID: ${app.kycDocType} (<code>${app.kycDocNumber}</code>)`;
 
-    const buttons = [
-      { text: '✅ Approve Merchant', callbackData: `approve_merchant:${app.id}` },
-      { text: '❌ Reject', callbackData: `reject_merchant:${app.id}` },
-    ];
-
     this.logEvent({
       id: `tg-${Date.now()}-mch`,
       timestamp: new Date().toISOString(),
       type: 'MERCHANT_REQUEST',
-      recipient: '@kanzedin',
+      recipient: process.env.ADMIN_TELEGRAM_USERNAME || 'superadmin',
       text: text.replace(/<[^>]+>/g, ''),
-      buttons,
+      buttons: [
+        { text: 'Approve Merchant', callbackData: `merchant_approve:${app.id}` },
+        { text: 'Reject', callbackData: `merchant_reject:${app.id}` },
+      ],
       status: 'PENDING',
     });
 
-    const superChatId = this.getSuperadminChatId();
+    const superChatId = await this.getSuperadminChatId();
     if (superChatId) {
       await this.sendTelegramMessage(superChatId, text, [
         [
-          { text: '✅ Approve Merchant', callback_data: `merchant_approve:${app.id}` },
-          { text: '❌ Reject', callback_data: `merchant_reject:${app.id}` },
+          { text: 'Approve Merchant', callback_data: `merchant_approve:${app.id}` },
+          { text: 'Reject', callback_data: `merchant_reject:${app.id}` },
         ],
-        [{ text: '🛡️ Open Superadmin Mini App', web_app: { url: this.getMiniAppUrl() } }],
       ]);
     }
   }
 
-  /**
-   * Send KYC Submission Alert with Inline Buttons to Superadmin (@kanzedin)
-   */
   async sendKycSubmissionAlert(kyc: KycSubmission) {
     await emailService.notifyKycSubmitted(kyc);
     void this.syncWithTelegramCloud('UPSERT_KYC', { kyc });
 
     const text =
-      `🪪 <b>NEW KYC IDENTITY VERIFICATION</b>\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `<b>NEW KYC IDENTITY VERIFICATION</b>\n` +
       `• User: <b>${kyc.userName}</b> (${kyc.userEmail})\n` +
       `• Telegram: ${kyc.telegramHandle || 'N/A'}\n` +
       `• ID Type: <b>${kyc.kycDocType}</b>\n` +
-      `• ID Number: <code>${kyc.kycDocNumber}</code>\n` +
-      `• Source: ${kyc.source || 'WEB'}`;
-
-    const buttons = [
-      { text: '✅ Approve KYC', callbackData: `approve_kyc:${kyc.id}` },
-      { text: '❌ Reject KYC', callbackData: `reject_kyc:${kyc.id}` },
-    ];
+      `• ID Number: <code>${kyc.kycDocNumber}</code>`;
 
     this.logEvent({
       id: `tg-${Date.now()}-kyc`,
       timestamp: new Date().toISOString(),
       type: 'KYC_REQUEST',
-      recipient: '@kanzedin',
+      recipient: process.env.ADMIN_TELEGRAM_USERNAME || 'superadmin',
       text: text.replace(/<[^>]+>/g, ''),
-      buttons,
+      buttons: [
+        { text: 'Approve KYC', callbackData: `kyc_approve:${kyc.id}` },
+        { text: 'Reject KYC', callbackData: `kyc_reject:${kyc.id}` },
+      ],
       status: 'PENDING',
     });
 
-    const superChatId = this.getSuperadminChatId();
+    const superChatId = await this.getSuperadminChatId();
     if (superChatId) {
       await this.sendTelegramMessage(superChatId, text, [
         [
-          { text: '✅ Approve KYC', callback_data: `kyc_approve:${kyc.id}` },
-          { text: '❌ Reject KYC', callback_data: `kyc_reject:${kyc.id}` },
+          { text: 'Approve KYC', callback_data: `kyc_approve:${kyc.id}` },
+          { text: 'Reject KYC', callback_data: `kyc_reject:${kyc.id}` },
         ],
-        [{ text: '🛡️ Open Superadmin Mini App', web_app: { url: this.getMiniAppUrl() } }],
       ]);
     }
   }
 
-  /**
-   * Send Order Complaint / Dispute Alert to Superadmin (@kanzedin) with Direct Action Buttons
-   */
   async sendDisputeAlert(order: P2POrder) {
     await emailService.notifyOrderDisputed(order);
     void this.syncWithTelegramCloud('UPSERT_ORDER', { order });
 
-    // Also create a support ticket record for the complaint
+    const targetUserId = order.appealedBy === 'SELLER' ? order.sellerId : order.buyerId;
+    const targetUser = await db.getUser(targetUserId);
+
     const complaintTicket: SupportTicket = {
       id: `sup-ord-${order.id}`,
-      userId: order.appealedBy === 'SELLER' ? order.sellerId : order.buyerId,
+      userId: targetUserId,
       userName: order.appealedBy === 'SELLER' ? order.sellerName : order.buyerName,
-      userEmail: db.getUser(order.appealedBy === 'SELLER' ? order.sellerId : order.buyerId)?.email || '',
+      userEmail: targetUser?.email || '',
       orderId: order.id,
       category: 'ORDER_COMPLAINT',
       subject: `Order #${order.id} Appeal (${order.usdtAmount.toFixed(2)} USDT)`,
@@ -427,138 +412,87 @@ class TelegramBotManager {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    db.saveSupportTicket(complaintTicket);
+    await db.saveSupportTicket(complaintTicket);
 
     const text =
-      `🚨 <b>ORDER COMPLAINT / APPEAL #${order.id}</b>\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `<b>ORDER COMPLAINT / APPEAL #${order.id}</b>\n` +
       `• Buyer: <b>${order.buyerName}</b>\n` +
       `• Seller: <b>${order.sellerName}</b>\n` +
       `• Locked Escrow: <b>${order.usdtAmount.toFixed(2)} USDT</b> (${order.etbAmount.toLocaleString()} ETB)\n` +
       `• Opened By: <b>${order.appealedBy || 'BUYER'}</b>\n` +
       `• Reason: "${order.disputeReason || 'No reason provided'}"`;
 
-    const buttons = [
-      { text: '🔓 Release USDT to Buyer', callbackData: `admin_release:${order.id}` },
-      { text: '↩️ Cancel & Refund Seller', callbackData: `admin_cancel:${order.id}` },
-    ];
-
-    this.logEvent({
-      id: `tg-${Date.now()}-disp`,
-      timestamp: new Date().toISOString(),
-      type: 'DISPUTE_ALERT',
-      recipient: '@kanzedin',
-      text: text.replace(/<[^>]+>/g, ''),
-      buttons,
-      status: 'PENDING',
-    });
-
-    const superChatId = this.getSuperadminChatId();
+    const superChatId = await this.getSuperadminChatId();
     if (superChatId) {
-      await this.sendTelegramMessage(superChatId, text, [
-        [
-          { text: '🔓 Release to Buyer', callback_data: `order_release:${order.id}` },
-          { text: '↩️ Cancel & Return to Seller', callback_data: `order_cancel:${order.id}` },
-        ],
-        [{ text: '🛡️ Open Superadmin Mini App', web_app: { url: this.getMiniAppUrl() } }],
-      ]);
+      await this.sendTelegramMessage(superChatId, text);
     }
   }
 
-  /**
-   * Send General Support / Order Complaint Ticket Alert to Superadmin (@kanzedin)
-   */
   async sendSupportTicketAlert(ticket: SupportTicket) {
     await emailService.notifySupportTicket(ticket);
     void this.syncWithTelegramCloud('UPSERT_TICKET', { ticket });
 
     const text =
-      `💬 <b>NEW SUPPORT / COMPLAINT TICKET</b>\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `<b>NEW SUPPORT TICKET</b>\n` +
       `• Ticket: <code>${ticket.id}</code>\n` +
       `• From: <b>${ticket.userName}</b> (${ticket.userEmail})\n` +
-      `• Telegram: ${ticket.telegramHandle || 'N/A'}\n` +
       `• Order ID: ${ticket.orderId ? `<code>${ticket.orderId}</code>` : 'General'}\n` +
-      `• Category: <b>${ticket.category}</b>\n` +
       `• Message: "${ticket.message}"`;
 
-    const buttons = ticket.orderId
-      ? [
-        { text: '🔓 Release Order to Buyer', callbackData: `admin_release:${ticket.orderId}` },
-        { text: '↩️ Cancel Order for Seller', callbackData: `admin_cancel:${ticket.orderId}` },
-      ]
-      : [{ text: '✅ Mark Ticket Resolved', callbackData: `resolve_ticket:${ticket.id}` }];
-
-    this.logEvent({
-      id: `tg-${Date.now()}-sup`,
-      timestamp: new Date().toISOString(),
-      type: 'SUPPORT_TICKET',
-      recipient: '@kanzedin',
-      text: text.replace(/<[^>]+>/g, ''),
-      buttons,
-      status: 'PENDING',
-    });
-
-    const superChatId = this.getSuperadminChatId();
+    const superChatId = await this.getSuperadminChatId();
     if (superChatId) {
-      await this.sendTelegramMessage(superChatId, text, [
-        ticket.orderId
-          ? [
-            { text: '🔓 Release to Buyer', callback_data: `order_release:${ticket.orderId}` },
-            { text: '↩️ Cancel Order', callback_data: `order_cancel:${ticket.orderId}` },
-          ]
-          : [{ text: '✅ Mark Resolved', callback_data: `ticket_resolve:${ticket.id}` }],
-        [{ text: '🛡️ Open Superadmin Mini App', web_app: { url: this.getMiniAppUrl() } }],
-      ]);
+      await this.sendTelegramMessage(superChatId, text);
     }
   }
 
-  /**
-   * Universal Handlers for both Web Dashboard & Telegram Bot Callbacks
-   */
   async handleMerchantApproval(
     applicationId: string,
     reviewedBy: string,
     approved: boolean
   ): Promise<MerchantApplication> {
-    const app = db.getMerchantApplication(applicationId);
+    const app = await db.getMerchantApplication(applicationId);
     if (!app) throw new Error('Application not found');
 
     const newStatus = approved ? 'APPROVED' : 'REJECTED';
-    app.status = newStatus;
-    app.reviewedBy = reviewedBy;
-    db.saveMerchantApplication(app);
+    const updatedApp = await db.saveMerchantApplication({
+      ...app,
+      status: newStatus,
+      reviewedBy,
+    });
 
-    const user = db.getUser(app.userId);
+    const user = await db.getUser(app.userId);
     if (approved) {
-      db.updateUser(app.userId, { role: 'MERCHANT', merchantStatus: 'APPROVED', kycStatus: 'VERIFIED' });
+      await db.updateUser(app.userId, {
+        role: user?.role === 'SUPERADMIN' || user?.role === 'ADMIN' ? user.role : 'MERCHANT',
+        merchantStatus: 'APPROVED',
+        kycStatus: 'VERIFIED',
+      });
 
       wsGateway.emitToUser(app.userId, 'merchant_status_updated', {
         role: 'MERCHANT',
         message: 'Your merchant application is approved! You can now post Buy & Sell ads.',
       });
     } else {
-      db.updateUser(app.userId, { merchantStatus: 'REJECTED' });
+      await db.updateUser(app.userId, { merchantStatus: 'REJECTED' });
     }
 
     if (user?.telegramChatId) {
       await this.sendTelegramMessage(
         user.telegramChatId,
         approved
-          ? `🎉 <b>Merchant Status Approved!</b>\nYou can now post Buy & Sell USDT ads on Fetan P2P and receive instant order alerts here.`
-          : `❌ <b>Merchant Application Update</b>\nYour merchant application was not approved at this time.`
+          ? `<b>Merchant Status Approved!</b>\nYou can now post Buy & Sell USDT ads on Fetan P2P.`
+          : `<b>Merchant Application Update</b>\nYour merchant application was not approved at this time.`
       );
     }
 
-    void this.syncWithTelegramCloud('UPSERT_MERCHANT_APP', { app });
-
+    void this.syncWithTelegramCloud('UPSERT_MERCHANT_APP', { app: updatedApp });
     wsGateway.emitToRoom('admin:dashboard', 'merchant_reviewed', {
       applicationId,
       status: newStatus,
       reviewedBy,
     });
 
-    return app;
+    return updatedApp;
   }
 
   async handleKycApproval(
@@ -566,26 +500,27 @@ class TelegramBotManager {
     reviewedBy: string,
     approved: boolean
   ): Promise<KycSubmission> {
-    const kyc = db.getKycSubmission(kycId);
+    const kyc = await db.getKycSubmission(kycId);
     if (!kyc) throw new Error('KYC submission not found');
 
     const newStatus = approved ? 'VERIFIED' : 'REJECTED';
-    kyc.status = newStatus;
-    kyc.reviewedBy = reviewedBy;
-    db.saveKycSubmission(kyc);
+    const updatedKyc = await db.saveKycSubmission({
+      ...kyc,
+      status: newStatus,
+      reviewedBy,
+    });
 
-    db.updateUser(kyc.userId, { kycStatus: newStatus });
+    const user = await db.updateUser(kyc.userId, { kycStatus: newStatus });
 
-    await emailService.notifyKycReviewed(kyc, approved);
-    void this.syncWithTelegramCloud('UPSERT_KYC', { kyc });
+    await emailService.notifyKycReviewed(updatedKyc, approved);
+    void this.syncWithTelegramCloud('UPSERT_KYC', { kyc: updatedKyc });
 
-    const user = db.getUser(kyc.userId);
-    if (user?.telegramChatId) {
+    if (user.telegramChatId) {
       await this.sendTelegramMessage(
         user.telegramChatId,
         approved
-          ? `✅ <b>Identity Verified (KYC Approved)!</b>\nYour Fetan P2P account is now verified. You can buy and sell USDT anytime.`
-          : `❌ <b>KYC Verification Rejected</b>\nPlease submit a clear ID number and document via the website or type <code>/kyc</code> here.`
+          ? `<b>Identity Verified (KYC Approved)!</b>\nYour Fetan P2P account is now verified.`
+          : `<b>KYC Verification Rejected</b>\nPlease resubmit a clear ID document via the website.`
       );
     }
 
@@ -602,7 +537,7 @@ class TelegramBotManager {
       reviewedBy,
     });
 
-    return kyc;
+    return updatedKyc;
   }
 
   private logEvent(log: TelegramLog) {

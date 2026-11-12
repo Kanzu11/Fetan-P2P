@@ -1,5 +1,11 @@
 import { EventEmitter } from 'events';
 import { WebSocket, WebSocketServer } from 'ws';
+import {
+  SESSION_COOKIE_NAME,
+  parseCookieHeader,
+  verifySessionToken,
+} from './security/session';
+import { db } from './database/store';
 
 export type WsRoom = `user:${string}` | `trade:${string}` | 'admin:dashboard';
 
@@ -15,23 +21,63 @@ class WebSocketGateway {
   attachServer(wss: WebSocketServer) {
     this.wss = wss;
 
-    wss.on('connection', (ws: WebSocket, req) => {
+    wss.on('connection', async (ws: WebSocket, req) => {
+      const token = parseCookieHeader(req.headers.cookie, SESSION_COOKIE_NAME);
+      const session = verifySessionToken(token);
+
+      if (!session) {
+        ws.close(4001, 'Authentication required');
+        return;
+      }
+
       const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
-      const userId = url.searchParams.get('userId');
       const orderId = url.searchParams.get('orderId');
-      const role = url.searchParams.get('role');
 
-      // Auto-join default rooms based on handshake params
-      if (userId) this.joinRoom(`user:${userId}`, ws);
-      if (orderId) this.joinRoom(`trade:${orderId}`, ws);
-      if (role === 'ADMIN' || role === 'SUPERADMIN') this.joinRoom('admin:dashboard', ws);
+      this.joinRoom(`user:${session.sub}`, ws);
 
-      ws.on('message', (raw) => {
+      if (session.role === 'ADMIN' || session.role === 'SUPERADMIN') {
+        this.joinRoom('admin:dashboard', ws);
+      }
+
+      if (orderId) {
+        const order = await db.getOrder(orderId);
+        const isParticipant =
+          order &&
+          (order.buyerId === session.sub ||
+            order.sellerId === session.sub ||
+            session.role === 'ADMIN' ||
+            session.role === 'SUPERADMIN');
+        if (isParticipant) {
+          this.joinRoom(`trade:${orderId}`, ws);
+        }
+      }
+
+      ws.on('message', async (raw) => {
         try {
           const parsed = JSON.parse(raw.toString());
-          if (parsed.action === 'join_room' && parsed.room) {
-            this.joinRoom(parsed.room, ws);
-          } else if (parsed.action === 'leave_room' && parsed.room) {
+          if (parsed.action === 'join_room' && typeof parsed.room === 'string') {
+            const room: string = parsed.room;
+            if (room === `user:${session.sub}`) {
+              this.joinRoom(room, ws);
+            } else if (
+              room === 'admin:dashboard' &&
+              (session.role === 'ADMIN' || session.role === 'SUPERADMIN')
+            ) {
+              this.joinRoom(room, ws);
+            } else if (room.startsWith('trade:')) {
+              const targetOrderId = room.slice('trade:'.length);
+              const order = await db.getOrder(targetOrderId);
+              if (
+                order &&
+                (order.buyerId === session.sub ||
+                  order.sellerId === session.sub ||
+                  session.role === 'ADMIN' ||
+                  session.role === 'SUPERADMIN')
+              ) {
+                this.joinRoom(room, ws);
+              }
+            }
+          } else if (parsed.action === 'leave_room' && typeof parsed.room === 'string') {
             this.leaveRoom(parsed.room, ws);
           }
         } catch {
@@ -57,10 +103,14 @@ class WebSocketGateway {
   }
 
   emitToRoom(room: string, event: string, payload: unknown) {
-    // 1. Emit to WebSocket clients
     const clients = this.roomSubscriptions.get(room);
     if (clients) {
-      const message = JSON.stringify({ event, room, data: payload, timestamp: new Date().toISOString() });
+      const message = JSON.stringify({
+        event,
+        room,
+        data: payload,
+        timestamp: new Date().toISOString(),
+      });
       clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
           client.send(message);
@@ -68,7 +118,6 @@ class WebSocketGateway {
       });
     }
 
-    // 2. Emit to internal bus for server-side / SSE / in-memory subscribers
     this.bus.emit('event', { room, event, data: payload });
     this.bus.emit(room, { event, data: payload });
   }
@@ -77,7 +126,6 @@ class WebSocketGateway {
     this.emitToRoom(`user:${userId}`, event, payload);
   }
 
-  // Subscribe internally (used by Next.js API route streams or server listeners)
   onRoomEvent(room: string, listener: (data: { event: string; data: unknown }) => void) {
     this.bus.on(room, listener);
     return () => this.bus.off(room, listener);

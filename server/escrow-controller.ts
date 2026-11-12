@@ -21,49 +21,81 @@ function resolveSellerPaymentDetails(
   const holderName = customAccountName?.trim() || displayName(seller.name);
 
   switch (method) {
-    case 'TELEBIRR':
+    case 'TELEBIRR': {
+      const accountNumber = customAccountNumber?.trim() || pd.telebirr || seller.phone;
+      if (!accountNumber) {
+        throw new Error(
+          `Seller has not configured a Telebirr number yet. Configure Bank & Telebirr details first.`
+        );
+      }
       return {
         method,
-        accountNumber: customAccountNumber?.trim() || pd.telebirr || seller.phone || '0911234567',
+        accountNumber,
         accountName: holderName,
-        phone: customAccountNumber?.trim() || pd.telebirr || seller.phone || '+251 911 234 567',
+        phone: accountNumber,
         bankName: 'Telebirr',
       };
-    case 'CBE':
+    }
+    case 'CBE': {
+      const accountNumber = customAccountNumber?.trim() || pd.cbeAccount;
+      if (!accountNumber) {
+        throw new Error(`Seller has not configured a CBE account number yet.`);
+      }
       return {
         method,
-        accountNumber: customAccountNumber?.trim() || pd.cbeAccount || '1000123456789',
+        accountNumber,
         accountName: customAccountName?.trim() || pd.cbeHolder || holderName,
         bankName: 'Commercial Bank of Ethiopia (CBE)',
       };
-    case 'ABYSSINIA':
+    }
+    case 'ABYSSINIA': {
+      const accountNumber = customAccountNumber?.trim() || pd.abyssiniaAccount;
+      if (!accountNumber) {
+        throw new Error(`Seller has not configured a Bank of Abyssinia account number yet.`);
+      }
       return {
         method,
-        accountNumber: customAccountNumber?.trim() || pd.abyssiniaAccount || '88201944',
+        accountNumber,
         accountName: customAccountName?.trim() || pd.abyssiniaHolder || holderName,
         bankName: 'Bank of Abyssinia',
       };
-    case 'AWASH':
+    }
+    case 'AWASH': {
+      const accountNumber = customAccountNumber?.trim() || pd.awashAccount;
+      if (!accountNumber) {
+        throw new Error(`Seller has not configured an Awash Bank account number yet.`);
+      }
       return {
         method,
-        accountNumber: customAccountNumber?.trim() || pd.awashAccount || '01320987654321',
+        accountNumber,
         accountName: customAccountName?.trim() || pd.awashHolder || holderName,
         bankName: 'Awash Bank',
       };
-    case 'CBE_BIRR':
+    }
+    case 'CBE_BIRR': {
+      const accountNumber = customAccountNumber?.trim() || pd.cbeBirr || pd.telebirr;
+      if (!accountNumber) {
+        throw new Error(`Seller has not configured a CBE Birr phone number yet.`);
+      }
       return {
         method,
-        accountNumber: customAccountNumber?.trim() || pd.cbeBirr || pd.telebirr || '0911234567',
+        accountNumber,
         accountName: holderName,
         bankName: 'CBE Birr',
       };
-    case 'DASHEN':
+    }
+    case 'DASHEN': {
+      const accountNumber = customAccountNumber?.trim() || pd.dashenAccount;
+      if (!accountNumber) {
+        throw new Error(`Seller has not configured a Dashen Bank account number yet.`);
+      }
       return {
         method,
-        accountNumber: customAccountNumber?.trim() || pd.dashenAccount || '5029184720112',
+        accountNumber,
         accountName: holderName,
         bankName: meta.name,
       };
+    }
   }
 }
 
@@ -92,14 +124,12 @@ export class EscrowController {
       throw new Error('Please enter a valid USDT amount.');
     }
 
-    const offerInitial = db.getOffer(offerId);
+    const offerInitial = await db.getOffer(offerId);
     if (!offerInitial) throw new Error('This offer is no longer available.');
     if (offerInitial.isActive === false) {
       throw new Error('This ad is currently paused by the merchant.');
     }
 
-    // SELL offer = Merchant sells USDT, Initiator buys USDT
-    // BUY offer  = Merchant buys USDT, Initiator sells USDT
     const actualSellerId = offerInitial.offerType === 'SELL' ? offerInitial.merchantId : initiatorId;
     const actualBuyerId = offerInitial.offerType === 'SELL' ? initiatorId : offerInitial.merchantId;
 
@@ -107,23 +137,23 @@ export class EscrowController {
       throw new Error('You cannot trade on your own ad.');
     }
 
-    return await db.withLocks(
+    const result = await db.withLocks(
       [`offer:${offerId}`, `user:${actualSellerId}`, `user:${actualBuyerId}`],
       async () => {
-        const offer = db.getOffer(offerId);
+        const offer = await db.getOffer(offerId);
         if (!offer) throw new Error('Offer not found.');
+        if (!offer.isActive) throw new Error('This ad is currently paused.');
 
-        const seller = db.getUser(actualSellerId);
-        const buyer = db.getUser(actualBuyerId);
+        const seller = await db.getUser(actualSellerId);
+        const buyer = await db.getUser(actualBuyerId);
         if (!seller || !buyer) {
           throw new Error('User account not found.');
         }
 
-        // MANDATORY KYC FOR ALL USERS (Buyers & Sellers)
-        const initiator = db.getUser(initiatorId);
+        const initiator = await db.getUser(initiatorId);
         if (!initiator || initiator.kycStatus !== 'VERIFIED') {
           throw new Error(
-            'Identity verification (KYC) is required for all users before trading. Please verify your ID on the website or via @fetanp2probot.'
+            'Identity verification (KYC) is required before trading. Please complete KYC first.'
           );
         }
         if (buyer.kycStatus !== 'VERIFIED' || seller.kycStatus !== 'VERIFIED') {
@@ -148,40 +178,38 @@ export class EscrowController {
           );
         }
 
-        // If the seller provided a payout account number during order creation, save it to their profile
+        let updatedSeller = seller;
         if (sellerAccountNumber && sellerAccountNumber.trim()) {
           const meta = PAYMENT_METHODS_META[paymentMethod];
           const updatedDetails = { ...(seller.paymentDetails || {}) };
           if (meta) {
             updatedDetails[meta.accountField] = sellerAccountNumber.trim();
           }
-          db.updateUser(seller.id, { paymentDetails: updatedDetails });
+          updatedSeller = await db.updateUser(seller.id, { paymentDetails: updatedDetails });
         }
 
-        // Lock seller USDT atomically
-        const newSellerBalance = Number((seller.usdtBalance - usdtAmount).toFixed(6));
-        const newSellerLocked = Number((seller.usdtLocked + usdtAmount).toFixed(6));
-        db.updateUser(seller.id, {
-          usdtBalance: newSellerBalance,
-          usdtLocked: newSellerLocked,
-        });
-
-        // Deduct from offer supply
-        db.updateOffer(offer.id, {
-          totalAvailable: Number(Math.max(0, offer.totalAvailable - usdtAmount).toFixed(4)),
-        });
-
-        const now = new Date();
-        const expiresAt = new Date(now.getTime() + 15 * 60 * 1000); // 15-minute payment window
-        const orderId = db.nextOrderId();
-
-        const updatedSeller = db.getUser(seller.id) || seller;
         const paymentDetails = resolveSellerPaymentDetails(
           updatedSeller,
           paymentMethod,
           sellerAccountNumber,
           sellerAccountName
         );
+
+        const newSellerBalance = Number((seller.usdtBalance - usdtAmount).toFixed(6));
+        const newSellerLocked = Number((seller.usdtLocked + usdtAmount).toFixed(6));
+
+        await db.updateUser(seller.id, {
+          usdtBalance: newSellerBalance,
+          usdtLocked: newSellerLocked,
+        });
+
+        await db.updateOffer(offer.id, {
+          totalAvailable: Number(Math.max(0, offer.totalAvailable - usdtAmount).toFixed(4)),
+        });
+
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + 15 * 60 * 1000);
+        const orderId = await db.nextOrderId();
         const methodShortName = PAYMENT_METHODS_META[paymentMethod]?.shortName || paymentMethod;
 
         const order: P2POrder = {
@@ -217,10 +245,9 @@ export class EscrowController {
           ],
         };
 
-        db.saveOrder(order);
+        const savedOrder = await db.saveOrder(order);
 
-        // Initial system message in trade chat
-        db.addChatMessage({
+        await db.addChatMessage({
           id: `msg-${Date.now()}-sys`,
           orderId,
           senderId: 'SYSTEM',
@@ -232,7 +259,7 @@ export class EscrowController {
         });
 
         if (offer.terms) {
-          db.addChatMessage({
+          await db.addChatMessage({
             id: `msg-${Date.now()}-terms`,
             orderId,
             senderId: offer.merchantId,
@@ -243,16 +270,18 @@ export class EscrowController {
           });
         }
 
-        wsGateway.emitToUser(actualSellerId, 'balance_updated', {
-          usdtBalance: newSellerBalance,
-          usdtLocked: newSellerLocked,
-        });
-        wsGateway.emitToRoom(`trade:${orderId}`, 'escrow_locked', order);
-        void telegramBot.sendOrderNotification(order, 'CREATED');
-
-        return order;
+        return { savedOrder, newSellerBalance, newSellerLocked };
       }
     );
+
+    wsGateway.emitToUser(actualSellerId, 'balance_updated', {
+      usdtBalance: result.newSellerBalance,
+      usdtLocked: result.newSellerLocked,
+    });
+    wsGateway.emitToRoom(`trade:${result.savedOrder.id}`, 'escrow_locked', result.savedOrder);
+    void telegramBot.sendOrderNotification(result.savedOrder, 'CREATED');
+
+    return result.savedOrder;
   }
 
   /**
@@ -263,8 +292,10 @@ export class EscrowController {
     actorId: string,
     proofReceiptUrl?: string
   ): Promise<P2POrder> {
-    return await db.withOrderLock(orderId, async (order) => {
-      const actor = db.getUser(actorId);
+    const allowDemoAutoRelease = process.env.ENABLE_DEMO_AUTORELEASE === 'true';
+
+    const updatedOrder = await db.withOrderLock(orderId, async (order) => {
+      const actor = await db.getUser(actorId);
       const isAdmin = isAdminRole(actor?.role);
 
       if (order.buyerId !== actorId && !isAdmin) {
@@ -279,64 +310,70 @@ export class EscrowController {
         PAYMENT_METHODS_META[order.paymentMethod]?.shortName || order.paymentMethod;
       const cleanRef = proofReceiptUrl?.trim();
       const autoReleaseDelaySeconds = 15;
-      const autoReleaseDate = new Date(now.getTime() + autoReleaseDelaySeconds * 1000);
+      const autoReleaseDate = allowDemoAutoRelease
+        ? new Date(now.getTime() + autoReleaseDelaySeconds * 1000).toISOString()
+        : undefined;
 
       const updatedLogs = [
         ...order.auditLogs,
         {
           id: `log-${Date.now()}`,
           timestamp: now.toISOString(),
-          message: `Buyer marked ${order.etbAmount.toLocaleString()} ETB as paid via ${methodShortName}.${cleanRef ? ` Reference: ${cleanRef}` : ''} (Automated release scheduled in ${autoReleaseDelaySeconds}s).`,
+          message: `Buyer marked ${order.etbAmount.toLocaleString()} ETB as paid via ${methodShortName}.${cleanRef ? ` Reference: ${cleanRef}` : ''}`,
           actor: 'BUYER' as const,
         },
       ];
 
-      const updatedOrder: P2POrder = {
+      const nextOrder: P2POrder = {
         ...order,
         status: 'PAYMENT_SENT',
         paidAt: now.toISOString(),
-        autoReleaseAt: autoReleaseDate.toISOString(),
+        autoReleaseAt: autoReleaseDate,
         proofReceiptUrl: cleanRef || order.proofReceiptUrl,
         auditLogs: updatedLogs,
         updatedAt: now.toISOString(),
       };
 
-      db.saveOrder(updatedOrder);
+      await db.saveOrder(nextOrder);
 
-      db.addChatMessage({
+      await db.addChatMessage({
         id: `msg-${Date.now()}`,
         orderId,
         senderId: 'SYSTEM',
         senderName: 'Fetan Escrow',
         senderRole: 'ADMIN',
-        text: `Buyer marked ${order.etbAmount.toLocaleString()} ETB as paid.${cleanRef ? ` Payment ref: ${cleanRef}.` : ''} ⚡ Fetan Auto-Release Engine is active: USDT will automatically release to ${displayName(order.buyerName)} in ${autoReleaseDelaySeconds} seconds once verified, or seller can click "Confirm & Complete Order" now.`,
+        text: allowDemoAutoRelease
+          ? `Buyer marked ${order.etbAmount.toLocaleString()} ETB as paid.${cleanRef ? ` Ref: ${cleanRef}.` : ''} Auto-release enabled in ${autoReleaseDelaySeconds}s.`
+          : `Buyer marked ${order.etbAmount.toLocaleString()} ETB as paid.${cleanRef ? ` Ref: ${cleanRef}.` : ''} Waiting for seller (${displayName(order.sellerName)}) to verify receipt in their bank/Telebirr account and click "Confirm & Release USDT".`,
         timestamp: now.toISOString(),
         isSystem: true,
       });
 
-      wsGateway.emitToRoom(`trade:${orderId}`, 'payment_confirmed', updatedOrder);
-      wsGateway.emitToUser(order.sellerId, 'payment_alert', {
-        orderId,
-        etbAmount: order.etbAmount,
-      });
-      void telegramBot.sendOrderNotification(updatedOrder, 'PAID');
-
-      // Schedule automated escrow release
-      this.scheduleAutoRelease(orderId, autoReleaseDelaySeconds);
-
-      return updatedOrder;
+      return nextOrder;
     });
+
+    wsGateway.emitToRoom(`trade:${orderId}`, 'payment_confirmed', updatedOrder);
+    wsGateway.emitToUser(updatedOrder.sellerId, 'payment_alert', {
+      orderId,
+      etbAmount: updatedOrder.etbAmount,
+    });
+    void telegramBot.sendOrderNotification(updatedOrder, 'PAID');
+
+    if (allowDemoAutoRelease) {
+      this.scheduleAutoRelease(orderId, 15);
+    }
+
+    return updatedOrder;
   }
 
   /**
-   * Auto-Release Scheduler: Releases locked funds when order is complete without dispute
+   * Optional Auto-Release Scheduler (strictly opt-in via ENABLE_DEMO_AUTORELEASE=true).
    */
   scheduleAutoRelease(orderId: string, delaySeconds: number = 15): void {
     setTimeout(async () => {
       try {
-        const order = db.getOrder(orderId);
+        const order = await db.getOrder(orderId);
         if (order && order.status === 'PAYMENT_SENT') {
-          console.log(`[Auto-Release] Triggering automatic release for Order #${orderId}...`);
           await this.releaseEscrow(
             orderId,
             'AUTO_RELEASE',
@@ -353,33 +390,37 @@ export class EscrowController {
    * 3. COMPLETE ORDER & RELEASE ESCROW TO BUYER (Seller or Admin)
    */
   async releaseEscrow(orderId: string, actorId: string, note?: string): Promise<P2POrder> {
-    const existingOrder = db.getOrder(orderId);
+    const existingOrder = await db.getOrder(orderId);
     if (!existingOrder) throw new Error('Order not found.');
 
-    return await db.withLocks(
+    const result = await db.withLocks(
       [`order:${orderId}`, `user:${existingOrder.sellerId}`, `user:${existingOrder.buyerId}`],
       async () => {
-        const order = db.getOrder(orderId);
+        const order = await db.getOrder(orderId);
         if (!order) throw new Error('Order not found.');
 
-        const actor = db.getUser(actorId);
+        const isSystemAutoRelease =
+          (actorId === 'AUTO_RELEASE' || actorId === 'SYSTEM') &&
+          process.env.ENABLE_DEMO_AUTORELEASE === 'true';
+
+        const actor = isSystemAutoRelease ? undefined : await db.getUser(actorId);
         const isAdmin = isAdminRole(actor?.role);
-        const isSystemAutoRelease = actorId === 'AUTO_RELEASE' || actorId === 'SYSTEM';
 
         if (order.sellerId !== actorId && !isAdmin && !isSystemAutoRelease) {
-          throw new Error('Only the seller, automated escrow, or an admin can release USDT and complete the order.');
+          throw new Error(
+            'Only the seller or an administrator can release USDT and complete this order.'
+          );
         }
         if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
           throw new Error(`This order is already ${order.status.toLowerCase()}.`);
         }
 
-        // Seller cannot release before buyer marks payment as sent
         if (!isAdmin && !isSystemAutoRelease && order.status === 'PENDING_PAYMENT') {
           throw new Error('Wait for the buyer to mark the order as paid before releasing USDT.');
         }
 
-        const seller = db.getUser(order.sellerId);
-        const buyer = db.getUser(order.buyerId);
+        const seller = await db.getUser(order.sellerId);
+        const buyer = await db.getUser(order.buyerId);
         if (!seller || !buyer) {
           throw new Error('Order participant account not found.');
         }
@@ -388,11 +429,11 @@ export class EscrowController {
         const newSellerLocked = Number(Math.max(0, seller.usdtLocked - deductLocked).toFixed(6));
         const newBuyerBalance = Number((buyer.usdtBalance + order.usdtAmount).toFixed(6));
 
-        db.updateUser(seller.id, {
+        await db.updateUser(seller.id, {
           usdtLocked: newSellerLocked,
           completedTrades: (seller.completedTrades || 0) + 1,
         });
-        db.updateUser(buyer.id, {
+        await db.updateUser(buyer.id, {
           usdtBalance: newBuyerBalance,
           completedTrades: (buyer.completedTrades || 0) + 1,
         });
@@ -402,7 +443,7 @@ export class EscrowController {
         const cleanNote = note?.trim();
 
         const releasedByMsg = isSystemAutoRelease
-          ? `⚡ Automatic Escrow Release: Order verified and ${order.usdtAmount.toFixed(2)} USDT automatically released to ${displayName(buyer.name)}.`
+          ? `Automatic Escrow Release: Order verified and ${order.usdtAmount.toFixed(2)} USDT released to ${displayName(buyer.name)}.`
           : isReleasedByAdmin
           ? `Admin (${displayName(actor?.name)}) completed the order and released ${order.usdtAmount.toFixed(2)} USDT to ${displayName(buyer.name)}.${cleanNote ? ` Note: ${cleanNote}` : ''}`
           : `Seller confirmed receiving ${order.etbAmount.toLocaleString()} ETB and released ${order.usdtAmount.toFixed(2)} USDT to ${displayName(buyer.name)}.`;
@@ -413,7 +454,11 @@ export class EscrowController {
             id: `log-${Date.now()}`,
             timestamp: now.toISOString(),
             message: releasedByMsg,
-            actor: isSystemAutoRelease ? ('SYSTEM' as const) : isReleasedByAdmin ? ('ADMIN' as const) : ('SELLER' as const),
+            actor: isSystemAutoRelease
+              ? ('SYSTEM' as const)
+              : isReleasedByAdmin
+              ? ('ADMIN' as const)
+              : ('SELLER' as const),
           },
         ];
 
@@ -422,59 +467,72 @@ export class EscrowController {
           status: 'COMPLETED',
           completedAt: now.toISOString(),
           isAutoRelease: isSystemAutoRelease,
-          resolvedBy: isSystemAutoRelease ? 'Fetan Auto-Release Engine' : isReleasedByAdmin ? displayName(actor?.name) : order.resolvedBy,
+          resolvedBy: isSystemAutoRelease
+            ? 'Fetan Auto-Release Engine'
+            : isReleasedByAdmin
+            ? displayName(actor?.name)
+            : order.resolvedBy,
           resolutionNote: cleanNote || order.resolutionNote,
           auditLogs: updatedLogs,
           updatedAt: now.toISOString(),
         };
 
-        db.saveOrder(updatedOrder);
+        await db.saveOrder(updatedOrder);
 
-        db.addChatMessage({
+        await db.addChatMessage({
           id: `msg-${Date.now()}`,
           orderId,
           senderId: 'SYSTEM',
           senderName: 'Fetan Escrow',
           senderRole: 'ADMIN',
-          text: isSystemAutoRelease
-            ? `⚡ Automatic Release Complete! Fetan Escrow verified payment completion and automatically transferred ${order.usdtAmount.toFixed(2)} USDT to ${displayName(buyer.name)}'s wallet with zero fee.`
-            : isReleasedByAdmin
+          text: isReleasedByAdmin
             ? `Order completed by Admin. ${order.usdtAmount.toFixed(2)} USDT has been added to ${displayName(buyer.name)}'s wallet.${cleanNote ? ` Note: ${cleanNote}` : ''}`
             : `Order completed! ${order.usdtAmount.toFixed(2)} USDT has been added to ${displayName(buyer.name)}'s wallet with zero fee.`,
           timestamp: now.toISOString(),
           isSystem: true,
         });
 
-        wsGateway.emitToRoom(`trade:${orderId}`, 'escrow_released', updatedOrder);
-        wsGateway.emitToUser(seller.id, 'balance_updated', {
-          usdtBalance: seller.usdtBalance,
-          usdtLocked: newSellerLocked,
+        await db.logAudit({
+          actorId: isSystemAutoRelease ? 'SYSTEM' : actorId,
+          actorRole: isSystemAutoRelease ? 'SYSTEM' : actor?.role,
+          action: 'ORDER_ESCROW_RELEASED',
+          targetType: 'P2POrder',
+          targetId: orderId,
+          details: { usdtAmount: order.usdtAmount, buyerId: buyer.id, sellerId: seller.id },
         });
-        wsGateway.emitToUser(buyer.id, 'balance_updated', {
-          usdtBalance: newBuyerBalance,
-          usdtLocked: buyer.usdtLocked,
-        });
-        void telegramBot.sendOrderNotification(updatedOrder, 'COMPLETED');
 
-        return updatedOrder;
+        return { updatedOrder, seller, buyer, newSellerLocked, newBuyerBalance };
       }
     );
+
+    wsGateway.emitToRoom(`trade:${orderId}`, 'escrow_released', result.updatedOrder);
+    wsGateway.emitToUser(result.seller.id, 'balance_updated', {
+      usdtBalance: result.seller.usdtBalance,
+      usdtLocked: result.newSellerLocked,
+    });
+    wsGateway.emitToUser(result.buyer.id, 'balance_updated', {
+      usdtBalance: result.newBuyerBalance,
+      usdtLocked: result.buyer.usdtLocked,
+    });
+    void telegramBot.sendOrderNotification(result.updatedOrder, 'COMPLETED');
+
+    return result.updatedOrder;
   }
 
   /**
    * 4. CANCEL ORDER & RETURN LOCKED USDT TO SELLER (Buyer or Admin)
    */
   async cancelEscrow(orderId: string, actorId: string, reason?: string): Promise<P2POrder> {
-    const existingOrder = db.getOrder(orderId);
+    const existingOrder = await db.getOrder(orderId);
     if (!existingOrder) throw new Error('Order not found.');
 
-    return await db.withLocks(
+    const result = await db.withLocks(
       [`order:${orderId}`, `user:${existingOrder.sellerId}`, `offer:${existingOrder.offerId}`],
       async () => {
-        const order = db.getOrder(orderId);
+        const order = await db.getOrder(orderId);
         if (!order) throw new Error('Order not found.');
 
-        const actor = db.getUser(actorId);
+        const actor = await db.getUser(actorId);
         const isAdmin = isAdminRole(actor?.role);
 
         if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
@@ -486,26 +544,27 @@ export class EscrowController {
             throw new Error('Only the buyer or an admin can cancel this order.');
           }
           if (order.status === 'DISPUTED') {
-            throw new Error('This order is under support review. Only an admin or buyer resolution can close it.');
+            throw new Error(
+              'This order is under support review. Only an admin can resolve or cancel a disputed order.'
+            );
           }
         }
 
-        const seller = db.getUser(order.sellerId);
+        const seller = await db.getUser(order.sellerId);
         if (!seller) throw new Error('Seller account not found.');
 
         const unlockAmount = Math.min(seller.usdtLocked, order.usdtAmount);
         const newSellerLocked = Number(Math.max(0, seller.usdtLocked - unlockAmount).toFixed(6));
-        const newSellerBalance = Number((seller.usdtBalance + order.usdtAmount).toFixed(6));
+        const newSellerBalance = Number((seller.usdtBalance + unlockAmount).toFixed(6));
 
-        db.updateUser(seller.id, {
+        await db.updateUser(seller.id, {
           usdtBalance: newSellerBalance,
           usdtLocked: newSellerLocked,
         });
 
-        // Restore offer available USDT
-        const offer = db.getOffer(order.offerId);
+        const offer = await db.getOffer(order.offerId);
         if (offer) {
-          db.updateOffer(offer.id, {
+          await db.updateOffer(offer.id, {
             totalAvailable: Number((offer.totalAvailable + order.usdtAmount).toFixed(4)),
           });
         }
@@ -538,9 +597,9 @@ export class EscrowController {
           updatedAt: now.toISOString(),
         };
 
-        db.saveOrder(updatedOrder);
+        await db.saveOrder(updatedOrder);
 
-        db.addChatMessage({
+        await db.addChatMessage({
           id: `msg-${Date.now()}`,
           orderId,
           senderId: 'SYSTEM',
@@ -551,24 +610,35 @@ export class EscrowController {
           isSystem: true,
         });
 
-        wsGateway.emitToRoom(`trade:${orderId}`, 'escrow_released', updatedOrder);
-        wsGateway.emitToUser(seller.id, 'balance_updated', {
-          usdtBalance: newSellerBalance,
-          usdtLocked: newSellerLocked,
+        await db.logAudit({
+          actorId,
+          actorRole: actor?.role,
+          action: 'ORDER_ESCROW_CANCELLED',
+          targetType: 'P2POrder',
+          targetId: orderId,
+          details: { reason: cleanReason },
         });
-        void telegramBot.sendOrderNotification(updatedOrder, 'CANCELLED');
 
-        return updatedOrder;
+        return { updatedOrder, sellerId: seller.id, newSellerBalance, newSellerLocked };
       }
     );
+
+    wsGateway.emitToRoom(`trade:${orderId}`, 'escrow_released', result.updatedOrder);
+    wsGateway.emitToUser(result.sellerId, 'balance_updated', {
+      usdtBalance: result.newSellerBalance,
+      usdtLocked: result.newSellerLocked,
+    });
+    void telegramBot.sendOrderNotification(result.updatedOrder, 'CANCELLED');
+
+    return result.updatedOrder;
   }
 
   /**
    * 5. OPEN APPEAL / DISPUTE (Buyer or Seller asks Admin to step in)
    */
   async disputeTrade(orderId: string, userId: string, reason: string): Promise<P2POrder> {
-    return await db.withOrderLock(orderId, async (order) => {
-      const actor = db.getUser(userId);
+    const updatedOrder = await db.withOrderLock(orderId, async (order) => {
+      const actor = await db.getUser(userId);
       const isAdmin = isAdminRole(actor?.role);
 
       if (order.buyerId !== userId && order.sellerId !== userId && !isAdmin) {
@@ -583,7 +653,7 @@ export class EscrowController {
         userId === order.buyerId ? 'Buyer' : userId === order.sellerId ? 'Seller' : 'Admin';
       const cleanReason = reason.trim();
 
-      const updatedOrder: P2POrder = {
+      const nextOrder: P2POrder = {
         ...order,
         status: 'DISPUTED',
         disputeReason: cleanReason,
@@ -601,25 +671,27 @@ export class EscrowController {
         updatedAt: now.toISOString(),
       };
 
-      db.saveOrder(updatedOrder);
+      await db.saveOrder(nextOrder);
 
-      db.addChatMessage({
+      await db.addChatMessage({
         id: `msg-${Date.now()}`,
         orderId,
         senderId: 'SYSTEM',
         senderName: 'Fetan Support',
         senderRole: 'ADMIN',
-        text: `Appeal opened by ${roleLabel}: "${cleanReason}". A Fetan Admin is reviewing this order. Please share any payment details or screenshots in the chat.`,
+        text: `Appeal opened by ${roleLabel}: "${cleanReason}". A Fetan Admin is reviewing this order. Please share payment details or screenshots in the chat.`,
         timestamp: now.toISOString(),
         isSystem: true,
       });
 
-      wsGateway.emitToRoom('admin:dashboard', 'dispute_alert', updatedOrder);
-      wsGateway.emitToRoom(`trade:${orderId}`, 'dispute_alert', updatedOrder);
-      telegramBot.sendDisputeAlert(updatedOrder);
-
-      return updatedOrder;
+      return nextOrder;
     });
+
+    wsGateway.emitToRoom('admin:dashboard', 'dispute_alert', updatedOrder);
+    wsGateway.emitToRoom(`trade:${orderId}`, 'dispute_alert', updatedOrder);
+    void telegramBot.sendDisputeAlert(updatedOrder);
+
+    return updatedOrder;
   }
 
   /**
@@ -631,7 +703,7 @@ export class EscrowController {
     rating: 'POSITIVE' | 'NEGATIVE',
     comment?: string
   ): Promise<P2POrder> {
-    return await db.withOrderLock(orderId, async (order) => {
+    return db.withOrderLock(orderId, async (order) => {
       if (order.status !== 'COMPLETED') {
         throw new Error('You can only leave a review after the order is completed.');
       }
@@ -654,8 +726,7 @@ export class EscrowController {
         updatedAt: new Date().toISOString(),
       };
 
-      db.saveOrder(updatedOrder);
-      return updatedOrder;
+      return db.saveOrder(updatedOrder);
     });
   }
 }

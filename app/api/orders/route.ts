@@ -1,48 +1,103 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { db } from '@/server/database/store';
+import { requireAuth } from '@/server/security/session';
+import { rateLimiter, getClientIp } from '@/server/security/rate-limiter';
+import { sanitizeAmount, sanitizeString } from '@/server/security/sanitize';
 import { escrowController } from '@/server/escrow-controller';
+import { isAdminRole } from '@/client/types';
+
+export const dynamic = 'force-dynamic';
+
+const createOrderSchema = z.object({
+  offerId: z.string().min(1),
+  usdtAmount: z.number().min(1, 'Minimum trade amount is 1 USDT.'),
+  paymentMethod: z.enum([
+    'TELEBIRR',
+    'CBE',
+    'ABYSSINIA',
+    'AWASH',
+    'CBE_BIRR',
+    'DASHEN',
+  ]),
+  sellerAccountNumber: z.string().max(60).optional(),
+  sellerAccountName: z.string().max(80).optional(),
+});
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const userId = searchParams.get('userId');
+  const auth = await requireAuth(req);
+  if (!auth.ok) return auth.response;
 
-  let orders = db.getAllOrders();
-  if (userId) {
-    orders = orders.filter((o) => o.buyerId === userId || o.sellerId === userId);
+  const { searchParams } = new URL(req.url);
+  const requestedUserId = searchParams.get('userId');
+  const isAdmin = isAdminRole(auth.user.role);
+
+  if (requestedUserId && requestedUserId !== auth.user.id && !isAdmin) {
+    return NextResponse.json(
+      { error: 'Forbidden: cannot read orders belonging to another user.' },
+      { status: 403 }
+    );
   }
+
+  if (isAdmin && !requestedUserId) {
+    const orders = await db.getAllOrders();
+    return NextResponse.json({ orders });
+  }
+
+  const targetId = isAdmin && requestedUserId ? requestedUserId : auth.user.id;
+  const orders = await db.getOrdersForUser(targetId);
   return NextResponse.json({ orders });
 }
 
 export async function POST(req: Request) {
   try {
-    const {
-      offerId,
-      buyerId,
-      usdtAmount,
-      paymentMethod,
-      sellerAccountNumber,
-      sellerAccountName,
-    } = await req.json();
+    const auth = await requireAuth(req);
+    if (!auth.ok) return auth.response;
 
-    if (!offerId || !buyerId || !usdtAmount || !paymentMethod) {
+    const ip = getClientIp(req);
+    const limit = await rateLimiter.checkAsync(`create-order:${auth.user.id}:${ip}`, 15, 300);
+    if (!limit.allowed) {
+      return rateLimiter.rateLimitResponse(
+        limit.resetSeconds,
+        'Too many orders created quickly. Please wait a moment.'
+      );
+    }
+
+    if (auth.user.kycStatus !== 'VERIFIED') {
       return NextResponse.json(
-        { error: 'Please select an amount and payment method.' },
+        { error: 'Complete KYC identity verification before opening P2P escrow orders.' },
+        { status: 403 }
+      );
+    }
+
+    const rawBody = await req.json();
+    const parsed = createOrderSchema.safeParse({
+      ...rawBody,
+      usdtAmount: sanitizeAmount(rawBody?.usdtAmount, 6) ?? Number(rawBody?.usdtAmount),
+    });
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message || 'Invalid order creation request.' },
         { status: 400 }
       );
     }
 
+    const { offerId, usdtAmount, paymentMethod, sellerAccountNumber, sellerAccountName } =
+      parsed.data;
+
     const order = await escrowController.lockEscrow({
       offerId,
-      buyerId,
-      usdtAmount: Number(usdtAmount),
+      buyerId: auth.user.id,
+      usdtAmount,
       paymentMethod,
-      sellerAccountNumber,
-      sellerAccountName,
+      sellerAccountNumber: sanitizeString(sellerAccountNumber, 60) || undefined,
+      sellerAccountName: sanitizeString(sellerAccountName, 80) || undefined,
     });
 
     return NextResponse.json({ success: true, order });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Could not create order.';
+    const message = err instanceof Error ? err.message : 'Order creation failed';
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

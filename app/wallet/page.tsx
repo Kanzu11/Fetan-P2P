@@ -43,7 +43,6 @@ export default function WalletPage() {
 
   // Deposit verification state
   const [verifyTxHash, setVerifyTxHash] = useState('');
-  const [verifyAmount, setVerifyAmount] = useState('');
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
 
@@ -51,9 +50,13 @@ export default function WalletPage() {
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
 
-  // Withdraw state
+  // Withdraw + 2FA Email OTP state
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawAddress, setWithdrawAddress] = useState('');
+  const [withdrawOtpCode, setWithdrawOtpCode] = useState('');
+  const [withdrawOtpSent, setWithdrawOtpSent] = useState(false);
+  const [withdrawOtpLoading, setWithdrawOtpLoading] = useState(false);
+  const [withdrawOtpMessage, setWithdrawOtpMessage] = useState<string | null>(null);
   const [withdrawLoading, setWithdrawLoading] = useState(false);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
 
@@ -161,8 +164,52 @@ export default function WalletPage() {
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
+  const handleSendWithdrawOtp = async () => {
+    setWithdrawError(null);
+    setWithdrawOtpMessage(null);
+
+    const parsedAmount = Number(withdrawAmount);
+    if (!withdrawAddress.trim()) {
+      setWithdrawError('Enter your recipient wallet address first.');
+      return;
+    }
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 5) {
+      setWithdrawError('Enter a valid withdrawal amount (minimum 5.00 USDT).');
+      return;
+    }
+
+    setWithdrawOtpLoading(true);
+    try {
+      const res = await fetch('/api/auth/request-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          purpose: 'WITHDRAW',
+          amountUsdt: parsedAmount,
+          network,
+          destinationAddress: withdrawAddress.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not send withdrawal code');
+
+      setWithdrawOtpSent(true);
+      setWithdrawOtpMessage(
+        data.message || `6-digit confirmation code sent to ${currentUser.email}.`
+      );
+    } catch (err: unknown) {
+      setWithdrawError(err instanceof Error ? err.message : 'Failed to dispatch email code');
+    } finally {
+      setWithdrawOtpLoading(false);
+    }
+  };
+
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!/^\d{6}$/.test(withdrawOtpCode.trim())) {
+      setWithdrawError('Enter the 6-digit verification code sent to your email.');
+      return;
+    }
     setWithdrawLoading(true);
     setWithdrawError(null);
     try {
@@ -170,10 +217,10 @@ export default function WalletPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: currentUser.id,
           network,
-          amount: Number(withdrawAmount),
-          destinationAddress: withdrawAddress,
+          amountUsdt: Number(withdrawAmount),
+          destinationAddress: withdrawAddress.trim(),
+          otpCode: withdrawOtpCode.trim(),
         }),
       });
       const data = await res.json();
@@ -181,9 +228,12 @@ export default function WalletPage() {
 
       setWithdrawAmount('');
       setWithdrawAddress('');
+      setWithdrawOtpCode('');
+      setWithdrawOtpSent(false);
+      setWithdrawOtpMessage(null);
       await refreshUser();
       await fetchTransactions();
-      setNotification(`Withdrawal of ${withdrawAmount} USDT submitted successfully.`);
+      setNotification(`Withdrawal of ${data.transaction?.amount ?? ''} USDT queued for review.`);
     } catch (err: unknown) {
       setWithdrawError(err instanceof Error ? err.message : 'Could not process withdrawal');
     } finally {
@@ -193,7 +243,7 @@ export default function WalletPage() {
 
   const handleVerifyDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!verifyTxHash.trim() || !verifyAmount) return;
+    if (!verifyTxHash.trim()) return;
     setVerifyLoading(true);
     setVerifyError(null);
     try {
@@ -201,20 +251,19 @@ export default function WalletPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: currentUser.id,
           network,
           txHash: verifyTxHash.trim(),
-          amount: Number(verifyAmount),
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to verify transaction');
 
       setVerifyTxHash('');
-      setVerifyAmount('');
       await refreshUser();
       await fetchTransactions();
-      setNotification(`Successfully credited +${data.transaction.amount} USDT to your wallet!`);
+      setNotification(
+        `Verified on-chain and credited +${Number(data.verifiedAmountUsdt ?? data.transaction.amount).toFixed(2)} USDT!`
+      );
     } catch (err: unknown) {
       setVerifyError(err instanceof Error ? err.message : 'Failed to verify deposit');
     } finally {
@@ -588,24 +637,13 @@ export default function WalletPage() {
                   required
                   value={verifyTxHash}
                   onChange={(e) => setVerifyTxHash(e.target.value)}
-                  placeholder="Paste 64-character hash from TronScan / BscScan..."
+                  placeholder="Paste 64-character hash from TronScan / BscScan / TonViewer..."
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-300 font-mono text-xs focus:outline-none focus:border-slate-900"
                 />
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Amount Deposited (USDT)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={verifyAmount}
-                  onChange={(e) => setVerifyAmount(e.target.value)}
-                  placeholder="e.g. 100.00"
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 font-bold text-xs tabular-nums focus:outline-none focus:border-slate-900"
-                />
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 leading-relaxed">
+                Exact transferred USDT amount and confirmation count will be verified directly on-chain before crediting your wallet.
               </div>
 
               <button
@@ -716,15 +754,60 @@ export default function WalletPage() {
               />
             </div>
 
+            {/* Email OTP 2FA Step */}
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>Email 2FA Confirmation</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSendWithdrawOtp}
+                  disabled={withdrawOtpLoading || !withdrawAmount || !withdrawAddress}
+                  className="px-3 py-1.5 rounded-lg bg-slate-900 text-white font-semibold text-[11px] hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                >
+                  {withdrawOtpLoading
+                    ? 'Sending...'
+                    : withdrawOtpSent
+                    ? 'Resend Code'
+                    : 'Send Email Code'}
+                </button>
+              </div>
+
+              {withdrawOtpMessage && (
+                <div className="text-[11px] text-emerald-700 font-medium">
+                  {withdrawOtpMessage}
+                </div>
+              )}
+
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                required
+                value={withdrawOtpCode}
+                onChange={(e) =>
+                  setWithdrawOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                }
+                placeholder="Enter 6-digit code sent to your email"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-mono text-xs tracking-[0.2em] focus:outline-none focus:border-slate-900"
+              />
+            </div>
+
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-500 space-y-1">
               <div>• Network fee: <strong>0.00 USDT (Covered by platform)</strong></div>
               <div>• Minimum withdrawal: <strong>5.00 USDT</strong></div>
-              <div>• Processing time: <strong>5 - 15 minutes</strong></div>
+              <div>• Security: <strong>KYC approved + Email 2FA required before dispatch</strong></div>
             </div>
 
             <button
               type="submit"
-              disabled={withdrawLoading || currentUser.usdtBalance < 5}
+              disabled={
+                withdrawLoading ||
+                currentUser.usdtBalance < 5 ||
+                withdrawOtpCode.length !== 6
+              }
               className="w-full py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors disabled:opacity-50"
             >
               {withdrawLoading ? 'Authorizing Withdrawal...' : 'Submit Withdrawal Request'}
