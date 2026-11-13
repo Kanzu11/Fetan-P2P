@@ -91,7 +91,7 @@ class RateLimiter {
             resetSeconds,
           };
         },
-        { maxWait: 10000, timeout: 25000 }
+        { maxWait: 15000, timeout: 60000 }
       );
 
       return result;

@@ -136,7 +136,7 @@ export async function verifyAndConsumeOtp(params: {
         metadata: (challenge.metadata as Record<string, unknown> | null) || null,
       };
     },
-    { maxWait: 10000, timeout: 25000 }
+    { maxWait: 15000, timeout: 60000 }
   );
 }
 

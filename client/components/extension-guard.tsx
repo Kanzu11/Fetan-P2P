@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect } from 'react';
+import { isBrowserExtensionError } from '@/client/extension-guard-script';
 
 /**
- * ExtensionGuard prevents unhandled promise rejections from third-party
- * browser extensions (e.g. MetaMask inpage.js, Phantom, Coinbase Wallet)
- * from crashing the React tree or triggering full-screen development error overlays.
+ * Defense-in-depth capture-phase guard paired with the synchronous <head> bootstrap.
+ * Intercepts late third-party browser extension rejections/errors before bubbling
+ * to React or Next.js dev overlay handlers.
  */
 export function ExtensionGuard() {
   useEffect(() => {
@@ -13,48 +14,49 @@ export function ExtensionGuard() {
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       const reason = event.reason;
-      const message = String(reason?.message || reason || '');
-      const stack = String(reason?.stack || '');
+      const message =
+        reason && typeof reason === 'object' && 'message' in reason
+          ? String(reason.message)
+          : String(reason || '');
+      const stack =
+        reason && typeof reason === 'object' && 'stack' in reason
+          ? String(reason.stack)
+          : '';
 
-      // Identify third-party extension injection errors
-      const isExtensionError =
-        message.includes('MetaMask') ||
-        message.includes('Failed to connect to MetaMask') ||
-        message.includes('wallet') ||
-        stack.includes('chrome-extension://') ||
-        stack.includes('moz-extension://') ||
-        stack.includes('inpage.js');
-
-      if (isExtensionError) {
-        // Prevent default browser / Next.js error overlay crash
+      if (isBrowserExtensionError({ message, stack })) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        console.warn('[ExtensionGuard] Caught and suppressed external browser extension rejection:', message);
       }
     };
 
     const handleError = (event: ErrorEvent) => {
-      const filename = event.filename || '';
-      const message = event.message || '';
+      const stack =
+        event.error && typeof event.error === 'object' && 'stack' in event.error
+          ? String(event.error.stack)
+          : '';
 
       if (
-        filename.includes('chrome-extension://') ||
-        filename.includes('moz-extension://') ||
-        filename.includes('inpage.js') ||
-        message.includes('MetaMask')
+        isBrowserExtensionError({
+          message: event.message,
+          filename: event.filename,
+          stack,
+        })
       ) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        console.warn('[ExtensionGuard] Caught and suppressed external browser extension error:', message);
       }
     };
 
-    window.addEventListener('unhandledrejection', handleUnhandledRejection);
-    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection, {
+      capture: true,
+    });
+    window.addEventListener('error', handleError, { capture: true });
 
     return () => {
-      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
-      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection, {
+        capture: true,
+      });
+      window.removeEventListener('error', handleError, { capture: true });
     };
   }, []);
 

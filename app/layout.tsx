@@ -5,6 +5,7 @@ import { Inter, JetBrains_Mono, Noto_Sans_Ethiopic } from 'next/font/google';
 import { I18nProvider } from '@/client/i18n';
 import { RealtimeProvider } from '@/client/components/realtime-provider';
 import { ExtensionGuard } from '@/client/components/extension-guard';
+import { EXTENSION_GUARD_INLINE_SCRIPT } from '@/client/extension-guard-script';
 import { Navigation } from '@/client/components/navigation';
 import { ToastBanner } from '@/client/components/toast-banner';
 
@@ -78,6 +79,12 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${jetbrainsMono.variable} ${amharic.variable}`}
     >
+      <head>
+        <script
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: EXTENSION_GUARD_INLINE_SCRIPT }}
+        />
+      </head>
       <body className="min-h-screen ambient-canvas text-brand-ink flex flex-col antialiased selection:bg-brand-buy selection:text-white pb-24 md:pb-10">
         <I18nProvider>
           <RealtimeProvider>
