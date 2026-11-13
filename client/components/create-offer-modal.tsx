@@ -137,19 +137,19 @@ export function CreateOfferModal({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl border border-slate-200 w-full max-w-lg shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black/35 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="liquid-glass-card rounded-t-[28px] sm:rounded-[28px] w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-900 text-white flex justify-between items-center">
+        <div className="liquid-glass-dark p-4 sm:p-5 text-white flex justify-between items-center">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center">
-              <Tag className="w-4 h-4 text-emerald-400" />
+            <div className="w-9 h-9 rounded-full bg-brand-buy-500/20 border border-brand-buy-400/30 flex items-center justify-center">
+              <Tag className="w-4 h-4 text-brand-buy-400" />
             </div>
             <div>
               <h2 className="text-sm font-bold tracking-tight">
                 {lang === 'am' ? 'አዲስ ማስታወቂያ ያውጡ' : 'Post New P2P Ad'}
               </h2>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-white/65">
                 {lang === 'am'
                   ? 'የእርስዎን የUSDT ዋጋ እና የክፍያ ዘዴዎች ይምረጡ'
                   : 'Set your USDT price, order limits, and payment methods'}
@@ -158,7 +158,7 @@ export function CreateOfferModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+            className="p-2 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -167,25 +167,25 @@ export function CreateOfferModal({
         {/* Scrollable Body */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
           {error && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2">
-              <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-600" />
+            <div className="p-3 rounded-2xl bg-rose-50/90 border border-rose-200 text-rose-800 flex items-start gap-2">
+              <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5 text-brand-sell" />
               <span>{error}</span>
             </div>
           )}
 
           {/* Offer Type Switcher */}
           <div>
-            <label className="block font-semibold text-slate-700 mb-1.5">
+            <label className="block font-semibold text-brand-ink mb-1.5">
               {lang === 'am' ? 'ምን ማድረግ ይፈልጋሉ?' : 'What do you want to do?'}
             </label>
-            <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-100 border border-slate-200">
+            <div className="liquid-pill-track grid grid-cols-2 gap-1.5 p-1 rounded-full">
               <button
                 type="button"
                 onClick={() => setOfferType('SELL')}
-                className={`py-2.5 rounded-lg text-center font-bold transition-colors ${
+                className={`py-2.5 rounded-full text-center font-bold transition-all ${
                   offerType === 'SELL'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-brand-buy-600 text-white shadow-sm'
+                    : 'text-brand-ink-soft hover:text-brand-ink'
                 }`}
               >
                 {lang === 'am' ? 'USDT መሸጥ (ብር ተቀበል)' : 'I Want to Sell USDT'}
@@ -193,10 +193,10 @@ export function CreateOfferModal({
               <button
                 type="button"
                 onClick={() => setOfferType('BUY')}
-                className={`py-2.5 rounded-lg text-center font-bold transition-colors ${
+                className={`py-2.5 rounded-full text-center font-bold transition-all ${
                   offerType === 'BUY'
-                    ? 'bg-rose-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-brand-sell text-white shadow-sm'
+                    : 'text-brand-ink-soft hover:text-brand-ink'
                 }`}
               >
                 {lang === 'am' ? 'USDT መግዛት (ብር ክፈል)' : 'I Want to Buy USDT'}
@@ -205,15 +205,15 @@ export function CreateOfferModal({
           </div>
 
           {/* Pricing Strategy */}
-          <div className="rounded-xl border border-slate-200 p-3.5 bg-slate-50 space-y-3">
+          <div className="rounded-2xl border border-black/[0.08] p-4 bg-white/65 space-y-3">
             <div className="flex justify-between items-center">
-              <span className="font-bold text-slate-900 text-xs">
+              <span className="font-bold text-brand-ink text-xs">
                 {lang === 'am' ? 'የዋጋ ዓይነት' : 'How to Set Your Price'}
               </span>
               {marketStats && (
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] text-brand-ink-soft">
                   Market Price:{' '}
-                  <strong className="text-slate-900 tabular-nums">
+                  <strong className="font-mono text-brand-ink tabular-nums">
                     {marketStats.referencePriceEtb.toFixed(2)} ETB
                   </strong>
                 </span>
@@ -224,10 +224,10 @@ export function CreateOfferModal({
               <button
                 type="button"
                 onClick={() => setPricingType('FIXED')}
-                className={`py-2 rounded-lg border text-center font-semibold transition-colors ${
+                className={`py-2 rounded-full border text-center font-semibold transition-all ${
                   pricingType === 'FIXED'
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-700 border-slate-200'
+                    ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+                    : 'bg-white/75 text-brand-ink border-black/10 hover:bg-white'
                 }`}
               >
                 {lang === 'am' ? 'ቋሚ ዋጋ' : 'Fixed Price'}
@@ -235,10 +235,10 @@ export function CreateOfferModal({
               <button
                 type="button"
                 onClick={() => setPricingType('FLOATING')}
-                className={`py-2 rounded-lg border text-center font-semibold transition-colors ${
+                className={`py-2 rounded-full border text-center font-semibold transition-all ${
                   pricingType === 'FLOATING'
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-700 border-slate-200'
+                    ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+                    : 'bg-white/75 text-brand-ink border-black/10 hover:bg-white'
                 }`}
               >
                 {lang === 'am' ? 'ከገበያ ጋር የሚቀያየር (%)' : 'Follow Market (%)'}
@@ -247,7 +247,7 @@ export function CreateOfferModal({
 
             {pricingType === 'FIXED' ? (
               <div className="space-y-1">
-                <label className="block text-slate-600 text-[11px] font-medium">
+                <label className="block text-brand-ink-soft text-[11px] font-medium">
                   {lang === 'am' ? 'የአንዱ USDT ዋጋ በብር' : 'Your Price for 1 USDT'}
                 </label>
                 <div className="relative">
@@ -257,9 +257,9 @@ export function CreateOfferModal({
                     required
                     value={fixedPrice}
                     onChange={(e) => setFixedPrice(e.target.value)}
-                    className="w-full pl-3.5 pr-14 py-2.5 rounded-lg border border-slate-300 font-bold text-sm text-slate-900 tabular-nums focus:outline-none focus:border-slate-900 bg-white"
+                    className="w-full pl-3.5 pr-14 py-2.5 rounded-2xl border border-black/10 font-mono font-bold text-sm text-brand-ink tabular-nums focus:outline-none focus:border-brand-ink bg-white/90"
                   />
-                  <span className="absolute right-3.5 top-2.5 text-slate-500 font-semibold text-xs">
+                  <span className="absolute right-3.5 top-3 text-brand-ink-soft font-semibold text-xs">
                     ETB
                   </span>
                 </div>
@@ -267,8 +267,8 @@ export function CreateOfferModal({
             ) : (
               <div className="space-y-2">
                 <div className="flex justify-between text-xs">
-                  <span className="text-slate-600">Market Percentage:</span>
-                  <span className="font-bold text-slate-900 tabular-nums">
+                  <span className="text-brand-ink-soft">Market Percentage:</span>
+                  <span className="font-mono font-bold text-brand-ink tabular-nums">
                     {floatingMargin}% → {effectivePrice.toFixed(2)} ETB
                   </span>
                 </div>
@@ -289,17 +289,17 @@ export function CreateOfferModal({
                     max="110"
                     value={floatingMargin}
                     onChange={(e) => setFloatingMargin(e.target.value)}
-                    className="w-20 px-2 py-1.5 rounded-lg border border-slate-300 text-center font-bold bg-white tabular-nums"
+                    className="w-20 px-2 py-1.5 rounded-2xl border border-black/10 text-center font-mono font-bold bg-white tabular-nums"
                   />
                 </div>
               </div>
             )}
 
             {marketStats && (
-              <div className="flex justify-between items-center text-[11px] text-slate-500 pt-1 border-t border-slate-200">
+              <div className="flex justify-between items-center text-[11px] text-brand-ink-soft pt-2 border-t border-black/[0.06]">
                 <span>
                   Allowed:{' '}
-                  <strong className="text-slate-700 tabular-nums">
+                  <strong className="font-mono text-brand-ink tabular-nums">
                     {marketStats.minPriceLimitEtb.toFixed(2)} – {marketStats.maxPriceLimitEtb.toFixed(2)} ETB
                   </strong>
                 </span>
@@ -311,7 +311,7 @@ export function CreateOfferModal({
           {/* Total USDT & Limits */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-brand-ink mb-1.5">
                 {lang === 'am' ? 'ጠቅላላ መጠን (USDT)' : 'Total USDT Amount'}
               </label>
               <input
@@ -320,11 +320,11 @@ export function CreateOfferModal({
                 required
                 value={totalAvailable}
                 onChange={(e) => setTotalAvailable(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 font-semibold tabular-nums focus:outline-none focus:border-slate-900"
+                className="w-full px-3.5 py-2.5 rounded-2xl border border-black/10 bg-white/80 font-mono font-semibold tabular-nums focus:outline-none focus:bg-white focus:border-brand-ink"
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-brand-ink mb-1.5">
                 {lang === 'am' ? 'ዝቅተኛ ትዕዛዝ (ETB)' : 'Min Order (ETB)'}
               </label>
               <input
@@ -332,11 +332,11 @@ export function CreateOfferModal({
                 required
                 value={minLimitEtb}
                 onChange={(e) => setMinLimitEtb(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 font-semibold tabular-nums focus:outline-none focus:border-slate-900"
+                className="w-full px-3.5 py-2.5 rounded-2xl border border-black/10 bg-white/80 font-mono font-semibold tabular-nums focus:outline-none focus:bg-white focus:border-brand-ink"
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-brand-ink mb-1.5">
                 {lang === 'am' ? 'ከፍተኛ ትዕዛዝ (ETB)' : 'Max Order (ETB)'}
               </label>
               <input
@@ -344,14 +344,14 @@ export function CreateOfferModal({
                 required
                 value={maxLimitEtb}
                 onChange={(e) => setMaxLimitEtb(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 font-semibold tabular-nums focus:outline-none focus:border-slate-900"
+                className="w-full px-3.5 py-2.5 rounded-2xl border border-black/10 bg-white/80 font-mono font-semibold tabular-nums focus:outline-none focus:bg-white focus:border-brand-ink"
               />
             </div>
           </div>
 
           {/* Payment Methods */}
           <div>
-            <label className="block font-semibold text-slate-700 mb-1.5">
+            <label className="block font-semibold text-brand-ink mb-1.5">
               {lang === 'am' ? 'የክፍያ ዘዴዎች' : 'Payment Methods'}
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -363,10 +363,10 @@ export function CreateOfferModal({
                     key={method}
                     type="button"
                     onClick={() => togglePaymentMethod(method)}
-                    className={`px-3 py-2 rounded-xl border text-left flex items-center justify-between transition-colors ${
+                    className={`px-3 py-2.5 rounded-2xl border text-left flex items-center justify-between transition-all ${
                       selected
-                        ? 'bg-slate-900 text-white border-slate-900 font-semibold'
-                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        ? 'bg-brand-ink text-white border-brand-ink font-semibold shadow-sm'
+                        : 'bg-white/70 text-brand-ink border-black/10 hover:bg-white'
                     }`}
                   >
                     <div className="flex items-center gap-2 truncate">
@@ -376,7 +376,7 @@ export function CreateOfferModal({
                       />
                       <span className="truncate">{meta.shortName}</span>
                     </div>
-                    {selected && <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />}
+                    {selected && <Check className="w-3.5 h-3.5 text-brand-buy-400 flex-shrink-0" />}
                   </button>
                 );
               })}
@@ -385,30 +385,30 @@ export function CreateOfferModal({
 
           {/* Merchant Terms */}
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">
+            <label className="block font-semibold text-brand-ink mb-1.5">
               {lang === 'am' ? 'ለገዢ/ሻጭ መልእክት' : 'Note for Buyers / Sellers'}
             </label>
             <textarea
               rows={2}
               value={terms}
               onChange={(e) => setTerms(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-slate-900"
+              className="w-full p-3.5 rounded-2xl border border-black/10 bg-white/80 text-xs text-brand-ink focus:outline-none focus:bg-white focus:border-brand-ink"
               placeholder="e.g. Please send from your own account and do not write crypto in the payment note..."
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+          <div className="flex justify-end gap-2 pt-3 border-t border-black/[0.07]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 font-semibold text-slate-700 hover:bg-slate-50"
+              className="px-4 py-2.5 rounded-full border border-black/10 bg-white/75 font-semibold text-brand-ink hover:bg-white transition-colors"
             >
               {lang === 'am' ? 'ተመለስ' : 'Cancel'}
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-brand-buy-600 text-white font-bold hover:bg-brand-buy-700 transition-colors shadow-sm disabled:opacity-50"
             >
               <Plus className="w-4 h-4" />
               <span>{loading ? 'Posting...' : lang === 'am' ? 'ማስታወቂያ ለጥፍ' : 'Post Ad'}</span>

@@ -12,34 +12,34 @@ export function TermsModal({ isOpen, onClose }: TermsModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-md p-4">
+      <div className="liquid-glass-card rounded-[28px] max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+        <div className="liquid-glass-dark p-4 sm:p-5 text-white flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400">
+            <div className="w-9 h-9 rounded-full bg-brand-buy-500/20 border border-brand-buy-400/30 flex items-center justify-center text-brand-buy-400">
               <Scale className="w-4 h-4" />
             </div>
             <div>
               <h3 className="font-bold text-sm tracking-tight">Terms of Service & Escrow Agreement</h3>
-              <p className="text-[11px] text-slate-400">Fetan P2P Ethiopia • Operational & Safety Standards</p>
+              <p className="text-[11px] text-white/65">Fetan P2P Ethiopia • Operational & Safety Standards</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+            className="text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-5 text-xs text-slate-600 leading-relaxed">
-          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+        <div className="p-5 sm:p-6 overflow-y-auto space-y-5 text-xs text-brand-ink-soft leading-relaxed">
+          <div className="p-4 rounded-2xl bg-brand-buy-50/85 border border-brand-buy-300/60 text-brand-buy-900 flex items-start gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-brand-buy-600 flex-shrink-0 mt-0.5" />
             <div>
               <span className="font-bold text-xs">Fetan Automated Escrow Guarantee</span>
-              <p className="mt-0.5 text-[11px] text-emerald-800">
+              <p className="mt-0.5 text-[11px] text-brand-buy-900/80">
                 All USDT involved in trades is pre-locked in escrow before the buyer is authorized to send fiat Birr.
                 Neither party can withdraw or cancel an order once locked without mutual release or dispute resolution.
               </p>
@@ -47,34 +47,34 @@ export function TermsModal({ isOpen, onClose }: TermsModalProps) {
           </div>
 
           <div className="space-y-2">
-            <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[11px] text-slate-700">1</span>
+            <h4 className="font-bold text-brand-ink text-sm flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-black/[0.06] flex items-center justify-center text-[11px] font-mono text-brand-ink">1</span>
               Identity Verification & Name Matching Policy
             </h4>
             <p>
               Users must complete Platform KYC (Fayda National ID, Passport, or Driver&apos;s License) prior to trading.
               For regulatory compliance and anti-money laundering (AML) safeguards, the legal name on your Fetan account
-              <strong> must strictly match </strong> the account holder name of the Telebirr, CBE, Bank of Abyssinia,
+              <strong className="text-brand-ink"> must strictly match </strong> the account holder name of the Telebirr, CBE, Bank of Abyssinia,
               or Awash Bank account used to make payment. Third-party transfers are strictly prohibited and will be rejected.
             </p>
           </div>
 
           <div className="space-y-2">
-            <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[11px] text-slate-700">2</span>
+            <h4 className="font-bold text-brand-ink text-sm flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-black/[0.06] flex items-center justify-center text-[11px] font-mono text-brand-ink">2</span>
               Payment Remarks & Transfer Notes
             </h4>
             <p>
               When initiating payments via Telebirr, CBE Mobile Banking, or other local bank apps, users must
-              <strong> leave the transaction remark/purpose blank</strong> or state &ldquo;Personal Transfer&rdquo;.
+              <strong className="text-brand-ink"> leave the transaction remark/purpose blank</strong> or state &ldquo;Personal Transfer&rdquo;.
               Do NOT include words such as &ldquo;crypto&rdquo;, &ldquo;USDT&rdquo;, &ldquo;P2P&rdquo;, &ldquo;Bitcoin&rdquo;,
               or order numbers in the remark. Accounts causing banking freeze due to prohibited remarks may forfeit appeal rights.
             </p>
           </div>
 
           <div className="space-y-2">
-            <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[11px] text-slate-700">3</span>
+            <h4 className="font-bold text-brand-ink text-sm flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-black/[0.06] flex items-center justify-center text-[11px] font-mono text-brand-ink">3</span>
               Order Payment & Automatic Release Protocol
             </h4>
             <p>
@@ -86,8 +86,8 @@ export function TermsModal({ isOpen, onClose }: TermsModalProps) {
           </div>
 
           <div className="space-y-2">
-            <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[11px] text-slate-700">4</span>
+            <h4 className="font-bold text-brand-ink text-sm flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-black/[0.06] flex items-center justify-center text-[11px] font-mono text-brand-ink">4</span>
               Dispute Resolution & Evidence Submission
             </h4>
             <p>
@@ -99,8 +99,8 @@ export function TermsModal({ isOpen, onClose }: TermsModalProps) {
           </div>
 
           <div className="space-y-2">
-            <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[11px] text-slate-700">5</span>
+            <h4 className="font-bold text-brand-ink text-sm flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-black/[0.06] flex items-center justify-center text-[11px] font-mono text-brand-ink">5</span>
               Certified Merchant Privileges & Obligations
             </h4>
             <p>
@@ -112,13 +112,13 @@ export function TermsModal({ isOpen, onClose }: TermsModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-          <div className="text-[11px] text-slate-500">
+        <div className="p-4 bg-white/70 border-t border-black/[0.07] flex items-center justify-between gap-2">
+          <div className="text-[11px] text-brand-ink-soft">
             Last updated: November 2026 • Fetan P2P Security Team
           </div>
           <button
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors"
+            className="px-5 py-2.5 rounded-full bg-brand-ink hover:bg-neutral-800 text-white font-bold text-xs transition-colors shadow-sm"
           >
             I Understand &amp; Agree
           </button>

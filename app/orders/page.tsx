@@ -133,20 +133,20 @@ function OrdersContent() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-brand-ink">
             {t.ordersTitle}
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">{t.ordersSub}</p>
+          <p className="text-xs sm:text-sm text-brand-ink-soft mt-0.5">{t.ordersSub}</p>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <div className="inline-flex p-1 rounded-xl bg-slate-200 border border-slate-200 text-xs font-semibold">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="liquid-pill-track inline-flex p-1 rounded-full text-xs font-semibold">
             <button
               onClick={() => setMainTab('ORDERS')}
-              className={`px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+              className={`px-4 py-1.5 rounded-full transition-all flex items-center gap-1.5 ${
                 mainTab === 'ORDERS'
-                  ? 'bg-white text-slate-900 shadow-sm font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-brand-ink shadow-sm font-bold'
+                  : 'text-brand-ink-soft hover:text-brand-ink'
               }`}
             >
               <ClipboardList className="w-3.5 h-3.5" />
@@ -154,10 +154,10 @@ function OrdersContent() {
             </button>
             <button
               onClick={() => setMainTab('MY_ADS')}
-              className={`px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+              className={`px-4 py-1.5 rounded-full transition-all flex items-center gap-1.5 ${
                 mainTab === 'MY_ADS'
-                  ? 'bg-white text-slate-900 shadow-sm font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-brand-ink shadow-sm font-bold'
+                  : 'text-brand-ink-soft hover:text-brand-ink'
               }`}
             >
               <Tag className="w-3.5 h-3.5" />
@@ -168,9 +168,9 @@ function OrdersContent() {
           {isMerchant && (
             <button
               onClick={() => setCreateModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-brand-ink text-white text-xs font-semibold hover:bg-neutral-800 transition-colors shadow-sm"
             >
-              <Plus className="w-3.5 h-3.5 text-emerald-400" />
+              <Plus className="w-3.5 h-3.5 text-brand-buy-400" />
               <span>{t.postAd}</span>
             </button>
           )}
@@ -201,10 +201,10 @@ function OrdersContent() {
               <button
                 key={tab.id}
                 onClick={() => setStatusFilter(tab.id as any)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors border ${
+                className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all border ${
                   statusFilter === tab.id
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+                    : 'bg-white/70 text-brand-ink-soft border-black/10 hover:bg-white hover:text-brand-ink'
                 }`}
               >
                 {tab.label}
@@ -213,17 +213,28 @@ function OrdersContent() {
           </div>
 
           {loading ? (
-            <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 text-xs text-slate-500">
-              Loading orders...
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="liquid-glass-card rounded-[24px] p-5 space-y-3 animate-pulse"
+                >
+                  <div className="flex justify-between">
+                    <div className="h-4 w-40 rounded-full bg-black/[0.08]" />
+                    <div className="h-5 w-28 rounded-full bg-black/[0.08]" />
+                  </div>
+                  <div className="h-10 w-full rounded-2xl bg-black/[0.06]" />
+                </div>
+              ))}
             </div>
           ) : filteredOrders.length === 0 ? (
-            <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 space-y-3">
-              <p className="text-sm font-medium text-slate-600">
-                No orders in this list yet.
+            <div className="p-12 text-center liquid-glass-card rounded-[26px] space-y-3">
+              <p className="text-sm font-medium text-brand-ink-soft">
+                No orders in this view yet.
               </p>
               <Link
                 href="/market"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700"
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-brand-buy-600 text-white text-xs font-bold hover:bg-brand-buy-700 shadow-sm transition-colors"
               >
                 <span>Open P2P Market</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -247,33 +258,33 @@ function OrdersContent() {
                   order.status === 'PENDING_PAYMENT' && isBuyer
                     ? 'Pay Now'
                     : order.status === 'PAYMENT_SENT' && isSeller
-                    ? 'Confirm & Complete'
+                    ? 'Confirm & Release'
                     : order.status === 'DISPUTED' && isAdminRole(currentUser?.role)
                     ? 'Resolve Appeal'
-                    : 'Open Order';
+                    : 'Open Escrow';
 
                 return (
                   <Link
                     key={order.id}
                     href={`/trade/${order.id}`}
-                    className="block bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 hover:border-slate-300 hover:shadow-sm transition-all"
+                    className="block liquid-glass-card rounded-[24px] p-4 sm:p-5 hover:border-black/20 transition-all"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-black/[0.06] pb-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <span
-                          className={`text-[11px] font-bold px-2.5 py-0.5 rounded-md uppercase ${
+                          className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase ${
                             isSeller
-                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              ? 'bg-rose-50 text-brand-sell border border-rose-200'
+                              : 'bg-brand-buy-50 text-brand-buy-700 border border-brand-buy-300/60'
                           }`}
                         >
                           {isSeller ? 'Sell USDT' : 'Buy USDT'}
                         </span>
-                        <span className="font-mono text-xs font-bold text-slate-900">
+                        <span className="font-mono text-xs font-bold text-brand-ink">
                           #{order.id}
                         </span>
-                        <span className="text-xs text-slate-400">•</span>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-brand-ink-soft/50">•</span>
+                        <span className="text-xs font-mono text-brand-ink-soft">
                           {new Date(order.createdAt).toLocaleString([], {
                             month: 'short',
                             day: 'numeric',
@@ -285,15 +296,15 @@ function OrdersContent() {
 
                       <div className="flex items-center gap-2">
                         <span
-                          className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${
+                          className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${
                             order.status === 'COMPLETED'
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              ? 'bg-brand-buy-50 text-brand-buy-800 border-brand-buy-300/60'
                               : order.status === 'PAYMENT_SENT'
                               ? 'bg-amber-50 text-amber-800 border-amber-200'
                               : order.status === 'DISPUTED'
                               ? 'bg-rose-50 text-rose-800 border-rose-200'
                               : order.status === 'CANCELLED'
-                              ? 'bg-slate-100 text-slate-500 border-slate-200'
+                              ? 'bg-black/[0.05] text-brand-ink-soft border-black/10'
                               : 'bg-sky-50 text-sky-800 border-sky-200'
                           }`}
                         >
@@ -306,7 +317,7 @@ function OrdersContent() {
                             {order.status === 'PENDING_PAYMENT'
                               ? 'Waiting for Payment'
                               : order.status === 'PAYMENT_SENT'
-                              ? 'Buyer Paid — Waiting for Seller'
+                              ? 'Buyer Paid — Waiting Release'
                               : order.status === 'DISPUTED'
                               ? 'Appeal in Review'
                               : order.status === 'COMPLETED'
@@ -319,17 +330,17 @@ function OrdersContent() {
 
                     <div className="pt-3 grid grid-cols-2 sm:grid-cols-4 gap-4 items-center text-xs">
                       <div>
-                        <div className="text-slate-400 text-[11px]">
-                          {isBuyer ? 'Seller' : isSeller ? 'Buyer' : 'Users'}
+                        <div className="text-brand-ink-soft text-[11px]">
+                          {isBuyer ? 'Seller' : isSeller ? 'Buyer' : 'Counterparties'}
                         </div>
-                        <div className="font-bold text-slate-900 mt-0.5 truncate">
+                        <div className="font-bold text-brand-ink mt-0.5 truncate">
                           {counterparty}
                         </div>
                       </div>
 
                       <div>
-                        <div className="text-slate-400 text-[11px]">Birr Amount</div>
-                        <div className="font-bold text-slate-900 text-sm tabular-nums mt-0.5">
+                        <div className="text-brand-ink-soft text-[11px]">Birr Amount</div>
+                        <div className="font-mono font-bold text-brand-ink text-sm tabular-nums mt-0.5">
                           {order.etbAmount.toLocaleString('en-US', {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
@@ -339,24 +350,24 @@ function OrdersContent() {
                       </div>
 
                       <div>
-                        <div className="text-slate-400 text-[11px]">USDT Amount</div>
-                        <div className="font-bold text-emerald-700 text-sm tabular-nums mt-0.5">
+                        <div className="text-brand-ink-soft text-[11px]">USDT Amount</div>
+                        <div className="font-mono font-bold text-brand-buy-700 text-sm tabular-nums mt-0.5">
                           {order.usdtAmount.toFixed(2)} USDT{' '}
-                          <span className="text-[11px] font-normal text-slate-400">
+                          <span className="text-[11px] font-normal text-brand-ink-soft">
                             (@ {order.unitPriceEtb.toFixed(2)})
                           </span>
                         </div>
                       </div>
 
                       <div className="flex items-center justify-between sm:justify-end gap-3">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-medium">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/75 border border-black/10 text-brand-ink font-medium">
                           <span
                             className="w-1.5 h-3 rounded-full"
                             style={{ backgroundColor: railMeta.accentColor }}
                           />
                           <span>{railMeta.shortName}</span>
                         </span>
-                        <span className="inline-flex items-center gap-1 font-bold text-slate-900">
+                        <span className="inline-flex items-center gap-1 font-bold text-brand-ink">
                           <span>{actionLabel}</span>
                           <ArrowRight className="w-3.5 h-3.5" />
                         </span>
@@ -372,16 +383,16 @@ function OrdersContent() {
         /* TAB 2: MY MERCHANT ADS */
         <div className="space-y-4">
           {myOffers.length === 0 ? (
-            <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 space-y-3">
-              <p className="text-sm font-medium text-slate-600">
+            <div className="p-12 text-center liquid-glass-card rounded-[26px] space-y-3">
+              <p className="text-sm font-medium text-brand-ink-soft">
                 You have not posted any ads yet.
               </p>
               {isMerchant && (
                 <button
                   onClick={() => setCreateModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800"
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-brand-ink text-white text-xs font-bold hover:bg-neutral-800 shadow-sm transition-colors"
                 >
-                  <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                  <Plus className="w-3.5 h-3.5 text-brand-buy-400" />
                   <span>Post Your First Ad</span>
                 </button>
               )}
@@ -391,66 +402,64 @@ function OrdersContent() {
               {myOffers.map((offer) => (
                 <div
                   key={offer.id}
-                  className={`rounded-2xl border p-5 space-y-4 transition-colors ${
-                    offer.isActive
-                      ? 'bg-white border-slate-200 shadow-sm'
-                      : 'bg-slate-50 border-slate-200 opacity-75'
+                  className={`liquid-glass-card rounded-[24px] p-5 space-y-4 transition-all ${
+                    offer.isActive ? '' : 'opacity-70'
                   }`}
                 >
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center justify-between border-b border-black/[0.06] pb-3">
                     <div className="flex items-center gap-2">
                       <span
-                        className={`text-[11px] font-bold px-2.5 py-0.5 rounded-md uppercase ${
+                        className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase ${
                           offer.offerType === 'SELL'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            ? 'bg-brand-buy-50 text-brand-buy-700 border border-brand-buy-300/60'
+                            : 'bg-rose-50 text-brand-sell border border-rose-200'
                         }`}
                       >
                         {offer.offerType === 'SELL' ? 'Sell USDT Ad' : 'Buy USDT Ad'}
                       </span>
-                      <span className="text-xs font-semibold text-slate-700">
+                      <span className="text-xs font-semibold text-brand-ink">
                         {offer.merchantName}
                       </span>
                     </div>
 
                     <span
-                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                      className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
                         offer.isActive
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-slate-200 text-slate-600'
+                          ? 'bg-brand-buy-50 text-brand-buy-700 border border-brand-buy-300/60'
+                          : 'bg-black/[0.06] text-brand-ink-soft'
                       }`}
                     >
                       {offer.isActive ? '● Online' : 'Paused'}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 text-xs tabular-nums">
+                  <div className="grid grid-cols-2 gap-3 text-xs font-mono tabular-nums">
                     <div>
-                      <div className="text-slate-400">Price</div>
-                      <div className="text-lg font-bold text-slate-900">
+                      <div className="text-brand-ink-soft font-sans">Price</div>
+                      <div className="text-lg font-bold text-brand-ink">
                         {offer.pricePerUsdtEtb.toFixed(2)} ETB
                       </div>
                     </div>
                     <div>
-                      <div className="text-slate-400">Available USDT</div>
-                      <div className="text-lg font-bold text-slate-900">
+                      <div className="text-brand-ink-soft font-sans">Available USDT</div>
+                      <div className="text-lg font-bold text-brand-ink">
                         {offer.totalAvailable.toFixed(2)} USDT
                       </div>
                     </div>
                     <div className="col-span-2">
-                      <div className="text-slate-400">Order Limits</div>
-                      <div className="font-semibold text-slate-800">
+                      <div className="text-brand-ink-soft font-sans">Order Limits</div>
+                      <div className="font-semibold text-brand-ink">
                         {offer.minLimitEtb.toLocaleString()} – {offer.maxLimitEtb.toLocaleString()} ETB
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                  <div className="flex items-center justify-between pt-2 border-t border-black/[0.06] text-xs">
                     <div className="flex flex-wrap gap-1">
                       {offer.paymentMethods.map((m) => (
                         <span
                           key={m}
-                          className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[10px] font-medium text-slate-700"
+                          className="px-2.5 py-0.5 rounded-full bg-white/75 border border-black/10 text-[10px] font-medium text-brand-ink"
                         >
                           {PAYMENT_METHODS_META[m]?.shortName || m}
                         </span>
@@ -460,14 +469,14 @@ function OrdersContent() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleToggleOfferStatus(offer)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 font-semibold text-slate-700"
+                        className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full border border-black/10 bg-white/80 hover:bg-white font-semibold text-brand-ink transition-colors"
                       >
                         <Power className="w-3.5 h-3.5" />
                         <span>{offer.isActive ? 'Pause' : 'Turn On'}</span>
                       </button>
                       <button
                         onClick={() => handleDeleteOffer(offer.id)}
-                        className="p-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50"
+                        className="p-2 rounded-full border border-rose-200 bg-white/75 text-brand-sell hover:bg-rose-50 transition-colors"
                         title="Delete Ad"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -494,7 +503,11 @@ export default function OrdersPage() {
   return (
     <ProtectedRoute>
       <Suspense
-        fallback={<div className="p-12 text-center text-slate-500 text-xs">Loading orders...</div>}
+        fallback={
+          <div className="liquid-glass-card rounded-[26px] p-12 text-center text-brand-ink-soft text-xs animate-pulse">
+            Loading orders...
+          </div>
+        }
       >
         <OrdersContent />
       </Suspense>

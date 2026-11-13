@@ -30,6 +30,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { ProtectedRoute } from '@/client/components/protected-route';
+import { ImageLightbox } from '@/client/components/image-lightbox';
 
 export default function AdminDashboardPage() {
   const { currentUser, connected, refreshUser, setNotification } = useRealtime();
@@ -57,9 +58,10 @@ export default function AdminDashboardPage() {
     'ALL' | 'OPEN' | 'DISPUTED' | 'COMPLETED' | 'CANCELLED'
   >('ALL');
 
-  // Inspection Lightbox Modals
+  // Inspection Modals & Zoom Lightbox
   const [inspectKycModal, setInspectKycModal] = useState<KycSubmission | null>(null);
   const [inspectMerchantModal, setInspectMerchantModal] = useState<MerchantApplication | null>(null);
+  const [lightboxPhoto, setLightboxPhoto] = useState<{ src: string; title: string } | null>(null);
 
   // Filters for All Users Tab
   const [searchQuery, setSearchQuery] = useState('');
@@ -410,33 +412,33 @@ export default function AdminDashboardPage() {
       <div className="space-y-6 pb-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center">
-            <Building2 className="w-4 h-4 text-emerald-400" />
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-brand-ink text-white flex items-center justify-center shadow-sm">
+            <Building2 className="w-4 h-4 text-brand-buy-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">{t.adminTitle}</h1>
-            <p className="text-xs text-slate-500">{t.adminSub}</p>
+            <h1 className="text-2xl font-bold tracking-tight text-brand-ink">{t.adminTitle}</h1>
+            <p className="text-xs text-brand-ink-soft">{t.adminSub}</p>
           </div>
         </div>
 
         {/* Live Status Pill */}
-        <div className="inline-flex items-center gap-2 bg-white border border-slate-200 px-3.5 py-2 rounded-xl text-xs self-start sm:self-auto shadow-sm">
+        <div className="inline-flex items-center gap-2 liquid-glass-card px-4 py-2 rounded-full text-xs self-start sm:self-auto">
           <span
             className={`inline-flex rounded-full h-2.5 w-2.5 ${
-              connected ? 'bg-emerald-600' : 'bg-amber-500'
+              connected ? 'bg-brand-buy-600' : 'bg-amber-500'
             }`}
           />
-          <span className="font-semibold text-slate-800">
+          <span className="font-semibold text-brand-ink">
             {connected ? 'Live Updates Active' : 'Connecting...'}
           </span>
         </div>
       </div>
 
       {adminError && (
-        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between">
+        <div className="p-3.5 rounded-2xl bg-rose-50/90 border border-rose-200 text-rose-800 text-xs flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+            <AlertCircle className="w-4 h-4 text-brand-sell flex-shrink-0" />
             <span>{adminError}</span>
           </div>
           <button
@@ -450,37 +452,37 @@ export default function AdminDashboardPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-1 shadow-sm">
-          <div className="text-xs text-slate-500 font-medium">Open Orders & Appeals</div>
-          <div className="text-2xl font-bold text-slate-900 tabular-nums">{openOrdersCount}</div>
+        <div className="liquid-glass-card rounded-[22px] p-4 space-y-1">
+          <div className="text-xs text-brand-ink-soft font-medium">Open Orders & Appeals</div>
+          <div className="text-2xl font-mono font-bold text-brand-ink tabular-nums">{openOrdersCount}</div>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-1 shadow-sm">
-          <div className="text-xs text-slate-500 font-medium">Verified Merchants</div>
-          <div className="text-2xl font-bold text-emerald-700 tabular-nums">
+        <div className="liquid-glass-card rounded-[22px] p-4 space-y-1">
+          <div className="text-xs text-brand-ink-soft font-medium">Verified Merchants</div>
+          <div className="text-2xl font-mono font-bold text-brand-buy-700 tabular-nums">
             {allUsers.filter((u) => u.role === 'MERCHANT').length}
           </div>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-1 shadow-sm">
-          <div className="text-xs text-slate-500 font-medium">Pending Requests</div>
-          <div className="text-2xl font-bold text-amber-600 tabular-nums">
+        <div className="liquid-glass-card rounded-[22px] p-4 space-y-1">
+          <div className="text-xs text-brand-ink-soft font-medium">Pending Requests</div>
+          <div className="text-2xl font-mono font-bold text-amber-600 tabular-nums">
             {merchantApps.filter((a) => a.status === 'PENDING').length +
               kycSubmissions.filter((k) => k.status === 'PENDING').length}
           </div>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-1 shadow-sm">
-          <div className="text-xs text-slate-500 font-medium">Total Users</div>
-          <div className="text-2xl font-bold text-slate-900 tabular-nums">{allUsers.length}</div>
+        <div className="liquid-glass-card rounded-[22px] p-4 space-y-1">
+          <div className="text-xs text-brand-ink-soft font-medium">Total Users</div>
+          <div className="text-2xl font-mono font-bold text-brand-ink tabular-nums">{allUsers.length}</div>
         </div>
       </div>
 
       {/* Tabs Switcher */}
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar border-b border-slate-200 pb-2 text-xs">
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 text-xs">
         <button
           onClick={() => setActiveTab('DISPUTES')}
-          className={`px-4 py-2 rounded-xl font-bold whitespace-nowrap transition-colors ${
+          className={`px-4 py-2 rounded-full font-semibold whitespace-nowrap transition-all border ${
             activeTab === 'DISPUTES'
-              ? 'bg-slate-900 text-white'
-              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+              : 'bg-white/70 text-brand-ink-soft border-black/10 hover:bg-white hover:text-brand-ink'
           }`}
         >
           Orders & Appeals ({allOrders.length})
@@ -488,10 +490,10 @@ export default function AdminDashboardPage() {
 
         <button
           onClick={() => setActiveTab('USERS')}
-          className={`px-4 py-2 rounded-xl font-bold whitespace-nowrap transition-colors ${
+          className={`px-4 py-2 rounded-full font-semibold whitespace-nowrap transition-all border ${
             activeTab === 'USERS'
-              ? 'bg-slate-900 text-white'
-              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+              : 'bg-white/70 text-brand-ink-soft border-black/10 hover:bg-white hover:text-brand-ink'
           }`}
         >
           Users & Merchants ({allUsers.length})
@@ -499,10 +501,10 @@ export default function AdminDashboardPage() {
 
         <button
           onClick={() => setActiveTab('MERCHANTS')}
-          className={`px-4 py-2 rounded-xl font-bold whitespace-nowrap transition-colors ${
+          className={`px-4 py-2 rounded-full font-semibold whitespace-nowrap transition-all border ${
             activeTab === 'MERCHANTS'
-              ? 'bg-slate-900 text-white'
-              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+              : 'bg-white/70 text-brand-ink-soft border-black/10 hover:bg-white hover:text-brand-ink'
           }`}
         >
           {t.tabPendingMerchants} ({merchantApps.filter((a) => a.status === 'PENDING').length})
@@ -510,10 +512,10 @@ export default function AdminDashboardPage() {
 
         <button
           onClick={() => setActiveTab('KYC')}
-          className={`px-4 py-2 rounded-xl font-bold whitespace-nowrap transition-colors ${
+          className={`px-4 py-2 rounded-full font-semibold whitespace-nowrap transition-all border ${
             activeTab === 'KYC'
-              ? 'bg-slate-900 text-white'
-              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+              : 'bg-white/70 text-brand-ink-soft border-black/10 hover:bg-white hover:text-brand-ink'
           }`}
         >
           {t.tabKyc} ({kycSubmissions.filter((k) => k.status === 'PENDING').length})
@@ -521,10 +523,10 @@ export default function AdminDashboardPage() {
 
         <button
           onClick={() => setActiveTab('WITHDRAWALS')}
-          className={`px-4 py-2 rounded-xl font-bold whitespace-nowrap transition-colors ${
+          className={`px-4 py-2 rounded-full font-semibold whitespace-nowrap transition-all border ${
             activeTab === 'WITHDRAWALS'
-              ? 'bg-slate-900 text-white'
-              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+              : 'bg-white/70 text-brand-ink-soft border-black/10 hover:bg-white hover:text-brand-ink'
           }`}
         >
           Withdrawals ({withdrawals.filter((w) => w.status === 'PENDING').length})
@@ -533,13 +535,13 @@ export default function AdminDashboardPage() {
         {isSuperadmin && (
           <button
             onClick={() => setActiveTab('SUPERADMIN')}
-            className={`px-4 py-2 rounded-xl font-bold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+            className={`px-4 py-2 rounded-full font-semibold whitespace-nowrap transition-all border flex items-center gap-1.5 ${
               activeTab === 'SUPERADMIN'
-                ? 'bg-slate-900 text-white'
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+                : 'bg-white/70 text-brand-ink-soft border-black/10 hover:bg-white hover:text-brand-ink'
             }`}
           >
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+            <ShieldCheck className="w-3.5 h-3.5 text-brand-buy-500" />
             <span>Admin Roles</span>
           </button>
         )}
@@ -547,8 +549,10 @@ export default function AdminDashboardPage() {
 
       {/* Tab Content */}
       {loading ? (
-        <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 text-xs text-slate-500">
-          Loading records...
+        <div className="liquid-glass-card rounded-[26px] p-10 space-y-3 animate-pulse">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-10 rounded-2xl bg-black/[0.06]" />
+          ))}
         </div>
       ) : activeTab === 'DISPUTES' ? (
         /* TAB: ORDERS & APPEALS (Admin can Cancel or Complete any open order) */
@@ -573,10 +577,10 @@ export default function AdminDashboardPage() {
               <button
                 key={f.id}
                 onClick={() => setOrderStatusFilter(f.id as any)}
-                className={`px-3 py-1.5 rounded-lg border font-semibold transition-colors ${
+                className={`px-3.5 py-1.5 rounded-full border font-semibold transition-all ${
                   orderStatusFilter === f.id
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+                    : 'bg-white/70 text-brand-ink-soft border-black/10 hover:bg-white hover:text-brand-ink'
                 }`}
               >
                 {f.label}
@@ -584,11 +588,11 @@ export default function AdminDashboardPage() {
             ))}
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="liquid-glass-card rounded-[26px] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 uppercase text-[11px] font-semibold">
+                  <tr className="border-b border-black/[0.07] bg-white/50 text-brand-ink-soft uppercase text-[11px] font-semibold">
                     <th className="py-3.5 px-4">Order & Status</th>
                     <th className="py-3.5 px-4">Buyer / Seller</th>
                     <th className="py-3.5 px-4">Amount</th>
@@ -596,27 +600,27 @@ export default function AdminDashboardPage() {
                     <th className="py-3.5 px-4 text-right">Admin Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200">
+                <tbody className="divide-y divide-black/[0.06]">
                   {filteredAdminOrders.map((ord) => (
-                    <tr key={ord.id} className="hover:bg-slate-50">
+                    <tr key={ord.id} className="hover:bg-white/75 transition-colors">
                       <td className="py-3.5 px-4 space-y-1">
                         <Link
                           href={`/trade/${ord.id}`}
-                          className="font-mono font-bold text-slate-900 hover:text-emerald-700 underline"
+                          className="font-mono font-bold text-brand-ink hover:text-brand-buy-700 underline"
                         >
                           #{ord.id}
                         </Link>
                         <div>
                           <span
-                            className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            className={`inline-block text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
                               ord.status === 'DISPUTED'
                                 ? 'bg-rose-50 text-rose-800 border-rose-200'
                                 : ord.status === 'COMPLETED'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                ? 'bg-brand-buy-50 text-brand-buy-800 border-brand-buy-300/60'
                                 : ord.status === 'PAYMENT_SENT'
                                 ? 'bg-amber-50 text-amber-800 border-amber-200'
                                 : ord.status === 'CANCELLED'
-                                ? 'bg-slate-100 text-slate-500 border-slate-200'
+                                ? 'bg-black/[0.05] text-brand-ink-soft border-black/10'
                                 : 'bg-sky-50 text-sky-800 border-sky-200'
                             }`}
                           >
@@ -633,35 +637,35 @@ export default function AdminDashboardPage() {
 
                       <td className="py-3.5 px-4 space-y-0.5">
                         <div>
-                          <span className="text-slate-400">Buyer:</span>{' '}
-                          <strong className="text-slate-900">{displayName(ord.buyerName)}</strong>
+                          <span className="text-brand-ink-soft">Buyer:</span>{' '}
+                          <strong className="text-brand-ink">{displayName(ord.buyerName)}</strong>
                         </div>
                         <div>
-                          <span className="text-slate-400">Seller:</span>{' '}
-                          <strong className="text-slate-900">{displayName(ord.sellerName)}</strong>
+                          <span className="text-brand-ink-soft">Seller:</span>{' '}
+                          <strong className="text-brand-ink">{displayName(ord.sellerName)}</strong>
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 tabular-nums">
-                        <div className="font-bold text-slate-900">
+                      <td className="py-3.5 px-4 font-mono tabular-nums">
+                        <div className="font-bold text-brand-ink">
                           {ord.usdtAmount.toFixed(2)} USDT
                         </div>
-                        <div className="text-slate-500">
+                        <div className="text-brand-ink-soft">
                           {ord.etbAmount.toLocaleString()} ETB ({ord.paymentMethod})
                         </div>
                       </td>
 
                       <td className="py-3.5 px-4 max-w-xs">
                         {ord.disputeReason ? (
-                          <span className="text-rose-700 font-medium">
+                          <span className="text-brand-sell font-medium">
                             &ldquo;{ord.disputeReason}&rdquo;
                           </span>
                         ) : ord.cancelReason ? (
-                          <span className="text-slate-500">
+                          <span className="text-brand-ink-soft">
                             Cancelled: &ldquo;{ord.cancelReason}&rdquo;
                           </span>
                         ) : (
-                          <span className="text-slate-400">Normal order</span>
+                          <span className="text-brand-ink-soft/60">Normal order</span>
                         )}
                       </td>
 
@@ -671,14 +675,14 @@ export default function AdminDashboardPage() {
                             <button
                               onClick={() => handleResolveOrder(ord.id, 'RELEASE')}
                               disabled={actionLoadingId === ord.id}
-                              className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700"
+                              className="px-3.5 py-1.5 rounded-full bg-brand-buy-600 text-white font-bold hover:bg-brand-buy-700 transition-colors"
                             >
                               Complete (Pay Buyer)
                             </button>
                             <button
                               onClick={() => handleResolveOrder(ord.id, 'CANCEL')}
                               disabled={actionLoadingId === ord.id}
-                              className="px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 font-semibold hover:bg-rose-100"
+                              className="px-3.5 py-1.5 rounded-full border border-rose-200 bg-rose-50 text-brand-sell font-semibold hover:bg-rose-100 transition-colors"
                             >
                               Cancel Order (Refund Seller)
                             </button>
@@ -686,7 +690,7 @@ export default function AdminDashboardPage() {
                         ) : (
                           <Link
                             href={`/trade/${ord.id}`}
-                            className="text-slate-600 hover:text-slate-900 font-semibold"
+                            className="text-brand-ink-soft hover:text-brand-ink font-semibold"
                           >
                             Open Order →
                           </Link>
@@ -703,15 +707,15 @@ export default function AdminDashboardPage() {
         /* TAB: ALL USERS & MERCHANTS */
         <div className="space-y-4 text-xs">
           {/* Search & Filter */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col sm:flex-row gap-3 justify-between items-center shadow-sm">
+          <div className="liquid-glass-card rounded-[24px] p-4 flex flex-col sm:flex-row gap-3 justify-between items-center">
             <div className="relative w-full sm:w-80">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              <Search className="w-3.5 h-3.5 text-brand-ink-soft absolute left-3.5 top-3" />
               <input
                 type="text"
                 placeholder="Search name, email, Telegram..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:bg-white focus:border-slate-900"
+                className="w-full pl-9 pr-3.5 py-2 rounded-full border border-black/10 bg-white/75 text-xs text-brand-ink focus:outline-none focus:bg-white focus:border-brand-ink"
               />
             </div>
 
@@ -720,10 +724,10 @@ export default function AdminDashboardPage() {
                 <button
                   key={r}
                   onClick={() => setRoleFilter(r)}
-                  className={`px-3 py-1.5 rounded-lg border font-semibold transition-colors ${
+                  className={`px-3.5 py-1.5 rounded-full border font-semibold transition-all ${
                     roleFilter === r
-                      ? 'bg-slate-900 text-white border-slate-900'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                      ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+                      : 'bg-white/70 text-brand-ink-soft border-black/10 hover:bg-white hover:text-brand-ink'
                   }`}
                 >
                   {r}
@@ -732,11 +736,11 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="liquid-glass-card rounded-[26px] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 uppercase text-[11px] font-semibold">
+                  <tr className="border-b border-black/[0.07] bg-white/50 text-brand-ink-soft uppercase text-[11px] font-semibold">
                     <th className="py-3.5 px-4">User</th>
                     <th className="py-3.5 px-4">Role</th>
                     <th className="py-3.5 px-4">Wallet Balance</th>
@@ -744,43 +748,43 @@ export default function AdminDashboardPage() {
                     <th className="py-3.5 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200">
+                <tbody className="divide-y divide-black/[0.06]">
                   {filteredUsers.map((u) => {
                     const isSelf = u.id === currentUser?.id;
                     return (
-                      <tr key={u.id} className="hover:bg-slate-50">
+                      <tr key={u.id} className="hover:bg-white/75 transition-colors">
                         <td className="py-3.5 px-4">
-                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                          <div className="font-bold text-brand-ink flex items-center gap-1.5">
                             <span>{displayName(u.name)}</span>
                             {isSelf && (
-                              <span className="text-[10px] bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded">
+                              <span className="text-[10px] bg-black/[0.08] text-brand-ink px-2 py-0.5 rounded-full">
                                 YOU
                               </span>
                             )}
                           </div>
-                          <div className="text-[11px] text-slate-500">
+                          <div className="text-[11px] text-brand-ink-soft">
                             {u.telegramHandle || 'No Telegram'} • {u.email}
                           </div>
                         </td>
 
                         <td className="py-3.5 px-4">
                           <span
-                            className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border ${
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                               u.role === 'SUPERADMIN'
-                                ? 'bg-slate-900 text-white border-slate-900'
+                                ? 'bg-brand-ink text-white border-brand-ink'
                                 : u.role === 'ADMIN'
                                 ? 'bg-sky-50 text-sky-800 border-sky-200'
                                 : u.role === 'MERCHANT'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                : 'bg-slate-100 text-slate-700 border-slate-200'
+                                ? 'bg-brand-buy-50 text-brand-buy-800 border-brand-buy-300/60'
+                                : 'bg-black/[0.04] text-brand-ink border-black/10'
                             }`}
                           >
                             {u.role}
                           </span>
                         </td>
 
-                        <td className="py-3.5 px-4 tabular-nums">
-                          <div className="font-bold text-slate-900">
+                        <td className="py-3.5 px-4 font-mono tabular-nums">
+                          <div className="font-bold text-brand-ink">
                             {u.usdtBalance.toFixed(2)} USDT
                           </div>
                           {u.usdtLocked > 0 && (
@@ -793,12 +797,12 @@ export default function AdminDashboardPage() {
 
                         <td className="py-3.5 px-4">
                           <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                               u.kycStatus === 'VERIFIED'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                ? 'bg-brand-buy-50 text-brand-buy-800 border-brand-buy-300/60'
                                 : u.kycStatus === 'PENDING'
                                 ? 'bg-amber-50 text-amber-800 border-amber-200'
-                                : 'bg-slate-100 text-slate-500 border-slate-200'
+                                : 'bg-black/[0.04] text-brand-ink-soft border-black/10'
                             }`}
                           >
                             {u.kycStatus}
@@ -807,7 +811,7 @@ export default function AdminDashboardPage() {
 
                         <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
                           {u.role === 'SUPERADMIN' ? (
-                            <span className="text-[11px] text-slate-400 font-medium">
+                            <span className="text-[11px] text-brand-ink-soft font-medium">
                               Superadmin
                             </span>
                           ) : (
@@ -815,10 +819,10 @@ export default function AdminDashboardPage() {
                               <button
                                 onClick={() => handleToggleMerchant(u)}
                                 disabled={actionLoadingId === u.id}
-                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors ${
+                                className={`px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-colors ${
                                   u.role === 'MERCHANT'
-                                    ? 'bg-white border-rose-200 text-rose-700 hover:bg-rose-50'
-                                    : 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                                    ? 'bg-white/80 border-rose-200 text-brand-sell hover:bg-rose-50'
+                                    : 'bg-brand-buy-50 border-brand-buy-300/60 text-brand-buy-800 hover:bg-brand-buy-50/70'
                                 }`}
                               >
                                 {u.role === 'MERCHANT' ? 'Remove Merchant' : 'Make Merchant'}
@@ -828,7 +832,7 @@ export default function AdminDashboardPage() {
                                 <button
                                   onClick={() => handleDirectKyc(u, 'VERIFIED')}
                                   disabled={actionLoadingId === u.id}
-                                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+                                  className="px-3 py-1.5 rounded-full text-[11px] font-semibold bg-white/80 border border-black/10 text-brand-ink hover:bg-white transition-colors"
                                 >
                                   Approve ID
                                 </button>
@@ -836,7 +840,7 @@ export default function AdminDashboardPage() {
                                 <button
                                   onClick={() => handleDirectKyc(u, 'REJECTED')}
                                   disabled={actionLoadingId === u.id}
-                                  className="px-2.5 py-1.5 rounded-lg text-[11px] text-slate-400 border border-slate-200 hover:text-rose-600"
+                                  className="px-3 py-1.5 rounded-full text-[11px] text-brand-ink-soft border border-black/10 bg-white/75 hover:text-brand-sell transition-colors"
                                 >
                                   Reset ID
                                 </button>
@@ -846,10 +850,10 @@ export default function AdminDashboardPage() {
                                 <button
                                   onClick={() => handleToggleAdminRole(u)}
                                   disabled={actionLoadingId === u.id}
-                                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
+                                  className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-colors ${
                                     u.role === 'ADMIN'
-                                      ? 'bg-rose-600 text-white hover:bg-rose-700'
-                                      : 'bg-slate-900 text-white hover:bg-slate-800'
+                                      ? 'bg-brand-sell text-white hover:opacity-95'
+                                      : 'bg-brand-ink text-white hover:bg-neutral-800'
                                   }`}
                                 >
                                   {u.role === 'ADMIN' ? 'Remove Admin' : 'Make Admin'}
@@ -868,11 +872,11 @@ export default function AdminDashboardPage() {
         </div>
       ) : activeTab === 'MERCHANTS' ? (
         /* TAB: MERCHANT APPLICATIONS */
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden text-xs">
+        <div className="liquid-glass-card rounded-[26px] overflow-hidden text-xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 uppercase text-[11px] font-semibold">
+                <tr className="border-b border-black/[0.07] bg-white/50 text-brand-ink-soft uppercase text-[11px] font-semibold">
                   <th className="py-3.5 px-4">Merchant / Applicant</th>
                   <th className="py-3.5 px-4">Business Details & Terms</th>
                   <th className="py-3.5 px-4">Proof Document</th>
@@ -881,27 +885,27 @@ export default function AdminDashboardPage() {
                   <th className="py-3.5 px-4 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-black/[0.06]">
                 {merchantApps.map((app) => {
                   const isUnderfunded = (app.usdtBalance ?? 0) < 10.0;
                   const isPending = app.status === 'PENDING';
 
                   return (
-                    <tr key={app.id} className="hover:bg-slate-50">
+                    <tr key={app.id} className="hover:bg-white/75 transition-colors">
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-900">{displayName(app.userName)}</div>
-                        <div className="text-[11px] text-slate-500">{app.telegramHandle || app.userEmail}</div>
+                        <div className="font-bold text-brand-ink">{displayName(app.userName)}</div>
+                        <div className="text-[11px] text-brand-ink-soft">{app.telegramHandle || app.userEmail}</div>
                       </td>
 
                       <td className="py-3.5 px-4 max-w-xs">
-                        <div className="font-semibold text-slate-800">
+                        <div className="font-semibold text-brand-ink">
                           {app.businessName || 'Independent Merchant'}
                         </div>
-                        <div className="text-[11px] text-slate-500 truncate">
+                        <div className="text-[11px] text-brand-ink-soft truncate">
                           Exp: {app.tradeExperience || 'Experienced P2P trader'}
                         </div>
                         {app.terms && (
-                          <div className="text-[11px] text-slate-400 italic truncate mt-0.5">
+                          <div className="text-[11px] text-brand-ink-soft/75 italic truncate mt-0.5">
                             &ldquo;{app.terms}&rdquo;
                           </div>
                         )}
@@ -912,26 +916,26 @@ export default function AdminDashboardPage() {
                           <button
                             type="button"
                             onClick={() => setInspectMerchantModal(app)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold hover:bg-emerald-100 transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-buy-50 border border-brand-buy-300/60 text-brand-buy-800 font-semibold hover:bg-brand-buy-50/70 transition-colors"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>View Proof</span>
                           </button>
                         ) : (
-                          <span className="text-slate-400 italic">No document</span>
+                          <span className="text-brand-ink-soft/60 italic">No document</span>
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 tabular-nums">
+                      <td className="py-3.5 px-4 font-mono tabular-nums">
                         <div
                           className={`font-bold ${
-                            isUnderfunded ? 'text-rose-600' : 'text-emerald-700'
+                            isUnderfunded ? 'text-brand-sell' : 'text-brand-buy-700'
                           }`}
                         >
                           {(app.usdtBalance ?? 0).toFixed(2)} USDT
                         </div>
                         {isUnderfunded && (
-                          <span className="text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
+                          <span className="text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
                             Below 10 USDT
                           </span>
                         )}
@@ -941,7 +945,7 @@ export default function AdminDashboardPage() {
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                             app.status === 'APPROVED'
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              ? 'bg-brand-buy-50 text-brand-buy-800 border-brand-buy-300/60'
                               : app.status === 'REJECTED'
                               ? 'bg-rose-50 text-rose-800 border-rose-200'
                               : 'bg-amber-50 text-amber-800 border-amber-200'
@@ -957,20 +961,20 @@ export default function AdminDashboardPage() {
                             <button
                               onClick={() => handleReviewMerchant(app.id, 'APPROVE')}
                               disabled={actionLoadingId === app.id}
-                              className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700"
+                              className="px-3.5 py-1.5 rounded-full bg-brand-buy-600 text-white font-bold hover:bg-brand-buy-700 transition-colors"
                             >
                               {t.approve}
                             </button>
                             <button
                               onClick={() => handleReviewMerchant(app.id, 'REJECT')}
                               disabled={actionLoadingId === app.id}
-                              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-semibold hover:bg-slate-50"
+                              className="px-3.5 py-1.5 rounded-full border border-black/10 bg-white/80 text-brand-ink font-semibold hover:bg-white transition-colors"
                             >
                               {t.reject}
                             </button>
                           </>
                         ) : (
-                          <span className="text-slate-400">
+                          <span className="text-brand-ink-soft">
                             Reviewed by {app.reviewedBy || 'Admin'}
                           </span>
                         )}
@@ -984,11 +988,11 @@ export default function AdminDashboardPage() {
         </div>
       ) : activeTab === 'KYC' ? (
         /* TAB: ID CHECKS (KYC) */
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden text-xs">
+        <div className="liquid-glass-card rounded-[26px] overflow-hidden text-xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 uppercase text-[11px] font-semibold">
+                <tr className="border-b border-black/[0.07] bg-white/50 text-brand-ink-soft uppercase text-[11px] font-semibold">
                   <th className="py-3.5 px-4">User</th>
                   <th className="py-3.5 px-4">{t.docType}</th>
                   <th className="py-3.5 px-4">ID Number</th>
@@ -997,21 +1001,21 @@ export default function AdminDashboardPage() {
                   <th className="py-3.5 px-4 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-black/[0.06]">
                 {kycSubmissions.map((sub) => {
                   const isPending = sub.status === 'PENDING';
                   return (
-                    <tr key={sub.id} className="hover:bg-slate-50">
+                    <tr key={sub.id} className="hover:bg-white/75 transition-colors">
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-900">{displayName(sub.userName)}</div>
-                        <div className="text-[11px] text-slate-500">{sub.userEmail}</div>
+                        <div className="font-bold text-brand-ink">{displayName(sub.userName)}</div>
+                        <div className="text-[11px] text-brand-ink-soft">{sub.userEmail}</div>
                       </td>
 
-                      <td className="py-3.5 px-4 font-semibold text-slate-800">
+                      <td className="py-3.5 px-4 font-semibold text-brand-ink">
                         {sub.kycDocType}
                       </td>
 
-                      <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                      <td className="py-3.5 px-4 font-mono font-bold text-brand-ink">
                         {sub.kycDocNumber}
                       </td>
 
@@ -1020,13 +1024,13 @@ export default function AdminDashboardPage() {
                           <button
                             type="button"
                             onClick={() => setInspectKycModal(sub)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-sky-50 border border-sky-200 text-sky-800 font-bold hover:bg-sky-100 transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sky-50 border border-sky-200 text-sky-800 font-bold hover:bg-sky-100 transition-colors"
                           >
                             <Eye className="w-3.5 h-3.5 text-sky-600" />
                             <span>Inspect ID Photo</span>
                           </button>
                         ) : (
-                          <span className="text-slate-400 italic">No photo attached</span>
+                          <span className="text-brand-ink-soft/60 italic">No photo attached</span>
                         )}
                       </td>
 
@@ -1034,7 +1038,7 @@ export default function AdminDashboardPage() {
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                             sub.status === 'VERIFIED'
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              ? 'bg-brand-buy-50 text-brand-buy-800 border-brand-buy-300/60'
                               : sub.status === 'REJECTED'
                               ? 'bg-rose-50 text-rose-800 border-rose-200'
                               : 'bg-amber-50 text-amber-800 border-amber-200'
@@ -1050,20 +1054,20 @@ export default function AdminDashboardPage() {
                             <button
                               onClick={() => handleReviewKyc(sub.id, 'APPROVE')}
                               disabled={actionLoadingId === sub.id}
-                              className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700"
+                              className="px-3.5 py-1.5 rounded-full bg-brand-buy-600 text-white font-bold hover:bg-brand-buy-700 transition-colors"
                             >
                               {t.approve}
                             </button>
                             <button
                               onClick={() => handleReviewKyc(sub.id, 'REJECT')}
                               disabled={actionLoadingId === sub.id}
-                              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-semibold hover:bg-slate-50"
+                              className="px-3.5 py-1.5 rounded-full border border-black/10 bg-white/80 text-brand-ink font-semibold hover:bg-white transition-colors"
                             >
                               {t.reject}
                             </button>
                           </>
                         ) : (
-                          <span className="text-slate-400">
+                          <span className="text-brand-ink-soft">
                             Reviewed by {sub.reviewedBy || 'Admin'}
                           </span>
                         )}
@@ -1079,49 +1083,49 @@ export default function AdminDashboardPage() {
         /* TAB: WITHDRAWAL PAYOUT QUEUE */
         <div className="space-y-3 text-xs">
           {withdrawals.length === 0 ? (
-            <div className="p-10 text-center bg-white rounded-2xl border border-slate-200 text-slate-500">
+            <div className="p-10 text-center liquid-glass-card rounded-[26px] text-brand-ink-soft">
               No withdrawal requests recorded yet.
             </div>
           ) : (
             withdrawals.map((w) => (
               <div
                 key={w.id}
-                className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                className="liquid-glass-card rounded-[24px] p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
               >
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold text-slate-900 text-sm">
+                    <span className="font-bold text-brand-ink text-sm">
                       {displayName(w.userName)}
                     </span>
-                    <span className="text-slate-400">({w.userEmail || w.userId})</span>
+                    <span className="text-brand-ink-soft">({w.userEmail || w.userId})</span>
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                         w.status === 'PENDING'
-                          ? 'bg-amber-100 text-amber-800'
+                          ? 'bg-amber-50 text-amber-800 border border-amber-200'
                           : w.status === 'COMPLETED'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-rose-100 text-rose-800'
+                          ? 'bg-brand-buy-50 text-brand-buy-800 border border-brand-buy-300/60'
+                          : 'bg-rose-50 text-rose-800 border border-rose-200'
                       }`}
                     >
                       {w.status}
                     </span>
                   </div>
-                  <div className="text-slate-700 font-semibold">
-                    Amount: <span className="text-rose-700 font-bold">{w.amount.toFixed(2)} USDT</span> ({w.network})
+                  <div className="text-brand-ink font-semibold">
+                    Amount: <span className="font-mono text-brand-sell font-bold">{w.amount.toFixed(2)} USDT</span> ({w.network})
                   </div>
-                  <div className="font-mono text-[11px] text-slate-600 break-all">
+                  <div className="font-mono text-[11px] text-brand-ink-soft break-all">
                     To Address: {w.address || 'N/A'}
                   </div>
                   {w.txHash && (
-                    <div className="font-mono text-[11px] text-emerald-700 break-all">
+                    <div className="font-mono text-[11px] text-brand-buy-700 break-all">
                       TxHash: {w.txHash}
                     </div>
                   )}
-                  {w.note && <div className="text-[11px] text-slate-500">Note: {w.note}</div>}
+                  {w.note && <div className="text-[11px] text-brand-ink-soft">Note: {w.note}</div>}
                 </div>
 
                 {w.status === 'PENDING' && (
-                  <div className="flex flex-col sm:flex-row gap-2 lg:min-w-[420px]">
+                  <div className="flex flex-col sm:flex-row gap-2 lg:min-w-[440px]">
                     <input
                       type="text"
                       value={withdrawTxHashes[w.id] || ''}
@@ -1129,7 +1133,7 @@ export default function AdminDashboardPage() {
                         setWithdrawTxHashes((prev) => ({ ...prev, [w.id]: e.target.value }))
                       }
                       placeholder="On-chain payout TxHash..."
-                      className="flex-1 px-3 py-2 rounded-lg border border-slate-300 font-mono text-[11px] focus:outline-none focus:border-slate-900"
+                      className="flex-1 px-3.5 py-2 rounded-full border border-black/10 bg-white/80 font-mono text-[11px] text-brand-ink focus:outline-none focus:bg-white focus:border-brand-ink"
                     />
                     <input
                       type="text"
@@ -1138,20 +1142,20 @@ export default function AdminDashboardPage() {
                         setWithdrawNotes((prev) => ({ ...prev, [w.id]: e.target.value }))
                       }
                       placeholder="Optional note / reason..."
-                      className="sm:w-40 px-3 py-2 rounded-lg border border-slate-300 text-[11px] focus:outline-none focus:border-slate-900"
+                      className="sm:w-40 px-3.5 py-2 rounded-full border border-black/10 bg-white/80 text-[11px] text-brand-ink focus:outline-none focus:bg-white focus:border-brand-ink"
                     />
                     <div className="flex gap-1.5">
                       <button
                         onClick={() => handleReviewWithdrawal(w.id, 'APPROVE')}
                         disabled={actionLoadingId === w.id}
-                        className="px-3 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 disabled:opacity-50"
+                        className="px-3.5 py-2 rounded-full bg-brand-buy-600 text-white font-bold hover:bg-brand-buy-700 transition-colors disabled:opacity-50"
                       >
                         Approve
                       </button>
                       <button
                         onClick={() => handleReviewWithdrawal(w.id, 'REJECT')}
                         disabled={actionLoadingId === w.id}
-                        className="px-3 py-2 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700 disabled:opacity-50"
+                        className="px-3.5 py-2 rounded-full bg-brand-sell text-white font-bold hover:opacity-95 transition-colors disabled:opacity-50"
                       >
                         Reject &amp; Refund
                       </button>
@@ -1164,41 +1168,41 @@ export default function AdminDashboardPage() {
         </div>
       ) : (
         /* TAB: SUPERADMIN ROLE MANAGEMENT */
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden text-xs">
-          <div className="p-5 bg-slate-900 text-white space-y-1">
+        <div className="liquid-glass-card rounded-[26px] overflow-hidden text-xs">
+          <div className="liquid-glass-dark p-5 text-white space-y-1">
             <h2 className="text-sm font-bold">Manage Admin Accounts</h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-white/60">
               Give or remove Admin access for platform users.
             </p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 uppercase text-[11px] font-semibold">
+                <tr className="border-b border-black/[0.07] bg-white/50 text-brand-ink-soft uppercase text-[11px] font-semibold">
                   <th className="py-3.5 px-4">User</th>
                   <th className="py-3.5 px-4">Current Role</th>
                   <th className="py-3.5 px-4 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-black/[0.06]">
                 {allUsers.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50">
+                  <tr key={u.id} className="hover:bg-white/75 transition-colors">
                     <td className="py-3.5 px-4">
-                      <div className="font-bold text-slate-900">{displayName(u.name)}</div>
-                      <div className="text-[11px] text-slate-500">{u.email}</div>
+                      <div className="font-bold text-brand-ink">{displayName(u.name)}</div>
+                      <div className="text-[11px] text-brand-ink-soft">{u.email}</div>
                     </td>
-                    <td className="py-3.5 px-4 font-bold text-slate-800">{u.role}</td>
+                    <td className="py-3.5 px-4 font-bold text-brand-ink">{u.role}</td>
                     <td className="py-3.5 px-4 text-right">
                       {u.role === 'SUPERADMIN' ? (
-                        <span className="text-slate-400">Superadmin</span>
+                        <span className="text-brand-ink-soft">Superadmin</span>
                       ) : (
                         <button
                           onClick={() => handleToggleAdminRole(u)}
                           disabled={actionLoadingId === u.id}
-                          className={`px-3.5 py-1.5 rounded-lg font-bold transition-colors ${
+                          className={`px-4 py-1.5 rounded-full font-bold transition-colors ${
                             u.role === 'ADMIN'
-                              ? 'bg-rose-600 text-white hover:bg-rose-700'
-                              : 'bg-slate-900 text-white hover:bg-slate-800'
+                              ? 'bg-brand-sell text-white hover:opacity-95'
+                              : 'bg-brand-ink text-white hover:bg-neutral-800'
                           }`}
                         >
                           {u.role === 'ADMIN' ? 'Remove Admin' : 'Make Admin'}
@@ -1213,46 +1217,65 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* Lightbox Modal: Inspect KYC ID Photo */}
+      {/* Modal: Inspect KYC ID Photo */}
       {inspectKycModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl max-w-xl w-full border border-slate-200 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-md p-4">
+          <div className="liquid-glass-card rounded-[28px] max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="liquid-glass-dark p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <ShieldCheck className="w-4 h-4 text-brand-buy-400" />
                 <h3 className="font-bold text-sm">KYC ID Document Inspection</h3>
               </div>
               <button
                 onClick={() => setInspectKycModal(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                className="text-white/70 hover:text-white p-1.5 rounded-full hover:bg-white/10 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="p-4 overflow-y-auto space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <div className="text-slate-500 font-medium">Applicant Name</div>
-                  <div className="font-bold text-slate-900 text-sm mt-0.5">{displayName(inspectKycModal.userName)}</div>
-                  <div className="text-[11px] text-slate-400">{inspectKycModal.userEmail}</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3.5 rounded-2xl bg-white/65 border border-black/[0.08]">
+                  <div className="text-brand-ink-soft font-medium">Applicant Name</div>
+                  <div className="font-bold text-brand-ink text-sm mt-0.5">{displayName(inspectKycModal.userName)}</div>
+                  <div className="text-[11px] text-brand-ink-soft">{inspectKycModal.userEmail}</div>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <div className="text-slate-500 font-medium">Document Details</div>
-                  <div className="font-bold text-slate-900 text-sm mt-0.5">{inspectKycModal.kycDocType}</div>
-                  <div className="font-mono text-[11px] text-emerald-700 font-bold">{inspectKycModal.kycDocNumber}</div>
+                <div className="p-3.5 rounded-2xl bg-white/65 border border-black/[0.08]">
+                  <div className="text-brand-ink-soft font-medium">Document Details</div>
+                  <div className="font-bold text-brand-ink text-sm mt-0.5">{inspectKycModal.kycDocType}</div>
+                  <div className="font-mono text-[11px] text-brand-buy-700 font-bold">{inspectKycModal.kycDocNumber}</div>
                 </div>
               </div>
 
               {inspectKycModal.docPhotoUrl ? (
-                <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-950 flex flex-col items-center justify-center p-2">
+                <div className="rounded-2xl border border-black/10 overflow-hidden bg-neutral-950 flex flex-col items-center justify-center p-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={inspectKycModal.docPhotoUrl}
                     alt="KYC Document"
-                    className="max-h-[360px] w-auto object-contain rounded-lg shadow"
+                    onClick={() =>
+                      setLightboxPhoto({
+                        src: inspectKycModal.docPhotoUrl!,
+                        title: `KYC — ${displayName(inspectKycModal.userName)}`,
+                      })
+                    }
+                    className="max-h-[360px] w-auto object-contain rounded-xl shadow cursor-zoom-in hover:opacity-95 transition-opacity"
                   />
-                  <div className="pt-2 text-[11px] text-slate-400 flex items-center gap-2">
+                  <div className="pt-2 flex items-center gap-4 text-[11px] text-white/70">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setLightboxPhoto({
+                          src: inspectKycModal.docPhotoUrl!,
+                          title: `KYC — ${displayName(inspectKycModal.userName)}`,
+                        })
+                      }
+                      className="text-brand-buy-300 hover:underline flex items-center gap-1"
+                    >
+                      <Eye className="w-3 h-3" />
+                      Zoom Inspection
+                    </button>
                     <a
                       href={inspectKycModal.docPhotoUrl}
                       target="_blank"
@@ -1260,26 +1283,26 @@ export default function AdminDashboardPage() {
                       className="text-sky-400 hover:underline flex items-center gap-1"
                     >
                       <ExternalLink className="w-3 h-3" />
-                      Open Full Resolution Image
+                      Open Original Tab
                     </a>
                   </div>
                 </div>
               ) : (
-                <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs">
+                <div className="p-8 text-center text-brand-ink-soft bg-white/50 rounded-2xl border border-dashed border-black/15 text-xs">
                   No image photo was uploaded with this submission.
                 </div>
               )}
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
-              <span className="text-xs text-slate-500">
-                Current Status: <b className="text-slate-800">{inspectKycModal.status}</b>
+            <div className="p-4 bg-white/70 border-t border-black/[0.07] flex items-center justify-between gap-3">
+              <span className="text-xs text-brand-ink-soft">
+                Current Status: <b className="text-brand-ink">{inspectKycModal.status}</b>
               </span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setInspectKycModal(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-100"
+                  className="px-4 py-2 rounded-full border border-black/10 bg-white text-brand-ink text-xs font-semibold hover:bg-black/[0.04]"
                 >
                   Close
                 </button>
@@ -1291,7 +1314,7 @@ export default function AdminDashboardPage() {
                         await handleReviewKyc(inspectKycModal.id, 'REJECT');
                         setInspectKycModal(null);
                       }}
-                      className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700"
+                      className="px-4 py-2 rounded-full bg-brand-sell text-white text-xs font-bold hover:opacity-95"
                     >
                       Reject ID
                     </button>
@@ -1301,7 +1324,7 @@ export default function AdminDashboardPage() {
                         await handleReviewKyc(inspectKycModal.id, 'APPROVE');
                         setInspectKycModal(null);
                       }}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700"
+                      className="px-4 py-2 rounded-full bg-brand-buy-600 text-white text-xs font-bold hover:bg-brand-buy-700"
                     >
                       Approve ID
                     </button>
@@ -1313,89 +1336,110 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* Lightbox Modal: Inspect Merchant Proof Document */}
+      {/* Modal: Inspect Merchant Proof Document */}
       {inspectMerchantModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl max-w-xl w-full border border-slate-200 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-md p-4">
+          <div className="liquid-glass-card rounded-[28px] max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="liquid-glass-dark p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-emerald-400" />
+                <Building2 className="w-4 h-4 text-brand-buy-400" />
                 <h3 className="font-bold text-sm">Merchant Application Review</h3>
               </div>
               <button
                 onClick={() => setInspectMerchantModal(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                className="text-white/70 hover:text-white p-1.5 rounded-full hover:bg-white/10 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="p-4 overflow-y-auto space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
-                  <div className="text-slate-500 font-medium">Business / Trade Name</div>
-                  <div className="font-bold text-slate-900 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3.5 rounded-2xl bg-white/65 border border-black/[0.08] space-y-0.5">
+                  <div className="text-brand-ink-soft font-medium">Business / Trade Name</div>
+                  <div className="font-bold text-brand-ink text-sm">
                     {inspectMerchantModal.businessName || inspectMerchantModal.userName}
                   </div>
-                  <div className="text-[11px] text-slate-400">{inspectMerchantModal.userEmail}</div>
+                  <div className="text-[11px] text-brand-ink-soft">{inspectMerchantModal.userEmail}</div>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
-                  <div className="text-slate-500 font-medium">USDT Balance</div>
-                  <div className="font-bold text-emerald-700 text-sm">
+                <div className="p-3.5 rounded-2xl bg-white/65 border border-black/[0.08] space-y-0.5">
+                  <div className="text-brand-ink-soft font-medium">USDT Balance</div>
+                  <div className="font-mono font-bold text-brand-buy-700 text-sm tabular-nums">
                     {(inspectMerchantModal.usdtBalance ?? 0).toFixed(2)} USDT
                   </div>
-                  <div className="text-[11px] text-slate-400">
+                  <div className="text-[11px] text-brand-ink-soft">
                     {(inspectMerchantModal.usdtBalance ?? 0) >= 10 ? 'Eligible (>=10 USDT)' : 'Low Balance'}
                   </div>
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <div className="text-slate-500 font-medium">P2P Trade Experience</div>
-                <p className="text-slate-800 leading-relaxed">
+              <div className="p-3.5 rounded-2xl bg-white/65 border border-black/[0.08] space-y-1">
+                <div className="text-brand-ink-soft font-medium">P2P Trade Experience</div>
+                <p className="text-brand-ink leading-relaxed">
                   {inspectMerchantModal.tradeExperience || 'Standard P2P trader'}
                 </p>
               </div>
 
               {inspectMerchantModal.terms && (
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                  <div className="text-slate-500 font-medium">Merchant Trade Terms</div>
-                  <p className="text-slate-800 italic leading-relaxed">
+                <div className="p-3.5 rounded-2xl bg-white/65 border border-black/[0.08] space-y-1">
+                  <div className="text-brand-ink-soft font-medium">Merchant Trade Terms</div>
+                  <p className="text-brand-ink italic leading-relaxed">
                     &ldquo;{inspectMerchantModal.terms}&rdquo;
                   </p>
                 </div>
               )}
 
               {inspectMerchantModal.proofDocumentUrl && (
-                <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-950 p-2 flex flex-col items-center">
+                <div className="rounded-2xl border border-black/10 overflow-hidden bg-neutral-950 p-2 flex flex-col items-center">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={inspectMerchantModal.proofDocumentUrl}
                     alt="Merchant Proof"
-                    className="max-h-[300px] w-auto object-contain rounded-lg shadow"
+                    onClick={() =>
+                      setLightboxPhoto({
+                        src: inspectMerchantModal.proofDocumentUrl!,
+                        title: `Merchant Proof — ${inspectMerchantModal.businessName || displayName(inspectMerchantModal.userName)}`,
+                      })
+                    }
+                    className="max-h-[300px] w-auto object-contain rounded-xl shadow cursor-zoom-in hover:opacity-95 transition-opacity"
                   />
-                  <a
-                    href={inspectMerchantModal.proofDocumentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="pt-2 text-sky-400 hover:underline flex items-center gap-1 text-[11px]"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                    Open Full Image
-                  </a>
+                  <div className="pt-2 flex items-center gap-4 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setLightboxPhoto({
+                          src: inspectMerchantModal.proofDocumentUrl!,
+                          title: `Merchant Proof — ${inspectMerchantModal.businessName || displayName(inspectMerchantModal.userName)}`,
+                        })
+                      }
+                      className="text-brand-buy-300 hover:underline flex items-center gap-1"
+                    >
+                      <Eye className="w-3 h-3" />
+                      Zoom Inspection
+                    </button>
+                    <a
+                      href={inspectMerchantModal.proofDocumentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sky-400 hover:underline flex items-center gap-1"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Open Original Tab
+                    </a>
+                  </div>
                 </div>
               )}
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
-              <span className="text-xs text-slate-500">
-                Status: <b className="text-slate-800">{inspectMerchantModal.status}</b>
+            <div className="p-4 bg-white/70 border-t border-black/[0.07] flex items-center justify-between gap-3">
+              <span className="text-xs text-brand-ink-soft">
+                Status: <b className="text-brand-ink">{inspectMerchantModal.status}</b>
               </span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setInspectMerchantModal(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-100"
+                  className="px-4 py-2 rounded-full border border-black/10 bg-white text-brand-ink text-xs font-semibold hover:bg-black/[0.04]"
                 >
                   Close
                 </button>
@@ -1407,7 +1451,7 @@ export default function AdminDashboardPage() {
                         await handleReviewMerchant(inspectMerchantModal.id, 'REJECT');
                         setInspectMerchantModal(null);
                       }}
-                      className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700"
+                      className="px-4 py-2 rounded-full bg-brand-sell text-white text-xs font-bold hover:opacity-95"
                     >
                       Reject Merchant
                     </button>
@@ -1417,7 +1461,7 @@ export default function AdminDashboardPage() {
                         await handleReviewMerchant(inspectMerchantModal.id, 'APPROVE');
                         setInspectMerchantModal(null);
                       }}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700"
+                      className="px-4 py-2 rounded-full bg-brand-buy-600 text-white text-xs font-bold hover:bg-brand-buy-700"
                     >
                       Approve Merchant
                     </button>
@@ -1428,6 +1472,13 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Fullscreen Shared Lightbox for zoomed document verification */}
+      <ImageLightbox
+        src={lightboxPhoto?.src ?? null}
+        title={lightboxPhoto?.title}
+        onClose={() => setLightboxPhoto(null)}
+      />
     </div>
     </ProtectedRoute>
   );

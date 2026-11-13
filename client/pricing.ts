@@ -10,6 +10,10 @@ export interface MarketPriceStats {
   maxPriceLimitEtb: number;
   high24hEtb: number;
   low24hEtb: number;
+  activeSellOffersCount: number;
+  activeBuyOffersCount: number;
+  activeMerchantsCount: number;
+  volume24hUsdt: number;
   lastUpdated: string;
 }
 
@@ -43,18 +47,31 @@ class PricingService {
     const spreadPct = reference > 0 ? Number(((spread / reference) * 100).toFixed(2)) : 0;
 
     const cutoff24h = Date.now() - 24 * 60 * 60 * 1000;
+    const recentOrders = orders.filter(
+      (o) => new Date(o.createdAt).getTime() >= cutoff24h
+    );
     const recentPrices = [
       ...sellOffers.map((o) => o.pricePerUsdtEtb),
       ...buyOffers.map((o) => o.pricePerUsdtEtb),
-      ...orders
-        .filter((o) => new Date(o.createdAt).getTime() >= cutoff24h)
-        .map((o) => o.unitPriceEtb),
+      ...recentOrders.map((o) => o.unitPriceEtb),
     ];
 
     const high24hEtb =
       recentPrices.length > 0 ? Math.max(...recentPrices) : reference;
     const low24hEtb =
       recentPrices.length > 0 ? Math.min(...recentPrices) : reference;
+
+    const activeMerchantsCount = new Set([
+      ...sellOffers.map((o) => o.merchantId),
+      ...buyOffers.map((o) => o.merchantId),
+    ]).size;
+
+    const volume24hUsdt = Number(
+      recentOrders
+        .filter((o) => o.status === 'COMPLETED')
+        .reduce((acc, o) => acc + (Number(o.usdtAmount) || 0), 0)
+        .toFixed(2)
+    );
 
     const minLimit = Number((reference * 0.85).toFixed(2));
     const maxLimit = Number((reference * 1.15).toFixed(2));
@@ -69,6 +86,10 @@ class PricingService {
       maxPriceLimitEtb: maxLimit,
       high24hEtb,
       low24hEtb,
+      activeSellOffersCount: sellOffers.length,
+      activeBuyOffersCount: buyOffers.length,
+      activeMerchantsCount,
+      volume24hUsdt,
       lastUpdated: new Date().toISOString(),
     };
   }

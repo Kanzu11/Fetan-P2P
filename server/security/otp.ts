@@ -67,73 +67,76 @@ export async function verifyAndConsumeOtp(params: {
     return { valid: false, error: 'Verification code must be 6 digits.' };
   }
 
-  return prisma.$transaction(async (tx) => {
-    const challenge = await tx.otpChallenge.findFirst({
-      where: {
-        email: cleanEmail,
-        purpose: params.purpose,
-        consumedAt: null,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    if (!challenge) {
-      return { valid: false, error: 'No active verification code found. Please request a new code.' };
-    }
-
-    if (challenge.expiresAt <= new Date()) {
-      await tx.otpChallenge.update({
-        where: { id: challenge.id },
-        data: { consumedAt: new Date() },
-      });
-      return { valid: false, error: 'Verification code expired. Please request a new code.' };
-    }
-
-    if (challenge.attempts >= challenge.maxAttempts) {
-      await tx.otpChallenge.update({
-        where: { id: challenge.id },
-        data: { consumedAt: new Date() },
-      });
-      return {
-        valid: false,
-        error: 'Too many invalid attempts. Please request a new verification code.',
-      };
-    }
-
-    const expectedHash = hashOtpCode(cleanEmail, params.purpose, cleanCode);
-    const matches = crypto.timingSafeEqual(
-      Buffer.from(challenge.codeHash, 'hex'),
-      Buffer.from(expectedHash, 'hex')
-    );
-
-    if (!matches) {
-      const nextAttempts = challenge.attempts + 1;
-      await tx.otpChallenge.update({
-        where: { id: challenge.id },
-        data: {
-          attempts: nextAttempts,
-          consumedAt: nextAttempts >= challenge.maxAttempts ? new Date() : null,
+  return prisma.$transaction(
+    async (tx) => {
+      const challenge = await tx.otpChallenge.findFirst({
+        where: {
+          email: cleanEmail,
+          purpose: params.purpose,
+          consumedAt: null,
         },
+        orderBy: { createdAt: 'desc' },
       });
-      const remaining = Math.max(0, challenge.maxAttempts - nextAttempts);
+
+      if (!challenge) {
+        return { valid: false, error: 'No active verification code found. Please request a new code.' };
+      }
+
+      if (challenge.expiresAt <= new Date()) {
+        await tx.otpChallenge.update({
+          where: { id: challenge.id },
+          data: { consumedAt: new Date() },
+        });
+        return { valid: false, error: 'Verification code expired. Please request a new code.' };
+      }
+
+      if (challenge.attempts >= challenge.maxAttempts) {
+        await tx.otpChallenge.update({
+          where: { id: challenge.id },
+          data: { consumedAt: new Date() },
+        });
+        return {
+          valid: false,
+          error: 'Too many invalid attempts. Please request a new verification code.',
+        };
+      }
+
+      const expectedHash = hashOtpCode(cleanEmail, params.purpose, cleanCode);
+      const matches = crypto.timingSafeEqual(
+        Buffer.from(challenge.codeHash, 'hex'),
+        Buffer.from(expectedHash, 'hex')
+      );
+
+      if (!matches) {
+        const nextAttempts = challenge.attempts + 1;
+        await tx.otpChallenge.update({
+          where: { id: challenge.id },
+          data: {
+            attempts: nextAttempts,
+            consumedAt: nextAttempts >= challenge.maxAttempts ? new Date() : null,
+          },
+        });
+        const remaining = Math.max(0, challenge.maxAttempts - nextAttempts);
+        return {
+          valid: false,
+          error:
+            remaining > 0
+              ? `Invalid verification code. ${remaining} attempt(s) remaining.`
+              : 'Invalid verification code. Too many failures — request a new code.',
+        };
+      }
+
+      await tx.otpChallenge.update({
+        where: { id: challenge.id },
+        data: { consumedAt: new Date() },
+      });
+
       return {
-        valid: false,
-        error:
-          remaining > 0
-            ? `Invalid verification code. ${remaining} attempt(s) remaining.`
-            : 'Invalid verification code. Too many failures — request a new code.',
+        valid: true,
+        metadata: (challenge.metadata as Record<string, unknown> | null) || null,
       };
-    }
-
-    await tx.otpChallenge.update({
-      where: { id: challenge.id },
-      data: { consumedAt: new Date() },
-    });
-
-    return {
-      valid: true,
-      metadata: (challenge.metadata as Record<string, unknown> | null) || null,
-    };
-  });
+    },
+    { maxWait: 10000, timeout: 25000 }
+  );
 }
 

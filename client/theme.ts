@@ -1,75 +1,71 @@
 /**
- * Fetan P2P Design System
+ * Fetan P2P Design System ("Sovereign Liquid Glass")
  *
- * Single source of truth for colors, spacing, radius, type and motion.
- * Tailwind config reads from here; components use the exported tokens for
- * inline styles (e.g. payment-rail accent colors).
+ * Single source of truth for surface, ink, semantic, and glass material tokens.
  */
 
 export const brand = {
   name: 'Fetan P2P',
-  nameAm: 'потенциал P2P',
-  tagline: ' Ethiopia P2P',
+  nameAm: 'ፈጣን P2P',
+  tagline: 'Ethiopia P2P Escrow',
 };
 
-// Core palette — Ethiopian flag inspired: green primary, gold accent, ink dark.
 export const color = {
-  // Brand
-  green: '#009B57',
-  greenDark: '#007A45',
-  greenDeep: '#064E3B',
-  gold: '#F5C518',
-  goldDark: '#C99E10',
+  // Brand & Core Ink
+  green: '#008751',
+  greenDark: '#006B40',
+  greenDeep: '#063B27',
+  gold: '#E5B418',
+  goldDark: '#B88D0B',
 
   // Surfaces
-  ink: '#0B1F14',
-  inkSoft: '#132A20',
-  paper: '#F7F7F4',
-  paperWarm: '#F0EDE6',
+  ink: '#0A1612',
+  inkSoft: '#4B5752',
+  paper: '#F3F4F2',
+  paperWarm: '#EBE9E2',
   white: '#FFFFFF',
-  line: '#E4E1D8',
+  line: 'rgba(10, 22, 18, 0.09)',
 
   // Semantic
-  buy: '#009B57',
-  buySoft: '#E6F6EC',
-  sell: '#D64531',
-  sellSoft: '#FBE9E6',
-  warn: '#E0A916',
-  warnSoft: '#FBF1D4',
-  info: '#1E6FD6',
-  infoSoft: '#E6F0FB',
+  buy: '#008751',
+  buySoft: '#E6F5EE',
+  sell: '#C93B2B',
+  sellSoft: '#FDECEB',
+  warn: '#D97706',
+  warnSoft: '#FEF3C7',
+  info: '#1D64D0',
+  infoSoft: '#E8F0FE',
 
   // Text
-  text: '#111827',
-  textSoft: '#4B5563',
-  textMuted: '#8B939A',
+  text: '#0A1612',
+  textSoft: '#4B5752',
+  textMuted: '#7A8680',
 };
 
 export const radius = {
-  xs: '6px',
-  sm: '10px',
-  md: '14px',
-  lg: '18px',
+  xs: '8px',
+  sm: '12px',
+  md: '16px',
+  lg: '20px',
   xl: '24px',
   '2xl': '28px',
   full: '9999px',
 };
 
 export const shadow = {
-  card: '0 1px 2px rgba(11,31,20,0.04), 0 1px 3px rgba(11,31,20,0.06)',
+  card: 'inset 0 1px 0 rgba(255,255,255,0.85), 0 6px 24px -8px rgba(10,22,18,0.07)',
   cardHover:
-    '0 4px 6px rgba(11,31,20,0.06), 0 2px 4px rgba(11,31,20,0.06)',
-  modal: '0 24px 60px rgba(11,31,20,0.28)',
-  glow: '0 0 0 1px rgba(0,155,87,0.35), 0 8px 24px rgba(0,155,87,0.25)',
+    'inset 0 1px 0 rgba(255,255,255,0.92), 0 12px 32px -10px rgba(10,22,18,0.12)',
+  modal: 'inset 0 1px 0 rgba(255,255,255,0.85), 0 28px 64px -16px rgba(10,22,18,0.28)',
+  glow: '0 0 0 1px rgba(0,135,81,0.28), 0 10px 28px rgba(0,135,81,0.18)',
 };
 
 export const motion = {
-  fast: '120ms ease',
-  base: '200ms ease',
-  slow: '320ms ease',
+  fast: '140ms cubic-bezier(0.22, 1, 0.36, 1)',
+  base: '220ms cubic-bezier(0.22, 1, 0.36, 1)',
+  slow: '340ms cubic-bezier(0.22, 1, 0.36, 1)',
 };
 
-// Semantic color map consumed by components that need runtime values.
 export const semantic = {
   buy: color.buy,
   buySoft: color.buySoft,

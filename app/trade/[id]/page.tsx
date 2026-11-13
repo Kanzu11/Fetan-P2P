@@ -35,6 +35,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { ProtectedRoute } from '@/client/components/protected-route';
+import { ImageLightbox } from '@/client/components/image-lightbox';
 
 export default function EscrowRoomPage() {
   const params = useParams();
@@ -62,7 +63,7 @@ export default function EscrowRoomPage() {
   const [receiptName, setReceiptName] = useState<string>('');
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const [uploadingChatImage, setUploadingChatImage] = useState(false);
-  const [previewReceiptModal, setPreviewReceiptModal] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Seller release safety confirmation checkbox
@@ -482,20 +483,20 @@ export default function EscrowRoomPage() {
 
   if (loading) {
     return (
-      <div className="p-12 text-center text-slate-500 text-xs space-y-2">
-        <div className="w-6 h-6 border-2 border-slate-300 border-t-slate-900 rounded-full animate-spin mx-auto" />
-        <p>Loading Order #{orderId}...</p>
+      <div className="liquid-glass-card rounded-[26px] p-12 text-center text-brand-ink-soft text-xs space-y-3 animate-pulse">
+        <div className="w-6 h-6 border-2 border-black/15 border-t-brand-ink rounded-full animate-spin mx-auto" />
+        <p>Loading Escrow Room #{orderId}...</p>
       </div>
     );
   }
 
   if (!order) {
     return (
-      <div className="p-12 text-center space-y-4 bg-white rounded-2xl border border-slate-200">
-        <p className="text-slate-600 text-sm font-medium">Order #{orderId} was not found.</p>
+      <div className="liquid-glass-card rounded-[26px] p-12 text-center space-y-4">
+        <p className="text-brand-ink-soft text-sm font-medium">Order #{orderId} was not found.</p>
         <button
           onClick={() => router.push('/market')}
-          className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold"
+          className="px-5 py-2.5 rounded-full bg-brand-ink text-white text-xs font-semibold hover:bg-neutral-800 transition-colors shadow-sm"
         >
           Back to P2P Market
         </button>
@@ -547,12 +548,12 @@ export default function EscrowRoomPage() {
     <ProtectedRoute>
       <div className="space-y-4 pb-10">
       {/* Trade Room Security & Order Identification Header */}
-      <div className="bg-slate-900 text-white rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+      <div className="liquid-glass-dark text-white rounded-[22px] px-4 sm:px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          <ShieldCheck className="w-4 h-4 text-brand-buy-400 flex-shrink-0" />
           <span>
             Trading as:{' '}
-            <strong className="text-emerald-300">
+            <strong className="text-brand-buy-300">
               {isBuyer
                 ? `Buyer (${displayName(order.buyerName)})`
                 : isSeller
@@ -562,19 +563,19 @@ export default function EscrowRoomPage() {
           </span>
         </div>
 
-        <div className="flex items-center gap-2 text-slate-300 text-[11px]">
-          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+        <div className="flex items-center gap-2 text-white/75 text-[11px]">
+          <span className="w-2 h-2 rounded-full bg-brand-buy-400" />
           <span>Fetan Encrypted Escrow Room</span>
         </div>
       </div>
 
       {/* Top Bar: Back Button, Order ID, Status Pill & Countdown */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4">
+      <div className="liquid-glass-card rounded-[26px] p-4 sm:p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/orders')}
-              className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+              className="p-2.5 rounded-full border border-black/10 bg-white/75 text-brand-ink-soft hover:bg-white hover:text-brand-ink transition-colors"
               title="Back to Orders"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -582,34 +583,34 @@ export default function EscrowRoomPage() {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <span
-                  className={`text-[11px] font-bold px-2 py-0.5 rounded uppercase ${
+                  className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase ${
                     isSeller
-                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      ? 'bg-rose-50 text-brand-sell border border-rose-200'
+                      : 'bg-brand-buy-50 text-brand-buy-700 border border-brand-buy-300/60'
                   }`}
                 >
                   {isSeller ? 'Sell USDT' : 'Buy USDT'}
                 </span>
-                <h1 className="text-base sm:text-lg font-bold text-slate-900">
+                <h1 className="text-base sm:text-lg font-bold text-brand-ink">
                   Order <span className="font-mono text-sm">#{order.id}</span>
                 </h1>
                 <span
-                  className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                  className={`text-[11px] font-bold px-3 py-0.5 rounded-full border ${
                     order.status === 'COMPLETED'
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      ? 'bg-brand-buy-50 text-brand-buy-800 border-brand-buy-300/60'
                       : order.status === 'PAYMENT_SENT'
                       ? 'bg-amber-50 text-amber-800 border-amber-200'
                       : order.status === 'DISPUTED'
                       ? 'bg-rose-50 text-rose-800 border-rose-200'
                       : order.status === 'CANCELLED'
-                      ? 'bg-slate-100 text-slate-500 border-slate-200'
+                      ? 'bg-black/[0.05] text-brand-ink-soft border-black/10'
                       : 'bg-sky-50 text-sky-800 border-sky-200'
                   }`}
                 >
                   {order.status === 'PENDING_PAYMENT'
                     ? 'Waiting for Buyer Payment'
                     : order.status === 'PAYMENT_SENT'
-                    ? 'Buyer Paid — Waiting for Seller'
+                    ? 'Buyer Paid — Waiting Release'
                     : order.status === 'COMPLETED'
                     ? 'Completed'
                     : order.status === 'CANCELLED'
@@ -617,19 +618,19 @@ export default function EscrowRoomPage() {
                     : 'Appeal in Review'}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Buyer: <strong className="text-slate-700">{displayName(order.buyerName)}</strong> •
-                Seller: <strong className="text-slate-700">{displayName(order.sellerName)}</strong>
+              <p className="text-xs text-brand-ink-soft mt-0.5">
+                Buyer: <strong className="text-brand-ink">{displayName(order.buyerName)}</strong> •
+                Seller: <strong className="text-brand-ink">{displayName(order.sellerName)}</strong>
               </p>
             </div>
           </div>
 
           {/* 15-Minute Countdown Timer */}
           {order.status === 'PENDING_PAYMENT' && (
-            <div className="flex items-center gap-2 bg-slate-900 text-white px-3.5 py-2 rounded-xl text-xs self-start sm:self-auto">
-              <Clock className="w-4 h-4 text-emerald-400" />
-              <span className="text-slate-300">{t.paymentWindow}:</span>
-              <span className="font-mono font-bold text-sm text-emerald-400 tabular-nums">
+            <div className="flex items-center gap-2 bg-brand-ink text-white px-4 py-2 rounded-full text-xs self-start sm:self-auto shadow-sm">
+              <Clock className="w-4 h-4 text-brand-buy-400" />
+              <span className="text-white/70">{t.paymentWindow}:</span>
+              <span className="font-mono font-bold text-sm text-brand-buy-400 tabular-nums">
                 {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
               </span>
             </div>
@@ -638,7 +639,7 @@ export default function EscrowRoomPage() {
 
         {/* 4-Step Progress Bar */}
         {order.status !== 'CANCELLED' && (
-          <div className="grid grid-cols-4 gap-2 pt-3 border-t border-slate-100 text-[11px]">
+          <div className="grid grid-cols-4 gap-2 pt-3 border-t border-black/[0.06] text-[11px]">
             {[
               { step: 1, label: '1. Order Created' },
               { step: 2, label: '2. Buyer Pays Birr' },
@@ -651,12 +652,16 @@ export default function EscrowRoomPage() {
                 <div key={item.step} className="space-y-1.5">
                   <div
                     className={`h-1.5 rounded-full transition-colors ${
-                      done ? 'bg-emerald-600' : active ? 'bg-slate-900' : 'bg-slate-200'
+                      done ? 'bg-brand-buy-600' : active ? 'bg-brand-ink' : 'bg-black/10'
                     }`}
                   />
                   <div
                     className={`font-semibold truncate ${
-                      done ? 'text-emerald-700' : active ? 'text-slate-900' : 'text-slate-400'
+                      done
+                        ? 'text-brand-buy-700'
+                        : active
+                        ? 'text-brand-ink'
+                        : 'text-brand-ink-soft/60'
                     }`}
                   >
                     {item.label}
@@ -669,22 +674,26 @@ export default function EscrowRoomPage() {
       </div>
 
       {/* Mobile View Switcher (Order Details vs Live Chat) */}
-      <div className="lg:hidden grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-200 border border-slate-200 text-xs font-bold">
+      <div className="lg:hidden liquid-pill-track grid grid-cols-2 gap-1.5 p-1 rounded-full text-xs font-bold">
         <button
           onClick={() => setMobileTab('DETAILS')}
-          className={`py-2.5 rounded-lg transition-colors ${
-            mobileTab === 'DETAILS' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+          className={`py-2.5 rounded-full transition-all ${
+            mobileTab === 'DETAILS'
+              ? 'bg-white text-brand-ink shadow-sm'
+              : 'text-brand-ink-soft hover:text-brand-ink'
           }`}
         >
           Order Details & Actions
         </button>
         <button
           onClick={() => setMobileTab('CHAT')}
-          className={`py-2.5 rounded-lg transition-colors flex items-center justify-center gap-1.5 ${
-            mobileTab === 'CHAT' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+          className={`py-2.5 rounded-full transition-all flex items-center justify-center gap-1.5 ${
+            mobileTab === 'CHAT'
+              ? 'bg-white text-brand-ink shadow-sm'
+              : 'text-brand-ink-soft hover:text-brand-ink'
           }`}
         >
-          <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+          <MessageSquare className="w-3.5 h-3.5 text-brand-buy-600" />
           <span>Order Chat ({messages.length})</span>
         </button>
       </div>
@@ -698,13 +707,13 @@ export default function EscrowRoomPage() {
           }`}
         >
           {/* 1. Order Summary Card */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+          <div className="liquid-glass-card rounded-[26px] p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-black/[0.06] pb-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-brand-ink">
+                <ShieldCheck className="w-4 h-4 text-brand-buy-600" />
                 <span>Escrow Protection</span>
               </div>
-              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+              <span className="text-[11px] font-mono font-semibold text-brand-buy-700 bg-brand-buy-50 border border-brand-buy-300/60 px-3 py-0.5 rounded-full">
                 {order.status === 'COMPLETED'
                   ? `✓ ${order.usdtAmount.toFixed(2)} USDT Released`
                   : order.status === 'CANCELLED'
@@ -713,26 +722,26 @@ export default function EscrowRoomPage() {
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <div className="text-slate-500 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-4 rounded-2xl bg-white/65 border border-black/[0.08] space-y-1">
+                <div className="text-brand-ink-soft text-xs">
                   {isBuyer ? 'You Pay (Birr)' : isSeller ? 'You Receive (Birr)' : t.youSend}
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xl sm:text-2xl font-mono font-bold text-brand-ink tabular-nums">
                     {order.etbAmount.toLocaleString('en-US', {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}{' '}
-                    <span className="text-xs font-semibold text-slate-500">ETB</span>
+                    <span className="text-xs font-sans font-semibold text-brand-ink-soft">ETB</span>
                   </div>
                   <button
                     onClick={() => copyToClipboard(order.etbAmount.toFixed(2), 'Birr Amount')}
-                    className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-slate-900"
+                    className="p-2 rounded-full bg-white/85 border border-black/10 text-brand-ink-soft hover:text-brand-ink transition-colors"
                     title="Copy exact Birr amount"
                   >
                     {copiedField === 'Birr Amount' ? (
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <Check className="w-3.5 h-3.5 text-brand-buy-600" />
                     ) : (
                       <Copy className="w-3.5 h-3.5" />
                     )}
@@ -740,38 +749,38 @@ export default function EscrowRoomPage() {
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 space-y-1">
-                <div className="text-emerald-800 text-xs">
+              <div className="p-4 rounded-2xl bg-brand-buy-50/85 border border-brand-buy-300/60 space-y-1">
+                <div className="text-brand-buy-900/80 text-xs">
                   {isBuyer ? 'You Get (USDT)' : isSeller ? 'You Sell (USDT)' : t.youReceive}
                 </div>
-                <div className="text-xl sm:text-2xl font-bold text-emerald-700 tabular-nums">
+                <div className="text-xl sm:text-2xl font-mono font-bold text-brand-buy-700 tabular-nums">
                   {order.usdtAmount.toFixed(2)}{' '}
-                  <span className="text-xs font-semibold text-emerald-600">USDT</span>
+                  <span className="text-xs font-sans font-semibold text-brand-buy-600">USDT</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 pt-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-brand-ink-soft pt-1">
               <span>
                 Price:{' '}
-                <strong className="text-slate-900 tabular-nums">
+                <strong className="font-mono text-brand-ink tabular-nums">
                   1 USDT = {order.unitPriceEtb.toFixed(2)} ETB
                 </strong>
               </span>
               <span>
-                Fee: <strong className="text-emerald-700">0.00 USDT</strong>
+                Fee: <strong className="font-mono text-brand-buy-700">0.00 USDT</strong>
               </span>
             </div>
           </div>
 
           {/* 2. Seller Payment Account Card (With 1-Tap Copy Buttons) */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
-                <Building className="w-4 h-4 text-slate-700" />
+          <div className="liquid-glass-card rounded-[26px] p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-black/[0.06] pb-3">
+              <div className="flex items-center gap-2 font-bold text-sm text-brand-ink">
+                <Building className="w-4 h-4 text-brand-ink-soft" />
                 <span>{t.bankDetails}</span>
               </div>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-800">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/75 border border-black/10 text-xs font-semibold text-brand-ink">
                 <span
                   className="w-1.5 h-3 rounded-full"
                   style={{ backgroundColor: railMeta.accentColor }}
@@ -780,21 +789,21 @@ export default function EscrowRoomPage() {
               </span>
             </div>
 
-            <div className="rounded-xl bg-slate-50 border border-slate-200 divide-y divide-slate-200 text-xs">
-              <div className="p-3.5 flex justify-between items-center">
-                <span className="text-slate-500 font-medium">{t.accountName}</span>
+            <div className="rounded-2xl bg-white/65 border border-black/[0.08] divide-y divide-black/[0.06] text-xs">
+              <div className="p-3.5 flex justify-between items-center gap-2">
+                <span className="text-brand-ink-soft font-medium">{t.accountName}</span>
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-slate-900 text-sm">
+                  <span className="font-bold text-brand-ink text-sm">
                     {order.paymentDetails.accountName}
                   </span>
                   <button
                     onClick={() =>
                       copyToClipboard(order.paymentDetails.accountName, 'Account Name')
                     }
-                    className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-slate-900"
+                    className="p-2 rounded-full border border-black/10 bg-white/85 text-brand-ink-soft hover:text-brand-ink transition-colors"
                   >
                     {copiedField === 'Account Name' ? (
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <Check className="w-3.5 h-3.5 text-brand-buy-600" />
                     ) : (
                       <Copy className="w-3.5 h-3.5" />
                     )}
@@ -802,20 +811,20 @@ export default function EscrowRoomPage() {
                 </div>
               </div>
 
-              <div className="p-3.5 flex justify-between items-center">
-                <span className="text-slate-500 font-medium">{railMeta.accountLabel}</span>
+              <div className="p-3.5 flex justify-between items-center gap-2">
+                <span className="text-brand-ink-soft font-medium">{railMeta.accountLabel}</span>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-base text-slate-900 tabular-nums">
+                  <span className="font-mono font-bold text-base text-brand-ink tabular-nums">
                     {order.paymentDetails.accountNumber}
                   </span>
                   <button
                     onClick={() =>
                       copyToClipboard(order.paymentDetails.accountNumber, 'Account Number')
                     }
-                    className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-slate-900"
+                    className="p-2 rounded-full border border-black/10 bg-white/85 text-brand-ink-soft hover:text-brand-ink transition-colors"
                   >
                     {copiedField === 'Account Number' ? (
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <Check className="w-3.5 h-3.5 text-brand-buy-600" />
                     ) : (
                       <Copy className="w-3.5 h-3.5" />
                     )}
@@ -823,16 +832,16 @@ export default function EscrowRoomPage() {
                 </div>
               </div>
 
-              <div className="p-3.5 flex justify-between items-center">
-                <span className="text-slate-500 font-medium">{t.paymentMethod}</span>
-                <span className="text-slate-800 font-semibold">
+              <div className="p-3.5 flex justify-between items-center gap-2">
+                <span className="text-brand-ink-soft font-medium">{t.paymentMethod}</span>
+                <span className="text-brand-ink font-semibold">
                   {order.paymentDetails.bankName}
                 </span>
               </div>
             </div>
 
             {/* Payment Safety Tip */}
-            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 leading-relaxed flex items-start gap-2.5">
+            <div className="p-3.5 rounded-2xl bg-amber-50/85 border border-amber-300/60 text-xs text-amber-950 leading-relaxed flex items-start gap-2.5">
               <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold">Important: </span>
@@ -843,14 +852,14 @@ export default function EscrowRoomPage() {
 
           {/* 3. Payment Reference / Receipt Card */}
           {order.status !== 'CANCELLED' && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3 shadow-sm text-xs">
+            <div className="liquid-glass-card rounded-[26px] p-5 space-y-3 text-xs">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-sm text-slate-900">{t.proofReceipt}</span>
+                <span className="font-bold text-sm text-brand-ink">{t.proofReceipt}</span>
                 {!activeReceiptUrl && order.status === 'PENDING_PAYMENT' && (
                   <button
                     type="button"
                     onClick={handleAttachSampleReceipt}
-                    className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 underline"
+                    className="text-[11px] font-semibold text-brand-buy-700 hover:text-brand-buy-900 underline"
                   >
                     Fill Sample Receipt
                   </button>
@@ -864,24 +873,24 @@ export default function EscrowRoomPage() {
                     value={paymentRefInput}
                     onChange={(e) => setPaymentRefInput(e.target.value)}
                     placeholder="Optional: Enter Telebirr or bank transfer reference number..."
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-slate-900"
+                    className="w-full px-3.5 py-2.5 rounded-2xl border border-black/10 bg-white/75 font-mono text-xs text-brand-ink focus:outline-none focus:bg-white focus:border-brand-ink"
                   />
                 </div>
               )}
 
               {activeReceiptUrl ? (
-                <div className="rounded-xl border border-slate-200 p-3.5 bg-slate-50 flex items-center justify-between gap-3">
+                <div className="rounded-2xl border border-black/[0.08] p-3.5 bg-white/65 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-2xl bg-brand-buy-50 border border-brand-buy-300/50 text-brand-buy-700 flex items-center justify-center flex-shrink-0">
                       <FileCheck className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">
-                      <div className="font-bold text-slate-900 truncate">
+                      <div className="font-bold text-brand-ink truncate">
                         {isImageReceipt
                           ? receiptName || `Payment_Receipt_${order.id}.jpg`
                           : activeReceiptUrl}
                       </div>
-                      <div className="text-[11px] text-emerald-700 font-medium">
+                      <div className="text-[11px] text-brand-buy-700 font-medium">
                         Payment proof attached
                       </div>
                     </div>
@@ -889,8 +898,8 @@ export default function EscrowRoomPage() {
                   {isImageReceipt && (
                     <button
                       type="button"
-                      onClick={() => setPreviewReceiptModal(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold flex-shrink-0"
+                      onClick={() => setLightboxSrc(activeReceiptUrl)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/85 border border-black/10 hover:bg-white text-brand-ink font-semibold flex-shrink-0 transition-colors"
                     >
                       <Eye className="w-3.5 h-3.5" />
                       <span>View</span>
@@ -898,10 +907,10 @@ export default function EscrowRoomPage() {
                   )}
                 </div>
               ) : (
-                <label className="rounded-xl border-2 border-dashed border-slate-300 p-4 text-center cursor-pointer hover:bg-slate-50 transition-colors flex flex-col items-center justify-center">
-                  <Upload className="w-5 h-5 text-slate-400 mb-1" />
-                  <span className="font-semibold text-slate-700">{t.attachProof}</span>
-                  <span className="text-[11px] text-slate-400 mt-0.5">
+                <label className="rounded-2xl border-2 border-dashed border-black/15 bg-white/50 p-4 text-center cursor-pointer hover:bg-white/80 transition-colors flex flex-col items-center justify-center">
+                  <Upload className="w-5 h-5 text-brand-ink-soft mb-1" />
+                  <span className="font-semibold text-brand-ink">{t.attachProof}</span>
+                  <span className="text-[11px] text-brand-ink-soft mt-0.5">
                     Optional screenshot from your Telebirr or bank app
                   </span>
                   <input
@@ -916,9 +925,9 @@ export default function EscrowRoomPage() {
           )}
 
           {/* 4. Role-Specific Order Action Panel */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm text-xs">
+          <div className="liquid-glass-card rounded-[26px] p-5 space-y-4 text-xs">
             {actionError && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-medium flex items-center justify-between">
+              <div className="p-3 rounded-2xl bg-rose-50/90 border border-rose-200 text-rose-800 font-medium flex items-center justify-between">
                 <span>{actionError}</span>
                 <button
                   onClick={() => setActionError(null)}
@@ -932,16 +941,15 @@ export default function EscrowRoomPage() {
             {/* STATE A: ORDER COMPLETED */}
             {order.status === 'COMPLETED' ? (
               <div className="space-y-4">
-                <div className="p-5 rounded-xl bg-emerald-50 border border-emerald-200 text-center space-y-2">
-                  <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
-                  <h4 className="font-bold text-emerald-950 text-base">{t.completedTitle}</h4>
-                  <p className="text-xs text-emerald-800 max-w-md mx-auto leading-relaxed">
-                    {order.usdtAmount.toFixed(2)} USDT has been added to{' '}
-                    <strong>{displayName(order.buyerName)}</strong>&apos;s wallet with 0.00 USDT
-                    fee.
+                <div className="p-5 rounded-2xl bg-brand-buy-50/90 border border-brand-buy-300/60 text-center space-y-2">
+                  <CheckCircle2 className="w-10 h-10 text-brand-buy-600 mx-auto" />
+                  <h4 className="font-bold text-brand-buy-900 text-base">{t.completedTitle}</h4>
+                  <p className="text-xs text-brand-buy-900/80 max-w-md mx-auto leading-relaxed">
+                    <span className="font-mono font-bold">{order.usdtAmount.toFixed(2)} USDT</span> has been added to{' '}
+                    <strong>{displayName(order.buyerName)}</strong>&apos;s wallet with <span className="font-mono">0.00 USDT</span> fee.
                   </p>
                   {order.resolvedBy && (
-                    <p className="text-[11px] text-emerald-700 font-medium">
+                    <p className="text-[11px] text-brand-buy-700 font-medium">
                       Resolved by {order.resolvedBy}
                       {order.resolutionNote ? ` — "${order.resolutionNote}"` : ''}
                     </p>
@@ -949,13 +957,13 @@ export default function EscrowRoomPage() {
                   <div className="pt-2 flex justify-center gap-2">
                     <button
                       onClick={() => router.push('/wallet')}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700"
+                      className="px-5 py-2.5 rounded-full bg-brand-buy-600 text-white font-bold hover:bg-brand-buy-700 transition-colors shadow-sm"
                     >
                       Open Wallet
                     </button>
                     <button
                       onClick={() => router.push('/market')}
-                      className="px-4 py-2 rounded-xl bg-white border border-emerald-300 text-emerald-900 font-semibold hover:bg-emerald-100"
+                      className="px-5 py-2.5 rounded-full bg-white/85 border border-brand-buy-300 text-brand-buy-900 font-semibold hover:bg-white transition-colors"
                     >
                       New Trade
                     </button>
@@ -964,18 +972,18 @@ export default function EscrowRoomPage() {
 
                 {/* Post-Order Feedback Section (Buyer or Seller) */}
                 {(isBuyer || isSeller) && (
-                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
-                    <div className="font-bold text-slate-900 text-sm">
+                  <div className="p-4 rounded-2xl border border-black/[0.08] bg-white/65 space-y-3">
+                    <div className="font-bold text-brand-ink text-sm">
                       How was your trade with{' '}
                       {isBuyer ? displayName(order.sellerName) : displayName(order.buyerName)}?
                     </div>
 
                     {myExistingFeedback ? (
-                      <div className="flex items-center gap-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 p-3 rounded-lg">
+                      <div className="flex items-center gap-2 text-xs text-brand-buy-900 bg-brand-buy-50 border border-brand-buy-300/60 p-3 rounded-2xl">
                         {myExistingFeedback.rating === 'POSITIVE' ? (
-                          <ThumbsUp className="w-4 h-4 text-emerald-600" />
+                          <ThumbsUp className="w-4 h-4 text-brand-buy-600" />
                         ) : (
-                          <ThumbsDown className="w-4 h-4 text-rose-600" />
+                          <ThumbsDown className="w-4 h-4 text-brand-sell" />
                         )}
                         <span>
                           Your review: <strong>{myExistingFeedback.rating}</strong> — &ldquo;
@@ -988,10 +996,10 @@ export default function EscrowRoomPage() {
                           <button
                             type="button"
                             onClick={() => setFeedbackRating('POSITIVE')}
-                            className={`py-2.5 px-3 rounded-xl border font-bold flex items-center justify-center gap-1.5 transition-colors ${
+                            className={`py-2.5 px-3 rounded-full border font-bold flex items-center justify-center gap-1.5 transition-all ${
                               feedbackRating === 'POSITIVE'
-                                ? 'bg-emerald-600 text-white border-emerald-600'
-                                : 'bg-white text-slate-700 border-slate-200'
+                                ? 'bg-brand-buy-600 text-white border-brand-buy-600 shadow-sm'
+                                : 'bg-white/75 text-brand-ink border-black/10 hover:bg-white'
                             }`}
                           >
                             <ThumbsUp className="w-4 h-4" />
@@ -1000,10 +1008,10 @@ export default function EscrowRoomPage() {
                           <button
                             type="button"
                             onClick={() => setFeedbackRating('NEGATIVE')}
-                            className={`py-2.5 px-3 rounded-xl border font-bold flex items-center justify-center gap-1.5 transition-colors ${
+                            className={`py-2.5 px-3 rounded-full border font-bold flex items-center justify-center gap-1.5 transition-all ${
                               feedbackRating === 'NEGATIVE'
-                                ? 'bg-rose-600 text-white border-rose-600'
-                                : 'bg-white text-slate-700 border-slate-200'
+                                ? 'bg-brand-sell text-white border-brand-sell shadow-sm'
+                                : 'bg-white/75 text-brand-ink border-black/10 hover:bg-white'
                             }`}
                           >
                             <ThumbsDown className="w-4 h-4" />
@@ -1016,12 +1024,12 @@ export default function EscrowRoomPage() {
                             value={feedbackComment}
                             onChange={(e) => setFeedbackComment(e.target.value)}
                             placeholder="Optional comment (e.g. Fast payment and release!)"
-                            className="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs focus:outline-none focus:border-slate-900"
+                            className="flex-1 px-3.5 py-2 rounded-full border border-black/10 bg-white/85 text-xs text-brand-ink focus:outline-none focus:border-brand-ink"
                           />
                           <button
                             type="submit"
                             disabled={submittingFeedback}
-                            className="px-4 py-2 rounded-lg bg-slate-900 text-white font-semibold hover:bg-slate-800"
+                            className="px-4 py-2 rounded-full bg-brand-ink text-white font-semibold hover:bg-neutral-800 transition-colors"
                           >
                             {submittingFeedback ? 'Saving...' : 'Save Review'}
                           </button>
@@ -1033,26 +1041,26 @@ export default function EscrowRoomPage() {
               </div>
             ) : order.status === 'CANCELLED' ? (
               /* STATE B: ORDER CANCELLED */
-              <div className="p-5 rounded-xl bg-slate-100 border border-slate-200 text-center space-y-2">
-                <XCircle className="w-9 h-9 text-slate-500 mx-auto" />
-                <h4 className="font-bold text-slate-900 text-base">{t.cancelledTitle}</h4>
-                <p className="text-xs text-slate-600">
+              <div className="p-5 rounded-2xl bg-black/[0.04] border border-black/[0.08] text-center space-y-2">
+                <XCircle className="w-9 h-9 text-brand-ink-soft mx-auto" />
+                <h4 className="font-bold text-brand-ink text-base">{t.cancelledTitle}</h4>
+                <p className="text-xs text-brand-ink-soft">
                   This order was cancelled
                   {order.cancelledBy === 'ADMIN'
                     ? ' by Admin'
                     : order.cancelledBy === 'BUYER'
                     ? ' by the Buyer'
                     : ''}
-                  . The {order.usdtAmount.toFixed(2)} USDT was unlocked and returned to{' '}
-                  <strong>{displayName(order.sellerName)}</strong>.
+                  . The <span className="font-mono font-semibold">{order.usdtAmount.toFixed(2)} USDT</span> was unlocked and returned to{' '}
+                  <strong className="text-brand-ink">{displayName(order.sellerName)}</strong>.
                 </p>
                 {order.cancelReason && (
-                  <p className="text-xs text-slate-500">Reason: &ldquo;{order.cancelReason}&rdquo;</p>
+                  <p className="text-xs text-brand-ink-soft">Reason: &ldquo;{order.cancelReason}&rdquo;</p>
                 )}
                 <div className="pt-2">
                   <button
                     onClick={() => router.push('/market')}
-                    className="px-4 py-2 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800"
+                    className="px-5 py-2.5 rounded-full bg-brand-ink text-white font-semibold hover:bg-neutral-800 transition-colors"
                   >
                     Back to P2P Market
                   </button>
@@ -1062,9 +1070,9 @@ export default function EscrowRoomPage() {
               /* STATE C: OPEN ORDER (PENDING_PAYMENT, PAYMENT_SENT, OR DISPUTED) */
               <div className="space-y-4">
                 {order.status === 'DISPUTED' && (
-                  <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 space-y-1">
+                  <div className="p-4 rounded-2xl bg-rose-50/90 border border-rose-200 space-y-1">
                     <div className="flex items-center gap-2 font-bold text-rose-900 text-sm">
-                      <AlertTriangle className="w-4 h-4 text-rose-600" />
+                      <AlertTriangle className="w-4 h-4 text-brand-sell" />
                       <span>
                         {t.disputedTitle}
                         {order.appealedBy ? ` (Opened by ${order.appealedBy})` : ''}
@@ -1084,39 +1092,39 @@ export default function EscrowRoomPage() {
                 {isBuyer && (
                   <div className="space-y-3">
                     {order.status === 'PENDING_PAYMENT' && (
-                      <div className="p-3.5 rounded-xl bg-sky-50 border border-sky-200 text-sky-950 space-y-1">
+                      <div className="p-3.5 rounded-2xl bg-sky-50/85 border border-sky-200 text-sky-950 space-y-1">
                         <div className="font-bold">Next step for you (Buyer):</div>
                         <p className="leading-relaxed">
-                          Send <strong>{order.etbAmount.toLocaleString()} ETB</strong> to{' '}
+                          Send <strong className="font-mono">{order.etbAmount.toLocaleString()} ETB</strong> to{' '}
                           <strong>{order.paymentDetails.accountName}</strong> (
-                          {order.paymentDetails.accountNumber}) via {railMeta.shortName}, then tap{' '}
+                          <span className="font-mono">{order.paymentDetails.accountNumber}</span>) via {railMeta.shortName}, then tap{' '}
                           <strong>&ldquo;{t.markPaidBtn}&rdquo;</strong> below.
                         </p>
                       </div>
                     )}
 
                     {order.status === 'PAYMENT_SENT' && (
-                      <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 font-bold text-xs text-emerald-800">
+                      <div className="p-4 rounded-2xl bg-brand-buy-50/85 border border-brand-buy-300/60 text-brand-buy-900 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 font-bold text-xs text-brand-buy-800">
                             <Zap className="w-4 h-4 text-amber-500 fill-amber-500 animate-bounce" />
                             <span>Automated Escrow Release Active</span>
                           </div>
                           {autoReleaseCountdown !== null && (
-                            <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-600 text-white tabular-nums shadow-sm">
+                            <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-full bg-brand-buy-600 text-white tabular-nums shadow-sm">
                               {autoReleaseCountdown > 0 ? `Auto-Release in ${autoReleaseCountdown}s` : 'Releasing now...'}
                             </span>
                           )}
                         </div>
-                        <p className="text-xs leading-relaxed text-slate-700">
+                        <p className="text-xs leading-relaxed text-brand-ink">
                           Payment has been registered. <strong>{displayName(order.sellerName)}</strong> has been notified.
                           Our automated escrow engine will automatically complete the order and credit{' '}
-                          <strong className="text-emerald-700">{order.usdtAmount.toFixed(2)} USDT</strong> directly to your wallet.
+                          <strong className="font-mono text-brand-buy-700">{order.usdtAmount.toFixed(2)} USDT</strong> directly to your wallet.
                         </p>
                         {autoReleaseCountdown !== null && (
-                          <div className="w-full bg-emerald-200 rounded-full h-1.5 overflow-hidden">
+                          <div className="w-full bg-brand-buy-300/40 rounded-full h-1.5 overflow-hidden">
                             <div
-                              className="bg-emerald-600 h-1.5 rounded-full transition-all duration-1000"
+                              className="bg-brand-buy-600 h-1.5 rounded-full transition-all duration-1000"
                               style={{
                                 width: `${Math.min(100, Math.max(5, ((15 - (autoReleaseCountdown ?? 0)) / 15) * 100))}%`,
                               }}
@@ -1131,7 +1139,7 @@ export default function EscrowRoomPage() {
                         <button
                           onClick={handleMarkPaid}
                           disabled={actionLoading}
-                          className="flex-1 py-3 px-5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                          className="flex-1 py-3 px-5 rounded-full bg-brand-buy-600 text-white font-bold text-sm hover:bg-brand-buy-700 transition-colors shadow-sm disabled:opacity-50"
                         >
                           {actionLoading ? 'Updating...' : t.markPaidBtn}
                         </button>
@@ -1142,7 +1150,7 @@ export default function EscrowRoomPage() {
                           type="button"
                           onClick={() => setShowCancelConfirm(!showCancelConfirm)}
                           disabled={actionLoading}
-                          className="py-3 px-4 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 transition-colors"
+                          className="py-3 px-4 rounded-full border border-black/10 bg-white/75 text-brand-ink font-semibold hover:bg-white transition-colors"
                         >
                           {t.cancelOrderBtn}
                         </button>
@@ -1152,7 +1160,7 @@ export default function EscrowRoomPage() {
                         <button
                           type="button"
                           onClick={() => setDisputeOpen(true)}
-                          className="py-3 px-4 rounded-xl border border-rose-200 text-rose-700 font-semibold bg-white hover:bg-rose-50 transition-colors"
+                          className="py-3 px-4 rounded-full border border-rose-200 text-brand-sell font-semibold bg-white/80 hover:bg-rose-50 transition-colors"
                         >
                           {t.disputeBtn}
                         </button>
@@ -1161,22 +1169,22 @@ export default function EscrowRoomPage() {
 
                     {/* Inline Buyer Cancel Confirmation */}
                     {showCancelConfirm && (
-                      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                        <div className="font-bold text-slate-900">
+                      <div className="p-4 rounded-2xl bg-white/75 border border-black/[0.08] space-y-3">
+                        <div className="font-bold text-brand-ink">
                           Are you sure you want to cancel this order?
                         </div>
-                        <p className="text-slate-600">
+                        <p className="text-brand-ink-soft">
                           Do <strong>not</strong> cancel if you have already sent Birr to the
                           seller.
                         </p>
                         <div className="space-y-1">
-                          <label className="block text-[11px] font-semibold text-slate-600">
+                          <label className="block text-[11px] font-semibold text-brand-ink-soft">
                             Reason for cancelling:
                           </label>
                           <select
                             value={cancelReason}
                             onChange={(e) => setCancelReason(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+                            className="w-full px-3.5 py-2 rounded-2xl border border-black/10 bg-white text-xs text-brand-ink focus:outline-none"
                           >
                             <option value="Changed my mind">Changed my mind</option>
                             <option value="Placed order by mistake">Placed order by mistake</option>
@@ -1188,7 +1196,7 @@ export default function EscrowRoomPage() {
                           <button
                             type="button"
                             onClick={() => setShowCancelConfirm(false)}
-                            className="px-3.5 py-2 rounded-lg border border-slate-200 bg-white font-semibold text-slate-700"
+                            className="px-4 py-2 rounded-full border border-black/10 bg-white font-semibold text-brand-ink"
                           >
                             Keep Order
                           </button>
@@ -1196,7 +1204,7 @@ export default function EscrowRoomPage() {
                             type="button"
                             onClick={() => handleCancelOrder(cancelReason)}
                             disabled={actionLoading}
-                            className="px-4 py-2 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700"
+                            className="px-4 py-2 rounded-full bg-brand-sell text-white font-bold hover:opacity-95"
                           >
                             {actionLoading ? 'Cancelling...' : 'Yes, Cancel Order'}
                           </button>
@@ -1210,13 +1218,13 @@ export default function EscrowRoomPage() {
                 {isSeller && (
                   <div className="space-y-3">
                     {order.status === 'PENDING_PAYMENT' ? (
-                      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
-                        <div className="font-bold text-slate-900">
+                      <div className="p-4 rounded-2xl bg-white/65 border border-black/[0.08] space-y-2.5">
+                        <div className="font-bold text-brand-ink">
                           Waiting for buyer ({displayName(order.buyerName)}) to send{' '}
-                          {order.etbAmount.toLocaleString()} ETB
+                          <span className="font-mono">{order.etbAmount.toLocaleString()} ETB</span>
                         </div>
-                        <p className="text-slate-600 leading-relaxed">
-                          Your <strong>{order.usdtAmount.toFixed(2)} USDT</strong> is locked in
+                        <p className="text-brand-ink-soft leading-relaxed">
+                          Your <strong className="font-mono text-brand-ink">{order.usdtAmount.toFixed(2)} USDT</strong> is locked in
                           escrow. Do not release the USDT until the buyer marks the order as paid and
                           you see the money in your {railMeta.shortName} account.
                         </p>
@@ -1224,14 +1232,14 @@ export default function EscrowRoomPage() {
                           <button
                             type="button"
                             disabled
-                            className="py-2.5 px-4 rounded-xl bg-slate-200 text-slate-500 font-bold cursor-not-allowed"
+                            className="py-2.5 px-4 rounded-full bg-black/[0.07] text-brand-ink-soft font-bold cursor-not-allowed"
                           >
                             Complete Order (Waiting for Buyer Payment)
                           </button>
                           <button
                             type="button"
                             onClick={() => setDisputeOpen(true)}
-                            className="py-2.5 px-3.5 rounded-xl border border-rose-200 text-rose-700 font-semibold hover:bg-rose-50"
+                            className="py-2.5 px-4 rounded-full border border-rose-200 bg-white/80 text-brand-sell font-semibold hover:bg-rose-50"
                           >
                             {t.disputeBtn}
                           </button>
@@ -1240,14 +1248,14 @@ export default function EscrowRoomPage() {
                     ) : (
                       /* Seller sees PAYMENT_SENT or DISPUTED -> can Confirm & Complete Order */
                       <div className="space-y-3">
-                        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 space-y-1.5">
-                          <div className="flex items-center justify-between">
+                        <div className="p-3.5 rounded-2xl bg-brand-buy-50/85 border border-brand-buy-300/60 text-brand-buy-900 space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
                             <div className="font-bold flex items-center gap-1.5">
-                              <Zap className="w-4 h-4 text-emerald-600" />
+                              <Zap className="w-4 h-4 text-brand-buy-600" />
                               <span>Buyer marked {order.etbAmount.toLocaleString()} ETB as paid!</span>
                             </div>
                             {autoReleaseCountdown !== null && (
-                              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-600 text-white tabular-nums">
+                              <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-brand-buy-600 text-white tabular-nums">
                                 {autoReleaseCountdown > 0 ? `Auto-Release in ${autoReleaseCountdown}s` : 'Processing release...'}
                               </span>
                             )}
@@ -1258,7 +1266,7 @@ export default function EscrowRoomPage() {
                           </p>
                         </div>
 
-                        <label className="flex items-start gap-2.5 p-3.5 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+                        <label className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-white/65 border border-black/[0.08] cursor-pointer">
                           <input
                             type="checkbox"
                             checked={sellerConfirmedBankCheck}
@@ -1268,9 +1276,9 @@ export default function EscrowRoomPage() {
                             }}
                             className="mt-0.5 rounded accent-emerald-600"
                           />
-                          <span className="text-slate-700 leading-relaxed">
+                          <span className="text-brand-ink leading-relaxed">
                             I checked my <strong>{railMeta.shortName}</strong> balance and confirmed
-                            that <strong>{order.etbAmount.toLocaleString()} ETB</strong> arrived from{' '}
+                            that <strong className="font-mono">{order.etbAmount.toLocaleString()} ETB</strong> arrived from{' '}
                             <strong>{displayName(order.buyerName)}</strong>.
                           </span>
                         </label>
@@ -1280,7 +1288,7 @@ export default function EscrowRoomPage() {
                             type="button"
                             onClick={() => handleReleaseCrypto(false)}
                             disabled={actionLoading}
-                            className="flex-1 py-3 px-5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                            className="flex-1 py-3 px-5 rounded-full bg-brand-buy-600 text-white font-bold text-sm hover:bg-brand-buy-700 transition-colors shadow-sm disabled:opacity-50"
                           >
                             {actionLoading ? 'Completing Order...' : t.releaseBtn}
                           </button>
@@ -1289,7 +1297,7 @@ export default function EscrowRoomPage() {
                             <button
                               type="button"
                               onClick={() => setDisputeOpen(true)}
-                              className="py-3 px-4 rounded-xl border border-rose-200 text-rose-700 font-semibold bg-white hover:bg-rose-50 transition-colors"
+                              className="py-3 px-4 rounded-full border border-rose-200 text-brand-sell font-semibold bg-white/80 hover:bg-rose-50 transition-colors"
                             >
                               {t.disputeBtn}
                             </button>
@@ -1302,12 +1310,12 @@ export default function EscrowRoomPage() {
 
                 {/* 3. ADMIN CONTROLS (Cancel Order or Complete Order at any open stage) */}
                 {isAdmin && (
-                  <div className="p-4 rounded-xl bg-slate-900 text-white space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                  <div className="liquid-glass-dark p-4 rounded-2xl text-white space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-brand-buy-400">
                         Admin Order Controls
                       </span>
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-[11px] text-white/60">
                         Cancel (refund seller) or Complete (pay buyer)
                       </span>
                     </div>
@@ -1317,7 +1325,7 @@ export default function EscrowRoomPage() {
                       value={adminNote}
                       onChange={(e) => setAdminNote(e.target.value)}
                       placeholder="Optional admin reason or note (e.g. Verified payment receipt / Buyer did not pay)..."
-                      className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-xs placeholder:text-slate-400 focus:outline-none focus:border-emerald-400"
+                      className="w-full px-3.5 py-2 rounded-2xl bg-white/10 border border-white/15 text-white text-xs placeholder:text-white/45 focus:outline-none focus:border-brand-buy-400"
                     />
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -1325,7 +1333,7 @@ export default function EscrowRoomPage() {
                         type="button"
                         onClick={() => handleReleaseCrypto(true)}
                         disabled={actionLoading}
-                        className="py-2.5 px-4 rounded-xl bg-emerald-500 text-slate-950 font-bold hover:bg-emerald-400 transition-colors"
+                        className="py-2.5 px-4 rounded-full bg-brand-buy-500 text-neutral-950 font-bold hover:bg-brand-buy-400 transition-colors"
                       >
                         Complete Order (Send USDT to Buyer)
                       </button>
@@ -1335,7 +1343,7 @@ export default function EscrowRoomPage() {
                           handleCancelOrder(adminNote.trim() || 'Cancelled by Admin')
                         }
                         disabled={actionLoading}
-                        className="py-2.5 px-4 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-500 transition-colors"
+                        className="py-2.5 px-4 rounded-full bg-brand-sell text-white font-bold hover:opacity-95 transition-colors"
                       >
                         Cancel Order (Return USDT to Seller)
                       </button>
@@ -1354,34 +1362,34 @@ export default function EscrowRoomPage() {
           }`}
         >
           {/* Chat Card */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-[520px] overflow-hidden">
-            <div className="p-4 border-b border-slate-200 bg-slate-900 text-white flex justify-between items-center">
+          <div className="liquid-glass-card rounded-[26px] flex flex-col h-[520px] overflow-hidden">
+            <div className="liquid-glass-dark p-4 text-white flex justify-between items-center">
               <div className="flex items-center gap-2.5">
-                <MessageSquare className="w-4 h-4 text-emerald-400" />
+                <MessageSquare className="w-4 h-4 text-brand-buy-400" />
                 <div>
                   <div className="text-xs font-bold">{t.chatTitle}</div>
-                  <div className="text-[10px] text-slate-400">
+                  <div className="text-[10px] text-white/60">
                     Chat directly with {isBuyer ? displayName(order.sellerName) : displayName(order.buyerName)}
                   </div>
                 </div>
               </div>
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Online
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold bg-brand-buy-500/20 text-brand-buy-300 border border-brand-buy-400/30 px-2.5 py-0.5 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-brand-buy-400" />
+                Live
               </span>
             </div>
 
             {/* Messages Scroll Area */}
-            <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50 text-xs">
+            <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-white/40 text-xs">
               {messages.map((msg) => {
                 const isMe = msg.senderId === currentUser?.id;
                 if (msg.isSystem) {
                   return (
                     <div
                       key={msg.id}
-                      className="p-3 rounded-xl bg-slate-200/80 text-slate-700 border border-slate-300 text-[11px] leading-relaxed"
+                      className="p-3 rounded-2xl bg-black/[0.05] text-brand-ink-soft border border-black/[0.08] text-[11px] leading-relaxed"
                     >
-                      <span className="font-bold text-slate-900 mr-1">{msg.senderName}:</span>
+                      <span className="font-bold text-brand-ink mr-1">{msg.senderName}:</span>
                       {msg.text}
                     </div>
                   );
@@ -1394,12 +1402,12 @@ export default function EscrowRoomPage() {
                       isMe ? 'ml-auto items-end' : 'mr-auto items-start'
                     }`}
                   >
-                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mb-1 px-1">
-                      <span className="font-semibold text-slate-600">
+                    <div className="flex items-center gap-1.5 text-[10px] text-brand-ink-soft mb-1 px-1">
+                      <span className="font-semibold text-brand-ink">
                         {displayName(msg.senderName)}
                       </span>
                       <span>•</span>
-                      <span>
+                      <span className="font-mono">
                         {new Date(msg.timestamp).toLocaleTimeString([], {
                           hour: '2-digit',
                           minute: '2-digit',
@@ -1409,20 +1417,20 @@ export default function EscrowRoomPage() {
                     <div
                       className={`px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
                         isMe
-                          ? 'bg-slate-900 text-white rounded-br-sm'
-                          : 'bg-white text-slate-900 border border-slate-200 rounded-bl-sm shadow-sm'
+                          ? 'bg-brand-ink text-white rounded-br-sm shadow-sm'
+                          : 'bg-white/90 text-brand-ink border border-black/10 rounded-bl-sm shadow-sm'
                       }`}
                     >
                       {msg.imageUrl && (
-                        <div className="mb-2 overflow-hidden rounded-xl border border-slate-200/40">
+                        <div className="mb-2 overflow-hidden rounded-xl border border-black/10">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={msg.imageUrl}
                             alt="Receipt attachment"
-                            className="max-h-56 max-w-full rounded-lg object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                            className="max-h-56 max-w-full rounded-lg object-cover cursor-zoom-in hover:opacity-95 transition-opacity"
                             onClick={() => {
                               setReceiptUrl(msg.imageUrl!);
-                              setPreviewReceiptModal(true);
+                              setLightboxSrc(msg.imageUrl!);
                             }}
                           />
                         </div>
@@ -1437,13 +1445,13 @@ export default function EscrowRoomPage() {
 
             {/* Quick Reply Chips */}
             {order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
-              <div className="px-3 py-2 bg-white border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+              <div className="px-3 py-2 bg-white/75 border-t border-black/[0.06] flex items-center gap-1.5 overflow-x-auto no-scrollbar">
                 {quickChatChips.map((chip, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => sendChatText(chip)}
-                    className="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-medium whitespace-nowrap transition-colors"
+                    className="px-3 py-1 rounded-full bg-white border border-black/10 hover:bg-black/[0.04] text-brand-ink text-[11px] font-medium whitespace-nowrap transition-colors"
                   >
                     {chip}
                   </button>
@@ -1454,11 +1462,11 @@ export default function EscrowRoomPage() {
             {/* Chat Input */}
             <form
               onSubmit={handleSendMessage}
-              className="p-3 border-t border-slate-200 bg-white flex items-center gap-2"
+              className="p-3 border-t border-black/[0.07] bg-white/80 flex items-center gap-2"
             >
               <label
                 title="Attach Image / Receipt"
-                className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer transition-colors relative"
+                className="p-2.5 rounded-full text-brand-ink-soft hover:text-brand-ink hover:bg-black/[0.05] cursor-pointer transition-colors relative"
               >
                 <input
                   type="file"
@@ -1468,7 +1476,7 @@ export default function EscrowRoomPage() {
                   className="hidden"
                 />
                 {uploadingChatImage ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                  <Loader2 className="w-4 h-4 animate-spin text-brand-buy-600" />
                 ) : (
                   <ImageIcon className="w-4 h-4" />
                 )}
@@ -1479,11 +1487,11 @@ export default function EscrowRoomPage() {
                 placeholder={t.chatPlaceholder}
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
-                className="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:bg-white focus:border-slate-900"
+                className="flex-1 px-4 py-2 rounded-full border border-black/10 bg-white/85 text-xs text-brand-ink focus:outline-none focus:bg-white focus:border-brand-ink"
               />
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 flex items-center justify-center transition-colors"
+                className="px-4 py-2 rounded-full bg-brand-ink text-white text-xs font-semibold hover:bg-neutral-800 flex items-center justify-center transition-colors shadow-sm"
               >
                 <Send className="w-3.5 h-3.5" />
               </button>
@@ -1491,8 +1499,8 @@ export default function EscrowRoomPage() {
           </div>
 
           {/* Order Timeline Card */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-3 shadow-sm text-xs">
-            <div className="font-bold text-slate-900 text-xs uppercase tracking-wider border-b border-slate-100 pb-2">
+          <div className="liquid-glass-card rounded-[26px] p-4 sm:p-5 space-y-3 text-xs">
+            <div className="font-bold text-brand-ink text-xs uppercase tracking-wider border-b border-black/[0.06] pb-2">
               {t.systemAuditLog}
             </div>
 
@@ -1500,12 +1508,12 @@ export default function EscrowRoomPage() {
               {order.auditLogs.map((log) => (
                 <div
                   key={log.id}
-                  className="border-l-2 border-emerald-500 pl-3 py-0.5 space-y-0.5"
+                  className="border-l-2 border-brand-buy-500 pl-3 py-0.5 space-y-0.5"
                 >
-                  <div className="text-[10px] font-mono text-slate-400">
+                  <div className="text-[10px] font-mono text-brand-ink-soft">
                     {new Date(log.timestamp).toLocaleTimeString()} • {log.actor}
                   </div>
-                  <div className="text-slate-700 leading-relaxed">{log.message}</div>
+                  <div className="text-brand-ink leading-relaxed">{log.message}</div>
                 </div>
               ))}
             </div>
@@ -1513,48 +1521,34 @@ export default function EscrowRoomPage() {
         </div>
       </div>
 
-      {/* Receipt Lightbox Modal */}
-      {previewReceiptModal && isImageReceipt && (
-        <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl">
-            <div className="p-4 border-b border-slate-200 flex justify-between items-center">
-              <span className="font-bold text-xs text-slate-900">Payment Receipt</span>
+      {/* Shared Image Lightbox */}
+      <ImageLightbox
+        src={lightboxSrc}
+        title="Payment Receipt"
+        onClose={() => setLightboxSrc(null)}
+      />
+
+      {/* Appeal / Dispute Modal */}
+      {disputeOpen && (
+        <div className="fixed inset-0 z-50 bg-black/35 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="liquid-glass-card rounded-t-[28px] sm:rounded-[28px] w-full max-w-md overflow-hidden text-xs">
+            <div className="p-4 bg-brand-sell text-white flex justify-between items-center font-bold">
+              <span>Need Help / Open Appeal</span>
               <button
-                onClick={() => setPreviewReceiptModal(false)}
-                className="p-1 rounded-lg text-slate-500 hover:bg-slate-100"
+                onClick={() => setDisputeOpen(false)}
+                className="p-1.5 rounded-full hover:bg-white/15 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-4 bg-slate-900 flex items-center justify-center max-h-[70vh] overflow-auto">
-              <img
-                src={activeReceiptUrl}
-                alt="Payment Receipt"
-                className="max-h-[60vh] w-auto rounded-lg object-contain"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Appeal / Dispute Modal */}
-      {disputeOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl border border-slate-200 w-full max-w-md shadow-2xl overflow-hidden text-xs">
-            <div className="p-4 border-b border-slate-200 bg-rose-700 text-white flex justify-between items-center font-bold">
-              <span>Need Help / Open Appeal</span>
-              <button onClick={() => setDisputeOpen(false)}>
-                <X className="w-4 h-4" />
-              </button>
-            </div>
             <form onSubmit={handleDispute} className="p-5 space-y-4">
-              <p className="text-slate-600 leading-relaxed">
-                While under appeal, the <strong>{order.usdtAmount.toFixed(2)} USDT</strong> stays
+              <p className="text-brand-ink-soft leading-relaxed">
+                While under appeal, the <strong className="font-mono text-brand-ink">{order.usdtAmount.toFixed(2)} USDT</strong> stays
                 locked in escrow. An Admin will check the chat and payment details to resolve the
                 order.
               </p>
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">
+                <label className="block text-brand-ink font-semibold mb-1.5">
                   What is the issue?
                 </label>
                 <textarea
@@ -1563,21 +1557,21 @@ export default function EscrowRoomPage() {
                   value={disputeReason}
                   onChange={(e) => setDisputeReason(e.target.value)}
                   placeholder="e.g. I sent the Birr via Telebirr 15 minutes ago, but the seller has not completed the order."
-                  className="w-full p-3 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-slate-900"
+                  className="w-full p-3.5 rounded-2xl border border-black/10 bg-white/85 text-xs text-brand-ink focus:outline-none focus:border-brand-ink"
                 />
               </div>
               <div className="flex justify-end gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => setDisputeOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-semibold"
+                  className="px-4 py-2 rounded-full border border-black/10 bg-white/75 text-brand-ink font-semibold hover:bg-white"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700"
+                  className="px-5 py-2 rounded-full bg-brand-sell text-white font-bold hover:opacity-95 transition-colors shadow-sm"
                 >
                   {actionLoading ? 'Sending...' : 'Open Appeal'}
                 </button>

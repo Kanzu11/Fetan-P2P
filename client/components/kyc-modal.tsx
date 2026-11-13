@@ -90,7 +90,7 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
       const data = await res.json();
       if (data.success) {
         setSubmitted(true);
-        setNotification('ID submitted! Superadmin @kanzedin was notified via Telegram and email.');
+        setNotification('ID submitted! Our compliance team was notified via Telegram and email.');
         await refreshUser();
       } else {
         setError(data.error || 'Could not submit ID.');
@@ -103,25 +103,25 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full overflow-hidden shadow-lg">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-md p-4">
+      <div className="liquid-glass-card rounded-[28px] max-w-md w-full overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="liquid-glass-dark flex items-center justify-between px-5 py-4 text-white shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white">
+            <div className="w-9 h-9 rounded-full bg-brand-buy-500/20 border border-brand-buy-400/30 flex items-center justify-center text-brand-buy-400">
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+              <h3 className="text-sm sm:text-base font-bold tracking-tight">
                 Verify Your Identity (KYC)
               </h3>
-              <p className="text-xs text-slate-500">
-                Required for all users before buying or selling USDT
+              <p className="text-[11px] text-white/65">
+                Required before buying or selling USDT
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="p-2 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -129,15 +129,15 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
 
         {submitted || currentUser.kycStatus === 'PENDING' ? (
           <div className="p-6 text-center space-y-4">
-            <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <div>
-              <h4 className="text-base font-bold text-slate-900 dark:text-white">
+              <h4 className="text-base font-bold text-brand-ink">
                 ID Verification in Review
               </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                Your ID details were sent to Superadmin <strong>@kanzedin</strong> via Telegram and email. Once approved, you can immediately buy and sell USDT.
+              <p className="text-xs text-brand-ink-soft mt-1 leading-relaxed">
+                Your ID details were sent to our compliance team via Telegram and email. Once approved, you can immediately buy and sell USDT.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 pt-2">
@@ -145,28 +145,28 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
                 href={`https://t.me/${botUsername}?start=kyc_${currentUser.id}`}
                 target="_blank"
                 rel="noreferrer"
-                className="flex-1 py-2.5 px-3 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 hover:bg-slate-200"
+                className="flex-1 py-2.5 px-4 rounded-full border border-black/10 bg-white/80 text-brand-ink text-xs font-semibold flex items-center justify-center gap-1.5 hover:bg-white transition-colors"
               >
-                <Send className="w-3.5 h-3.5 text-sky-500" />
+                <Send className="w-3.5 h-3.5 text-sky-600" />
                 Open @{botUsername}
               </a>
               <button
                 onClick={onClose}
-                className="flex-1 py-2.5 px-3 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold"
+                className="flex-1 py-2.5 px-4 rounded-full bg-brand-ink hover:bg-neutral-800 text-white text-xs font-bold transition-colors"
               >
                 Done
               </button>
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-5 space-y-4">
-            <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-900/60 flex items-center justify-between gap-3">
+          <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
+            <div className="p-3.5 rounded-2xl bg-sky-50/85 border border-sky-200 flex items-center justify-between gap-3">
               <div>
-                <div className="text-xs font-bold text-sky-900 dark:text-sky-200">
+                <div className="text-xs font-bold text-sky-950">
                   Prefer verifying on Telegram?
                 </div>
-                <div className="text-[11px] text-sky-700 dark:text-sky-300 mt-0.5">
-                  Submit KYC directly in @{botUsername} or the Mini App
+                <div className="text-[11px] text-sky-800 mt-0.5">
+                  Submit KYC directly in @{botUsername} or Mini App
                 </div>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
@@ -174,7 +174,7 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
                   href={`https://t.me/${botUsername}?start=kyc_${currentUser.id}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-bold flex items-center gap-1"
+                  className="px-3 py-1.5 rounded-full bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-bold flex items-center gap-1"
                 >
                   <Send className="w-3 h-3" /> Bot
                 </a>
@@ -182,7 +182,7 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
                   href={miniAppUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-900 dark:bg-slate-800 text-white text-[11px] font-bold flex items-center gap-1"
+                  className="px-3 py-1.5 rounded-full bg-brand-ink text-white text-[11px] font-bold flex items-center gap-1"
                 >
                   Mini App <ExternalLink className="w-3 h-3" />
                 </a>
@@ -190,14 +190,14 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
             </div>
 
             {error && (
-              <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 flex items-center gap-2 text-xs text-red-700 dark:text-red-300">
-                <AlertCircle className="w-4 h-4 shrink-0" />
+              <div className="p-3 rounded-2xl bg-rose-50/90 border border-rose-200 flex items-center gap-2 text-xs text-rose-800">
+                <AlertCircle className="w-4 h-4 text-brand-sell shrink-0" />
                 <span>{error}</span>
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-brand-ink mb-1.5">
                 Select ID Type
               </label>
               <div className="grid grid-cols-3 gap-2">
@@ -212,10 +212,10 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
                     key={item.id}
                     type="button"
                     onClick={() => setDocType(item.id)}
-                    className={`py-2 px-2.5 rounded-lg border text-xs font-semibold transition-colors ${
+                    className={`py-2.5 px-2.5 rounded-2xl border text-xs font-semibold transition-all ${
                       docType === item.id
-                        ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
-                        : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                        ? 'border-brand-ink bg-brand-ink text-white shadow-sm'
+                        : 'border-black/10 bg-white/70 text-brand-ink-soft hover:bg-white hover:text-brand-ink'
                     }`}
                   >
                     {item.label}
@@ -225,46 +225,46 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-brand-ink mb-1.5">
                 ID Document Number
               </label>
               <div className="relative">
-                <FileText className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <FileText className="w-4 h-4 text-brand-ink-soft absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   required
                   value={docNumber}
                   onChange={(e) => setDocNumber(e.target.value)}
                   placeholder="e.g. FAYDA-8829-1029 or EP-492019"
-                  className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-emerald-600"
+                  className="w-full pl-9 pr-3.5 py-2.5 rounded-2xl border border-black/10 bg-white/80 text-xs font-mono text-brand-ink focus:outline-none focus:bg-white focus:border-brand-ink"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-brand-ink mb-1.5">
                 Upload ID Photo / Document
               </label>
 
               {docPhotoUrl ? (
-                <div className="relative rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 flex items-center justify-between">
+                <div className="relative rounded-2xl border border-brand-buy-300/60 bg-brand-buy-50/80 p-3 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={docPhotoUrl}
                       alt="Uploaded ID preview"
-                      className="w-12 h-12 object-cover rounded-lg border border-emerald-300"
+                      className="w-12 h-12 object-cover rounded-xl border border-brand-buy-300"
                     />
                     <div>
-                      <div className="text-xs font-bold text-emerald-900 flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <div className="text-xs font-bold text-brand-buy-900 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-brand-buy-600" />
                         <span>Image Uploaded</span>
                       </div>
                       <a
                         href={docPhotoUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-[10px] text-emerald-700 underline truncate block max-w-[200px]"
+                        className="text-[10px] text-brand-buy-700 underline truncate block max-w-[200px]"
                       >
                         View Full Image
                       </a>
@@ -273,14 +273,14 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
                   <button
                     type="button"
                     onClick={() => setDocPhotoUrl('')}
-                    className="text-xs text-rose-600 font-semibold hover:underline"
+                    className="text-xs text-brand-sell font-semibold hover:underline"
                   >
                     Change
                   </button>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <label className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 bg-slate-50 dark:bg-slate-950/50 cursor-pointer transition-colors text-center">
+                  <label className="flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-dashed border-black/15 hover:border-brand-buy-500 bg-white/60 hover:bg-white cursor-pointer transition-colors text-center">
                     <input
                       type="file"
                       accept="image/*"
@@ -289,17 +289,17 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
                       disabled={uploadingImage}
                     />
                     {uploadingImage ? (
-                      <div className="flex items-center gap-2 text-xs text-slate-600 font-semibold">
-                        <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                      <div className="flex items-center gap-2 text-xs text-brand-ink font-semibold">
+                        <Loader2 className="w-4 h-4 animate-spin text-brand-buy-600" />
                         <span>Uploading image...</span>
                       </div>
                     ) : (
                       <>
-                        <Upload className="w-6 h-6 text-slate-400 mb-1" />
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        <Upload className="w-6 h-6 text-brand-ink-soft mb-1" />
+                        <span className="text-xs font-bold text-brand-ink">
                           Click to upload ID photo
                         </span>
-                        <span className="text-[10px] text-slate-500">
+                        <span className="text-[10px] text-brand-ink-soft">
                           JPG, PNG, WEBP (stored securely)
                         </span>
                       </>
@@ -312,21 +312,21 @@ export function KycModal({ isOpen, onClose }: KycModalProps) {
                       value={docPhotoUrl}
                       onChange={(e) => setDocPhotoUrl(e.target.value)}
                       placeholder="Or paste image URL directly..."
-                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-[11px] text-slate-600 dark:text-slate-300 focus:outline-none focus:border-emerald-600"
+                      className="w-full px-3.5 py-2 rounded-2xl border border-black/10 bg-white/75 text-[11px] text-brand-ink focus:outline-none focus:bg-white focus:border-brand-ink"
                     />
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-              Your legal name on Fetan P2P (<strong>{currentUser.name}</strong>) must match the name on your ID and your bank/Telebirr account.
+            <div className="p-3.5 rounded-2xl bg-white/65 border border-black/[0.08] text-[11px] text-brand-ink-soft leading-relaxed">
+              Your legal name on Fetan P2P (<strong className="text-brand-ink">{currentUser.name}</strong>) must match the name on your ID and your bank/Telebirr account.
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+              className="w-full py-3 rounded-full bg-brand-buy-600 hover:bg-brand-buy-700 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
               Submit ID for Verification

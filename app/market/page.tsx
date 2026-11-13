@@ -331,19 +331,21 @@ function MarketContent() {
     <div className="space-y-6 pb-8">
       {/* Mandatory KYC Banner for Unverified / Pending Users */}
       {currentUser && currentUser.kycStatus !== 'VERIFIED' && (
-        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="liquid-glass-card rounded-[24px] border-amber-300/70 bg-amber-50/75 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-start gap-3">
-            <ShieldCheck className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+            <div className="w-8 h-8 rounded-full bg-amber-500/15 border border-amber-400/30 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-4 h-4 text-amber-700" />
+            </div>
             <div>
               <div className="text-xs sm:text-sm font-bold text-amber-950">
                 {currentUser.kycStatus === 'PENDING'
                   ? 'Identity Verification (KYC) in Review'
-                  : 'Identity Verification (KYC) Required for All Users'}
+                  : 'Identity Verification (KYC) Required'}
               </div>
-              <p className="text-xs text-amber-800 mt-0.5">
+              <p className="text-xs text-amber-900/90 mt-0.5">
                 {currentUser.kycStatus === 'PENDING'
-                  ? 'Superadmin @kanzedin has been notified via Telegram and email. Once approved, you can buy and sell USDT.'
-                  : 'All users must verify their ID before buying or selling USDT. Verify here or via @fetanp2probot on Telegram.'}
+                  ? 'Our compliance team has been notified via Telegram and email. Once approved, trading unlocks immediately.'
+                  : 'Complete a one-time ID verification here or via @fetanp2probot before buying or selling USDT.'}
               </p>
             </div>
           </div>
@@ -351,7 +353,7 @@ function MarketContent() {
             <button
               type="button"
               onClick={() => setKycModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
+              className="px-4 py-2 rounded-full bg-brand-ink hover:bg-neutral-800 text-white text-xs font-semibold transition-colors shadow-sm"
             >
               {currentUser.kycStatus === 'PENDING' ? 'View KYC Status' : 'Verify ID Now'}
             </button>
@@ -359,9 +361,9 @@ function MarketContent() {
               href={`https://t.me/fetanp2probot?start=kyc_${currentUser.id}`}
               target="_blank"
               rel="noreferrer"
-              className="px-3.5 py-2 rounded-xl border border-amber-400 bg-white hover:bg-amber-100 text-amber-950 text-xs font-bold"
+              className="px-4 py-2 rounded-full border border-amber-400/70 bg-white/80 hover:bg-white text-amber-950 text-xs font-semibold transition-colors"
             >
-              Verify on Telegram Bot
+              Telegram Bot
             </a>
           </div>
         </div>
@@ -370,34 +372,34 @@ function MarketContent() {
       {/* Top Header & Mode Switcher */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-brand-ink">
             {t.marketTitle}
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">{t.marketSub}</p>
+          <p className="text-xs sm:text-sm text-brand-ink-soft mt-0.5">{t.marketSub}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
           {/* All Ads vs Fast Match Switcher */}
-          <div className="inline-flex items-center p-1 rounded-xl bg-slate-200 border border-slate-200 text-xs font-semibold">
+          <div className="liquid-pill-track inline-flex items-center p-1 rounded-full text-xs font-semibold">
             <button
               onClick={() => setMarketMode('ORDERBOOK')}
-              className={`px-3.5 py-1.5 rounded-lg transition-colors ${
+              className={`px-4 py-1.5 rounded-full transition-all ${
                 marketMode === 'ORDERBOOK'
-                  ? 'bg-white text-slate-900 shadow-sm font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-brand-ink shadow-sm font-bold'
+                  : 'text-brand-ink-soft hover:text-brand-ink'
               }`}
             >
               {t.modeOrderbook}
             </button>
             <button
               onClick={() => setMarketMode('EXPRESS')}
-              className={`px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1 ${
+              className={`px-4 py-1.5 rounded-full transition-all flex items-center gap-1.5 ${
                 marketMode === 'EXPRESS'
-                  ? 'bg-white text-slate-900 shadow-sm font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-brand-ink shadow-sm font-bold'
+                  : 'text-brand-ink-soft hover:text-brand-ink'
               }`}
             >
-              <Zap className="w-3.5 h-3.5 text-emerald-600" />
+              <Zap className="w-3.5 h-3.5 text-brand-buy-600" />
               <span>{t.modeExpress}</span>
             </button>
           </div>
@@ -405,17 +407,17 @@ function MarketContent() {
           {isMerchant ? (
             <button
               onClick={() => setCreateModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors shadow-sm"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-brand-ink text-white text-xs font-semibold hover:bg-neutral-800 transition-colors shadow-sm"
             >
-              <Plus className="w-4 h-4 text-emerald-400" />
+              <Plus className="w-4 h-4 text-brand-buy-400" />
               <span>{t.postAd}</span>
             </button>
           ) : (
             <button
               onClick={() => setMerchantModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/75 border border-black/10 backdrop-blur-md text-brand-ink text-xs font-semibold hover:bg-white transition-colors shadow-sm"
             >
-              <UserCheck className="w-4 h-4 text-slate-500" />
+              <UserCheck className="w-4 h-4 text-brand-ink-soft" />
               <span>{t.applyMerchant}</span>
             </button>
           )}
@@ -427,34 +429,34 @@ function MarketContent() {
 
       {marketMode === 'EXPRESS' ? (
         /* FAST MATCH (EXPRESS) MODE */
-        <div className="max-w-xl mx-auto bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center">
-                <Zap className="w-5 h-5 text-emerald-400" />
+        <div className="max-w-xl mx-auto liquid-glass-card rounded-[28px] overflow-hidden">
+          <div className="liquid-glass-dark p-6 text-white flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-brand-buy-500/20 border border-brand-buy-400/30 flex items-center justify-center">
+                <Zap className="w-5 h-5 text-brand-buy-400" />
               </div>
               <div>
-                <h2 className="text-base font-bold">Fast Match</h2>
-                <p className="text-xs text-slate-400">
-                  Get matched with the best price right away
+                <h2 className="text-base font-bold tracking-tight">Fast Match</h2>
+                <p className="text-xs text-white/60">
+                  Instant rate match from live escrow liquidity
                 </p>
               </div>
             </div>
-            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-brand-buy-500/20 text-brand-buy-300 border border-brand-buy-400/30">
               0% Fee
             </span>
           </div>
 
           <div className="p-6 space-y-5">
             {/* Buy / Sell Toggle */}
-            <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold">
+            <div className="liquid-pill-track grid grid-cols-2 gap-1.5 p-1 rounded-full text-xs font-bold">
               <button
                 type="button"
                 onClick={() => setOfferType('SELL')}
-                className={`py-2.5 rounded-lg transition-colors ${
+                className={`py-2.5 rounded-full transition-all ${
                   offerType === 'SELL'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-brand-buy-600 text-white shadow-sm'
+                    : 'text-brand-ink-soft hover:text-brand-ink'
                 }`}
               >
                 {t.btnBuyUsdt} (Pay Birr)
@@ -462,10 +464,10 @@ function MarketContent() {
               <button
                 type="button"
                 onClick={() => setOfferType('BUY')}
-                className={`py-2.5 rounded-lg transition-colors ${
+                className={`py-2.5 rounded-full transition-all ${
                   offerType === 'BUY'
-                    ? 'bg-rose-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-brand-sell text-white shadow-sm'
+                    : 'text-brand-ink-soft hover:text-brand-ink'
                 }`}
               >
                 {t.btnSellUsdt} (Get Birr)
@@ -473,30 +475,30 @@ function MarketContent() {
             </div>
 
             {/* Amount in ETB */}
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2">
-              <div className="flex justify-between text-xs text-slate-500 font-medium">
-                <span>{isUserBuying ? 'I want to pay' : 'I want to get'}</span>
+            <div className="rounded-2xl border border-black/10 bg-white/60 backdrop-blur-sm p-4 space-y-2.5">
+              <div className="flex justify-between text-xs text-brand-ink-soft font-medium">
+                <span>{isUserBuying ? 'I want to pay' : 'I want to receive'}</span>
                 <span>Ethiopian Birr (ETB)</span>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <input
                   type="number"
                   value={expressEtb}
                   onChange={(e) => setExpressEtb(e.target.value)}
-                  className="w-full bg-transparent text-2xl font-bold text-slate-900 tabular-nums focus:outline-none"
+                  className="w-full bg-transparent text-2xl font-bold font-mono text-brand-ink tabular-nums focus:outline-none"
                   placeholder="10000"
                 />
-                <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700">
+                <span className="px-3 py-1 rounded-full bg-white/90 border border-black/10 text-xs font-bold text-brand-ink shrink-0">
                   ETB
                 </span>
               </div>
-              <div className="flex gap-1.5 pt-1">
+              <div className="flex flex-wrap gap-1.5 pt-1">
                 {['1000', '5000', '15000', '50000'].map((preset) => (
                   <button
                     key={preset}
                     type="button"
                     onClick={() => setExpressEtb(preset)}
-                    className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[11px] font-semibold text-slate-600 hover:border-slate-400"
+                    className="px-3 py-1 rounded-full bg-white/80 border border-black/10 text-[11px] font-mono font-semibold text-brand-ink-soft hover:text-brand-ink hover:bg-white transition-colors"
                   >
                     {Number(preset).toLocaleString()} ETB
                   </button>
@@ -506,8 +508,8 @@ function MarketContent() {
 
             {/* Payment Method */}
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-slate-700">
-                Choose Payment Method
+              <label className="block text-xs font-semibold text-brand-ink">
+                Choose Payment Rail
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                 {(
@@ -520,10 +522,10 @@ function MarketContent() {
                       key={m}
                       type="button"
                       onClick={() => setExpressMethod(m)}
-                      className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-colors ${
+                      className={`p-2.5 rounded-2xl border text-left flex items-center gap-2 transition-all ${
                         active
-                          ? 'border-slate-900 bg-slate-900 text-white font-semibold'
-                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          ? 'border-brand-ink bg-brand-ink text-white font-semibold shadow-sm'
+                          : 'border-black/10 bg-white/65 text-brand-ink-soft hover:bg-white hover:text-brand-ink'
                       }`}
                     >
                       <span
@@ -539,25 +541,25 @@ function MarketContent() {
 
             {/* Matched Merchant Summary */}
             {expressMatchedOffer && (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 space-y-2 text-xs">
+              <div className="rounded-2xl border border-brand-buy-300/60 bg-brand-buy-50/80 backdrop-blur-sm p-4 space-y-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-emerald-800 font-medium">Matched User:</span>
-                  <span className="font-bold text-slate-900 flex items-center gap-1">
+                  <span className="text-brand-buy-900/80 font-medium">Best Live Match:</span>
+                  <span className="font-bold text-brand-ink flex items-center gap-1">
                     <span>{expressMatchedOffer.merchantName}</span>
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <ShieldCheck className="w-4 h-4 text-brand-buy-600" />
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-emerald-800 font-medium">Price:</span>
-                  <span className="font-bold text-slate-900 tabular-nums">
+                  <span className="text-brand-buy-900/80 font-medium">Unit Price:</span>
+                  <span className="font-mono font-bold text-brand-ink tabular-nums">
                     {expressMatchedOffer.pricePerUsdtEtb.toFixed(2)} ETB / USDT
                   </span>
                 </div>
-                <div className="flex items-center justify-between pt-1 border-t border-emerald-200">
-                  <span className="text-emerald-900 font-semibold">
-                    {isUserBuying ? 'USDT You Get:' : 'USDT You Sell:'}
+                <div className="flex items-center justify-between pt-2 border-t border-brand-buy-300/40">
+                  <span className="text-brand-buy-900 font-semibold">
+                    {isUserBuying ? 'Estimated USDT You Receive:' : 'Estimated USDT You Sell:'}
                   </span>
-                  <span className="text-base font-bold text-emerald-700 tabular-nums">
+                  <span className="text-base font-mono font-bold text-brand-buy-700 tabular-nums">
                     {((parseFloat(expressEtb) || 0) / expressMatchedOffer.pricePerUsdtEtb).toFixed(
                       2
                     )}{' '}
@@ -573,10 +575,10 @@ function MarketContent() {
               onClick={() =>
                 expressMatchedOffer && handleOpenTradeModal(expressMatchedOffer, expressEtb)
               }
-              className={`w-full py-3.5 px-5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-colors shadow-sm ${
+              className={`w-full py-3.5 px-5 rounded-full font-bold text-sm text-white flex items-center justify-center gap-2 transition-colors shadow-sm disabled:opacity-50 ${
                 isUserBuying
-                  ? 'bg-emerald-600 hover:bg-emerald-700'
-                  : 'bg-rose-600 hover:bg-rose-700'
+                  ? 'bg-brand-buy-600 hover:bg-brand-buy-700'
+                  : 'bg-brand-sell hover:opacity-95'
               }`}
             >
               <span>{isUserBuying ? 'Continue to Buy USDT' : 'Continue to Sell USDT'}</span>
@@ -588,26 +590,26 @@ function MarketContent() {
         /* ALL ADS (ORDERBOOK) MODE */
         <>
           {/* Filter & Control Card */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5 space-y-4">
+          <div className="liquid-glass-card rounded-[26px] p-4 sm:p-5 space-y-4">
             {/* Top Row: Buy / Sell Switcher + Sort + Count */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-              <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold self-start">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-black/[0.07] pb-4">
+              <div className="liquid-pill-track inline-flex p-1 rounded-full text-xs font-bold self-start">
                 <button
                   onClick={() => setOfferType('SELL')}
-                  className={`px-5 py-2 rounded-lg transition-colors ${
+                  className={`px-5 py-2 rounded-full transition-all ${
                     offerType === 'SELL'
-                      ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-brand-buy-600 text-white shadow-sm'
+                      : 'text-brand-ink-soft hover:text-brand-ink'
                   }`}
                 >
                   {t.btnBuyUsdt}
                 </button>
                 <button
                   onClick={() => setOfferType('BUY')}
-                  className={`px-5 py-2 rounded-lg transition-colors ${
+                  className={`px-5 py-2 rounded-full transition-all ${
                     offerType === 'BUY'
-                      ? 'bg-rose-600 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-brand-sell text-white shadow-sm'
+                      : 'text-brand-ink-soft hover:text-brand-ink'
                   }`}
                 >
                   {t.btnSellUsdt}
@@ -615,13 +617,13 @@ function MarketContent() {
               </div>
 
               <div className="flex items-center justify-between sm:justify-end gap-3 text-xs">
-                <div className="flex items-center gap-1.5 text-slate-500">
+                <div className="flex items-center gap-1.5 text-brand-ink-soft">
                   <SlidersHorizontal className="w-3.5 h-3.5" />
                   <span>Sort:</span>
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as any)}
-                    className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-800 focus:outline-none"
+                    className="bg-white/75 border border-black/10 rounded-full px-3 py-1.5 font-semibold text-brand-ink focus:outline-none focus:border-black/30"
                   >
                     <option value="PRICE">
                       {isUserBuying ? 'Lowest Price First' : 'Highest Price First'}
@@ -631,7 +633,7 @@ function MarketContent() {
                   </select>
                 </div>
 
-                <span className="text-slate-400 font-medium hidden sm:inline">
+                <span className="text-brand-ink-soft font-mono font-medium hidden sm:inline tabular-nums">
                   • {filteredOffers.length} {filteredOffers.length === 1 ? 'ad' : 'ads'}
                 </span>
               </div>
@@ -642,23 +644,23 @@ function MarketContent() {
               {/* Amount Input */}
               <div className="lg:col-span-4 space-y-1.5">
                 <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                  <Search className="w-3.5 h-3.5 text-brand-ink-soft absolute left-3.5 top-3" />
                   <input
                     type="number"
                     placeholder="Filter by amount in Birr (e.g. 5000)"
                     value={amountFilterEtb}
                     onChange={(e) => setAmountFilterEtb(e.target.value)}
-                    className="w-full pl-8 pr-16 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-900 tabular-nums focus:outline-none focus:bg-white focus:border-slate-900"
+                    className="w-full pl-9 pr-16 py-2 rounded-full border border-black/10 bg-white/65 text-xs font-mono font-semibold text-brand-ink tabular-nums focus:outline-none focus:bg-white focus:border-brand-ink"
                   />
                   {amountFilterEtb ? (
                     <button
                       onClick={() => setAmountFilterEtb('')}
-                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-700 text-xs"
+                      className="absolute right-3.5 top-2.5 text-brand-ink-soft hover:text-brand-ink text-xs"
                     >
                       ✕
                     </button>
                   ) : (
-                    <span className="absolute right-3 top-2.5 text-[11px] font-bold text-slate-400">
+                    <span className="absolute right-3.5 top-2.5 text-[11px] font-bold text-brand-ink-soft">
                       ETB
                     </span>
                   )}
@@ -674,10 +676,10 @@ function MarketContent() {
                     <button
                       key={method}
                       onClick={() => setSelectedPaymentMethod(method)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 border ${
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 border ${
                         active
-                          ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
-                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                          ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+                          : 'bg-white/65 text-brand-ink-soft border-black/10 hover:bg-white hover:text-brand-ink'
                       }`}
                     >
                       {meta && (
@@ -695,23 +697,38 @@ function MarketContent() {
           </div>
 
           {/* Offers List: Desktop Table & Mobile Cards */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="liquid-glass-card rounded-[26px] overflow-hidden">
             {loading ? (
-              <div className="p-12 text-center text-slate-500 text-xs space-y-2">
-                <div className="w-6 h-6 border-2 border-slate-300 border-t-slate-900 rounded-full animate-spin mx-auto" />
-                <p>Loading ads...</p>
+              <div className="divide-y divide-black/[0.06] p-4 sm:p-5 space-y-1">
+                {[0, 1, 2, 3].map((row) => (
+                  <div
+                    key={row}
+                    className="py-3.5 flex items-center justify-between gap-4 animate-pulse"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-black/[0.08]" />
+                      <div className="space-y-1.5">
+                        <div className="h-3.5 w-32 rounded-full bg-black/[0.08]" />
+                        <div className="h-2.5 w-24 rounded-full bg-black/[0.06]" />
+                      </div>
+                    </div>
+                    <div className="hidden sm:block h-5 w-24 rounded-full bg-black/[0.08]" />
+                    <div className="hidden md:block h-4 w-36 rounded-full bg-black/[0.06]" />
+                    <div className="h-8 w-24 rounded-full bg-black/[0.08]" />
+                  </div>
+                ))}
               </div>
             ) : filteredOffers.length === 0 ? (
               <div className="p-12 text-center space-y-3">
-                <p className="text-slate-600 text-sm font-medium">
-                  No ads match your current filter.
+                <p className="text-brand-ink-soft text-sm font-medium">
+                  No active liquidity matches your current filter.
                 </p>
                 <button
                   onClick={() => {
                     setSelectedPaymentMethod('ALL');
                     setAmountFilterEtb('');
                   }}
-                  className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800"
+                  className="px-5 py-2 rounded-full bg-brand-ink text-white text-xs font-semibold hover:bg-neutral-800 transition-colors"
                 >
                   Clear Filters
                 </button>
@@ -722,7 +739,7 @@ function MarketContent() {
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[11px] font-semibold uppercase tracking-wider">
+                      <tr className="border-b border-black/[0.07] bg-white/50 text-brand-ink-soft text-[11px] font-semibold uppercase tracking-wider">
                         <th className="py-3.5 px-5">{t.advertiser}</th>
                         <th className="py-3.5 px-5">{t.unitPrice}</th>
                         <th className="py-3.5 px-5">{t.availableLimit}</th>
@@ -730,45 +747,45 @@ function MarketContent() {
                         <th className="py-3.5 px-5 text-right">{t.action}</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200">
+                    <tbody className="divide-y divide-black/[0.06]">
                       {filteredOffers.map((offer) => {
                         const initial = offer.merchantName.charAt(0).toUpperCase();
                         const isOwnAd = offer.merchantId === currentUser?.id;
                         return (
                           <tr
                             key={offer.id}
-                            className="hover:bg-slate-50 transition-colors group"
+                            className="hover:bg-white/75 transition-colors group"
                           >
                             {/* Merchant Info */}
                             <td className="py-4 px-5">
                               <div className="flex items-start gap-3">
                                 <div className="relative flex-shrink-0">
-                                  <div className="w-9 h-9 rounded-full bg-slate-900 text-white font-bold text-xs flex items-center justify-center">
+                                  <div className="w-9 h-9 rounded-full bg-brand-ink text-white font-bold text-xs flex items-center justify-center shadow-sm">
                                     {initial}
                                   </div>
                                   <span
-                                    className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white"
-                                    title="Online now"
+                                    className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-brand-buy-500 border-2 border-white"
+                                    title="Verified Merchant"
                                   />
                                 </div>
                                 <div className="space-y-1">
-                                  <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
+                                  <div className="flex items-center gap-1.5 font-bold text-brand-ink text-sm">
                                     <span>{offer.merchantName}</span>
-                                    <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                    <ShieldCheck className="w-4 h-4 text-brand-buy-600 flex-shrink-0" />
                                     {isOwnAd && (
-                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">
+                                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/[0.06] text-brand-ink">
                                         Your Ad
                                       </span>
                                     )}
                                   </div>
-                                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 tabular-nums">
+                                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-brand-ink-soft font-mono tabular-nums">
                                     <span>{offer.completedTrades.toLocaleString()} orders</span>
                                     <span>•</span>
-                                    <span className="text-emerald-700 font-medium">
-                                      {offer.completionRate}% completed
+                                    <span className="text-brand-buy-700 font-semibold">
+                                      {offer.completionRate}% filled
                                     </span>
                                     <span>•</span>
-                                    <span className="inline-flex items-center gap-0.5 text-slate-500">
+                                    <span className="inline-flex items-center gap-0.5">
                                       <Clock className="w-3 h-3" />
                                       ~{offer.avgReleaseTimeMins || 1}m
                                     </span>
@@ -780,18 +797,20 @@ function MarketContent() {
                             {/* Price */}
                             <td className="py-4 px-5">
                               <div className="flex items-baseline gap-1">
-                                <span className="text-xl font-bold text-slate-900 tabular-nums">
+                                <span className="text-xl font-bold font-mono text-brand-ink tabular-nums tracking-tight">
                                   {offer.pricePerUsdtEtb.toFixed(2)}
                                 </span>
-                                <span className="text-xs font-semibold text-slate-500">ETB</span>
+                                <span className="text-xs font-semibold text-brand-ink-soft">
+                                  ETB
+                                </span>
                               </div>
                             </td>
 
                             {/* Available & Limits */}
-                            <td className="py-4 px-5 space-y-1 tabular-nums">
-                              <div className="text-slate-700">
-                                <span className="text-slate-400 mr-1.5">{t.available}:</span>
-                                <span className="font-bold text-slate-900">
+                            <td className="py-4 px-5 space-y-1 font-mono tabular-nums">
+                              <div className="text-brand-ink-soft">
+                                <span className="opacity-70 mr-1.5">{t.available}:</span>
+                                <span className="font-bold text-brand-ink">
                                   {offer.totalAvailable.toLocaleString('en-US', {
                                     minimumFractionDigits: 2,
                                     maximumFractionDigits: 2,
@@ -799,9 +818,9 @@ function MarketContent() {
                                   USDT
                                 </span>
                               </div>
-                              <div className="text-slate-600">
-                                <span className="text-slate-400 mr-1.5">{t.limits}:</span>
-                                <span className="font-semibold text-slate-800">
+                              <div className="text-brand-ink-soft">
+                                <span className="opacity-70 mr-1.5">{t.limits}:</span>
+                                <span className="font-semibold text-brand-ink">
                                   {offer.minLimitEtb.toLocaleString()} –{' '}
                                   {offer.maxLimitEtb.toLocaleString()} ETB
                                 </span>
@@ -816,11 +835,11 @@ function MarketContent() {
                                   return (
                                     <span
                                       key={m}
-                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-[11px] font-medium text-slate-800"
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/80 border border-black/10 text-[11px] font-medium text-brand-ink"
                                     >
                                       <span
-                                        className="w-1 h-3 rounded-full"
-                                        style={{ backgroundColor: meta?.accentColor || '#00A859' }}
+                                        className="w-1.5 h-3 rounded-full"
+                                        style={{ backgroundColor: meta?.accentColor || '#059669' }}
                                       />
                                       <span>{meta?.shortName || m}</span>
                                     </span>
@@ -834,17 +853,17 @@ function MarketContent() {
                               {isOwnAd ? (
                                 <button
                                   onClick={() => router.push('/orders?tab=ads')}
-                                  className="px-4 py-2 rounded-xl text-xs font-semibold border border-slate-200 text-slate-700 hover:bg-slate-100"
+                                  className="px-4 py-2 rounded-full text-xs font-semibold border border-black/10 bg-white/80 text-brand-ink hover:bg-white transition-colors"
                                 >
                                   Manage Ad
                                 </button>
                               ) : (
                                 <button
                                   onClick={() => handleOpenTradeModal(offer, amountFilterEtb)}
-                                  className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-colors shadow-sm ${
+                                  className={`px-5 py-2.5 rounded-full text-xs font-bold text-white transition-colors shadow-sm ${
                                     isUserBuying
-                                      ? 'bg-emerald-600 hover:bg-emerald-700'
-                                      : 'bg-rose-600 hover:bg-rose-700'
+                                      ? 'bg-brand-buy-600 hover:bg-brand-buy-700'
+                                      : 'bg-brand-sell hover:opacity-95'
                                   }`}
                                 >
                                   {isUserBuying ? t.btnBuyUsdt : t.btnSellUsdt}
@@ -859,7 +878,7 @@ function MarketContent() {
                 </div>
 
                 {/* Mobile Cards */}
-                <div className="md:hidden divide-y divide-slate-200">
+                <div className="md:hidden divide-y divide-black/[0.06]">
                   {filteredOffers.map((offer) => {
                     const initial = offer.merchantName.charAt(0).toUpperCase();
                     const isOwnAd = offer.merchantId === currentUser?.id;
@@ -869,17 +888,17 @@ function MarketContent() {
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2.5 min-w-0">
                             <div className="relative flex-shrink-0">
-                              <div className="w-8 h-8 rounded-full bg-slate-900 text-white font-bold text-xs flex items-center justify-center">
+                              <div className="w-8 h-8 rounded-full bg-brand-ink text-white font-bold text-xs flex items-center justify-center">
                                 {initial}
                               </div>
-                              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
+                              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-brand-buy-500 border-2 border-white" />
                             </div>
                             <div className="min-w-0">
-                              <div className="flex items-center gap-1 font-bold text-slate-900 text-sm truncate">
+                              <div className="flex items-center gap-1 font-bold text-brand-ink text-sm truncate">
                                 <span className="truncate">{offer.merchantName}</span>
-                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                                <ShieldCheck className="w-3.5 h-3.5 text-brand-buy-600 flex-shrink-0" />
                               </div>
-                              <div className="text-[11px] text-slate-500 tabular-nums">
+                              <div className="text-[11px] font-mono text-brand-ink-soft tabular-nums">
                                 {offer.completedTrades} orders • {offer.completionRate}% • ~
                                 {offer.avgReleaseTimeMins || 1}m
                               </div>
@@ -887,27 +906,27 @@ function MarketContent() {
                           </div>
 
                           <div className="text-right flex-shrink-0">
-                            <div className="text-[10px] text-slate-400 uppercase font-medium">
+                            <div className="text-[10px] text-brand-ink-soft uppercase font-medium">
                               Price
                             </div>
-                            <div className="text-lg font-bold text-slate-900 tabular-nums">
+                            <div className="text-lg font-mono font-bold text-brand-ink tabular-nums">
                               {offer.pricePerUsdtEtb.toFixed(2)}{' '}
-                              <span className="text-xs font-semibold text-slate-500">ETB</span>
+                              <span className="text-xs font-semibold text-brand-ink-soft">ETB</span>
                             </div>
                           </div>
                         </div>
 
                         {/* Middle row: Quantity & Limits */}
-                        <div className="rounded-xl bg-slate-50 border border-slate-200 p-2.5 text-xs space-y-1 tabular-nums">
+                        <div className="rounded-2xl bg-white/65 border border-black/[0.08] p-3 text-xs space-y-1 font-mono tabular-nums">
                           <div className="flex justify-between">
-                            <span className="text-slate-500">{t.available}:</span>
-                            <span className="font-bold text-slate-900">
+                            <span className="text-brand-ink-soft">{t.available}:</span>
+                            <span className="font-bold text-brand-ink">
                               {offer.totalAvailable.toFixed(2)} USDT
                             </span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-slate-500">{t.limits}:</span>
-                            <span className="font-semibold text-slate-800">
+                            <span className="text-brand-ink-soft">{t.limits}:</span>
+                            <span className="font-semibold text-brand-ink">
                               {offer.minLimitEtb.toLocaleString()} –{' '}
                               {offer.maxLimitEtb.toLocaleString()} ETB
                             </span>
@@ -922,11 +941,11 @@ function MarketContent() {
                               return (
                                 <span
                                   key={m}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px] font-medium text-slate-700"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/75 border border-black/10 text-[10px] font-medium text-brand-ink"
                                 >
                                   <span
                                     className="w-1 h-2.5 rounded-full"
-                                    style={{ backgroundColor: meta?.accentColor || '#00A859' }}
+                                    style={{ backgroundColor: meta?.accentColor || '#059669' }}
                                   />
                                   <span>{meta?.shortName || m}</span>
                                 </span>
@@ -937,15 +956,15 @@ function MarketContent() {
                           {isOwnAd ? (
                             <button
                               onClick={() => router.push('/orders?tab=ads')}
-                              className="px-4 py-2 rounded-xl text-xs font-semibold border border-slate-200 text-slate-700"
+                              className="px-4 py-2 rounded-full text-xs font-semibold border border-black/10 bg-white/80 text-brand-ink"
                             >
                               Your Ad
                             </button>
                           ) : (
                             <button
                               onClick={() => handleOpenTradeModal(offer, amountFilterEtb)}
-                              className={`px-5 py-2 rounded-xl text-xs font-bold text-white flex-shrink-0 ${
-                                isUserBuying ? 'bg-emerald-600' : 'bg-rose-600'
+                              className={`px-5 py-2 rounded-full text-xs font-bold text-white flex-shrink-0 shadow-sm ${
+                                isUserBuying ? 'bg-brand-buy-600' : 'bg-brand-sell'
                               }`}
                             >
                               {isUserBuying ? t.btnBuyUsdt : t.btnSellUsdt}
@@ -964,31 +983,31 @@ function MarketContent() {
 
       {/* Order Creation Modal / Sheet */}
       {selectedOffer && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl border border-slate-200 w-full max-w-lg shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+        <div className="fixed inset-0 z-50 bg-black/35 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="liquid-glass-card rounded-t-[28px] sm:rounded-[28px] w-full max-w-lg overflow-hidden max-h-[92vh] flex flex-col">
             {/* Modal Header */}
-            <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-900 text-white flex justify-between items-center">
+            <div className="liquid-glass-dark p-4 sm:p-5 text-white flex justify-between items-center">
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
                   <span
-                    className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                    className={`text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full ${
                       selectedOffer.offerType === 'SELL'
-                        ? 'bg-emerald-500 text-slate-950'
-                        : 'bg-rose-500 text-white'
+                        ? 'bg-brand-buy-500 text-neutral-950'
+                        : 'bg-brand-sell text-white'
                     }`}
                   >
                     {selectedOffer.offerType === 'SELL' ? 'Buy USDT' : 'Sell USDT'}
                   </span>
                   <h3 className="text-sm font-bold">{selectedOffer.merchantName}</h3>
                 </div>
-                <p className="text-[11px] text-slate-400 tabular-nums">
+                <p className="text-[11px] text-white/65 font-mono tabular-nums">
                   Price: <strong className="text-white">{selectedOffer.pricePerUsdtEtb.toFixed(2)} ETB</strong> •
                   15 min to pay • 0% Fee
                 </p>
               </div>
               <button
                 onClick={() => setSelectedOffer(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                className="p-2 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -999,14 +1018,14 @@ function MarketContent() {
               className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 text-xs"
             >
               {tradeError && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2">
+                <div className="p-3 rounded-2xl bg-rose-50/90 border border-rose-200 text-rose-800 flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
                   <span>{tradeError}</span>
                 </div>
               )}
 
               {currentUser && currentUser.kycStatus !== 'VERIFIED' && (
-                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 space-y-2">
+                <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-300/70 text-amber-950 space-y-2">
                   <div className="font-bold text-xs flex items-center gap-1.5">
                     <ShieldCheck className="w-4 h-4 text-amber-700" />
                     <span>Identity Verification (KYC) Required</span>
@@ -1021,7 +1040,7 @@ function MarketContent() {
                         setSelectedOffer(null);
                         setKycModalOpen(true);
                       }}
-                      className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold"
+                      className="px-3.5 py-1.5 rounded-full bg-brand-ink text-white text-xs font-semibold"
                     >
                       Verify ID on Website
                     </button>
@@ -1029,33 +1048,33 @@ function MarketContent() {
                       href={`https://t.me/fetanp2probot?start=kyc_${currentUser.id}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="px-3 py-1.5 rounded-lg border border-amber-400 bg-white text-amber-950 text-xs font-bold"
+                      className="px-3.5 py-1.5 rounded-full border border-amber-400/70 bg-white/80 text-amber-950 text-xs font-semibold"
                     >
-                      Verify via @fetanp2probot
+                      @fetanp2probot
                     </a>
                   </div>
                 </div>
               )}
 
               {/* Offer Summary & Balance Check when Selling */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 tabular-nums">
+              <div className="p-3.5 rounded-2xl bg-white/65 border border-black/[0.08] space-y-1.5 font-mono tabular-nums">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Order Limits:</span>
-                  <span className="font-semibold text-slate-900">
+                  <span className="text-brand-ink-soft">Order Limits:</span>
+                  <span className="font-semibold text-brand-ink">
                     {selectedOffer.minLimitEtb.toLocaleString()} –{' '}
                     {selectedOffer.maxLimitEtb.toLocaleString()} ETB
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Available on Ad:</span>
-                  <span className="font-semibold text-slate-900">
+                  <span className="text-brand-ink-soft">Available on Ad:</span>
+                  <span className="font-semibold text-brand-ink">
                     {selectedOffer.totalAvailable.toFixed(2)} USDT
                   </span>
                 </div>
                 {selectedOffer.offerType === 'BUY' && currentUser && (
-                  <div className="flex justify-between pt-1 border-t border-slate-200">
-                    <span className="text-slate-600 font-medium">Your Wallet Balance:</span>
-                    <span className="font-bold text-emerald-700">
+                  <div className="flex justify-between pt-1.5 border-t border-black/[0.07]">
+                    <span className="text-brand-ink-soft font-medium">Your Wallet Balance:</span>
+                    <span className="font-bold text-brand-buy-700">
                       {currentUser.usdtBalance.toFixed(2)} USDT
                     </span>
                   </div>
@@ -1065,29 +1084,29 @@ function MarketContent() {
               {/* Dual Inputs: ETB & USDT */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="font-semibold text-slate-700">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="font-semibold text-brand-ink">
                       {selectedOffer.offerType === 'SELL' ? 'You Pay (ETB)' : 'You Get (ETB)'}
                     </label>
                     <div className="flex gap-1">
                       <button
                         type="button"
                         onClick={() => handleQuickFill('MIN')}
-                        className="text-[10px] font-bold text-slate-500 hover:text-slate-900 px-1.5 py-0.5 rounded bg-slate-100"
+                        className="text-[10px] font-bold text-brand-ink-soft hover:text-brand-ink px-2 py-0.5 rounded-full bg-black/[0.06]"
                       >
                         Min
                       </button>
                       <button
                         type="button"
                         onClick={() => handleQuickFill('HALF')}
-                        className="text-[10px] font-bold text-slate-500 hover:text-slate-900 px-1.5 py-0.5 rounded bg-slate-100"
+                        className="text-[10px] font-bold text-brand-ink-soft hover:text-brand-ink px-2 py-0.5 rounded-full bg-black/[0.06]"
                       >
                         50%
                       </button>
                       <button
                         type="button"
                         onClick={() => handleQuickFill('MAX')}
-                        className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 px-1.5 py-0.5 rounded bg-emerald-50"
+                        className="text-[10px] font-bold text-brand-buy-700 hover:text-brand-buy-900 px-2 py-0.5 rounded-full bg-brand-buy-50"
                       >
                         Max
                       </button>
@@ -1100,16 +1119,16 @@ function MarketContent() {
                       required
                       value={tradeEtbInput}
                       onChange={(e) => handleEtbChange(e.target.value)}
-                      className="w-full pl-3.5 pr-12 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-900 tabular-nums focus:outline-none focus:border-slate-900"
+                      className="w-full pl-3.5 pr-12 py-2.5 rounded-2xl border border-black/10 bg-white/75 text-sm font-mono font-bold text-brand-ink tabular-nums focus:outline-none focus:bg-white focus:border-brand-ink"
                     />
-                    <span className="absolute right-3.5 top-2.5 text-slate-400 font-semibold">
+                    <span className="absolute right-3.5 top-3 text-brand-ink-soft font-semibold">
                       ETB
                     </span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
+                  <label className="block font-semibold text-brand-ink mb-1.5">
                     {selectedOffer.offerType === 'SELL' ? 'You Get (USDT)' : 'You Sell (USDT)'}
                   </label>
                   <div className="relative">
@@ -1119,9 +1138,9 @@ function MarketContent() {
                       required
                       value={tradeUsdtAmount}
                       onChange={(e) => handleUsdtChange(e.target.value)}
-                      className="w-full pl-3.5 pr-14 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-900 tabular-nums focus:outline-none focus:border-slate-900"
+                      className="w-full pl-3.5 pr-14 py-2.5 rounded-2xl border border-black/10 bg-white/75 text-sm font-mono font-bold text-brand-ink tabular-nums focus:outline-none focus:bg-white focus:border-brand-ink"
                     />
-                    <span className="absolute right-3.5 top-2.5 text-slate-400 font-semibold">
+                    <span className="absolute right-3.5 top-3 text-brand-ink-soft font-semibold">
                       USDT
                     </span>
                   </div>
@@ -1130,7 +1149,7 @@ function MarketContent() {
 
               {/* Payment Method Selector */}
               <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">
+                <label className="block font-semibold text-brand-ink mb-1.5">
                   {selectedOffer.offerType === 'SELL'
                     ? 'How will you pay the seller?'
                     : 'How do you want to receive Birr?'}
@@ -1144,20 +1163,20 @@ function MarketContent() {
                         key={m}
                         type="button"
                         onClick={() => setTradePaymentMethod(m)}
-                        className={`p-2.5 rounded-xl text-left border transition-colors flex items-center justify-between ${
+                        className={`p-2.5 rounded-2xl text-left border transition-all flex items-center justify-between ${
                           active
-                            ? 'border-slate-900 bg-slate-900 text-white font-semibold'
-                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                            ? 'border-brand-ink bg-brand-ink text-white font-semibold shadow-sm'
+                            : 'border-black/10 bg-white/65 text-brand-ink hover:bg-white'
                         }`}
                       >
                         <div className="flex items-center gap-2 truncate">
                           <span
                             className="w-1.5 h-3.5 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: meta?.accentColor || '#00A859' }}
+                            style={{ backgroundColor: meta?.accentColor || '#059669' }}
                           />
                           <span className="truncate">{meta?.shortName || m}</span>
                         </div>
-                        {active && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+                        {active && <CheckCircle2 className="w-3.5 h-3.5 text-brand-buy-400" />}
                       </button>
                     );
                   })}
@@ -1166,8 +1185,8 @@ function MarketContent() {
 
               {/* When User is Selling USDT: Confirm Payout Account Number */}
               {selectedOffer.offerType === 'BUY' && (
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                  <label className="block font-semibold text-slate-800">
+                <div className="p-3.5 rounded-2xl bg-white/65 border border-black/[0.08] space-y-2">
+                  <label className="block font-semibold text-brand-ink">
                     Your {PAYMENT_METHODS_META[tradePaymentMethod]?.accountLabel || 'Account Number'}{' '}
                     (where buyer will send Birr)
                   </label>
@@ -1180,17 +1199,17 @@ function MarketContent() {
                       PAYMENT_METHODS_META[tradePaymentMethod]?.placeholder ||
                       'Enter account or phone number'
                     }
-                    className="w-full px-3.5 py-2 rounded-lg border border-slate-300 bg-white font-mono text-xs focus:outline-none focus:border-slate-900"
+                    className="w-full px-3.5 py-2.5 rounded-2xl border border-black/10 bg-white/85 font-mono text-xs text-brand-ink focus:outline-none focus:border-brand-ink"
                   />
-                  <p className="text-[11px] text-slate-500">
-                    Account holder name: <strong>{displayName(currentUser?.name)}</strong>
+                  <p className="text-[11px] text-brand-ink-soft">
+                    Account holder name: <strong className="text-brand-ink">{displayName(currentUser?.name)}</strong>
                   </p>
                 </div>
               )}
 
               {/* Merchant Note */}
               {selectedOffer.terms && (
-                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 space-y-1">
+                <div className="p-3.5 rounded-2xl bg-amber-50/85 border border-amber-300/60 text-amber-950 space-y-1">
                   <div className="font-bold text-[11px] uppercase tracking-wider text-amber-800">
                     Seller / Buyer Note
                   </div>
@@ -1198,21 +1217,21 @@ function MarketContent() {
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <div className="flex justify-end gap-2 pt-3 border-t border-black/[0.07]">
                 <button
                   type="button"
                   onClick={() => setSelectedOffer(null)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 font-semibold text-slate-700 hover:bg-slate-50"
+                  className="px-4 py-2.5 rounded-full border border-black/10 bg-white/75 font-semibold text-brand-ink hover:bg-white transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={initiatingTrade || calculatedEtb <= 0}
-                  className={`px-6 py-2.5 rounded-xl text-white font-bold transition-colors disabled:opacity-50 ${
+                  className={`px-6 py-2.5 rounded-full text-white font-bold transition-colors shadow-sm disabled:opacity-50 ${
                     selectedOffer.offerType === 'SELL'
-                      ? 'bg-emerald-600 hover:bg-emerald-700'
-                      : 'bg-rose-600 hover:bg-rose-700'
+                      ? 'bg-brand-buy-600 hover:bg-brand-buy-700'
+                      : 'bg-brand-sell hover:opacity-95'
                   }`}
                 >
                   {initiatingTrade
@@ -1249,7 +1268,11 @@ export default function MarketPage() {
   return (
     <ProtectedRoute>
       <Suspense
-        fallback={<div className="p-12 text-center text-slate-500 text-xs">Loading P2P Market...</div>}
+        fallback={
+          <div className="liquid-glass-card rounded-[26px] p-12 text-center text-brand-ink-soft text-xs animate-pulse">
+            Loading P2P Market...
+          </div>
+        }
       >
         <MarketContent />
       </Suspense>
