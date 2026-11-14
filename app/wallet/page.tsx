@@ -26,8 +26,10 @@ import {
   History,
   QrCode,
   Info,
+  Download,
 } from 'lucide-react';
 import { ProtectedRoute } from '@/client/components/protected-route';
+import { downloadCsvFile } from '@/client/csv-export';
 
 export default function WalletPage() {
   const { currentUser, refreshUser, setNotification } = useRealtime();
@@ -357,7 +359,7 @@ export default function WalletPage() {
       if (res.ok && data.success) {
         setComplaintMessage('');
         setComplaintOrderId('');
-        setNotification('Sent to Superadmin @kanzedin via Telegram Bot & Email!');
+        setNotification('Support ticket sent to Fetan Operations Desk via Telegram & Email!');
       }
     } catch (e) {
       console.error(e);
@@ -1149,9 +1151,35 @@ export default function WalletPage() {
             <History className="w-4 h-4 text-brand-ink" />
             <h3 className="text-sm font-bold text-brand-ink">On-Chain Activity & Wallet Ledger</h3>
           </div>
-          <span className="text-[11px] font-mono text-brand-ink-soft">
-            {transactions.length} record{transactions.length === 1 ? '' : 's'}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] font-mono text-brand-ink-soft">
+              {transactions.length} record{transactions.length === 1 ? '' : 's'}
+            </span>
+            {transactions.length > 0 && (
+              <button
+                type="button"
+                onClick={() =>
+                  downloadCsvFile(
+                    `fetan-wallet-ledger-${new Date().toISOString().slice(0, 10)}.csv`,
+                    ['Type', 'Amount (USDT)', 'Network', 'Status', 'TxHash', 'Address', 'Created At'],
+                    transactions.map((tx) => [
+                      tx.type,
+                      tx.amount.toFixed(4),
+                      tx.network,
+                      tx.status,
+                      tx.txHash || '',
+                      tx.address || '',
+                      tx.createdAt,
+                    ])
+                  )
+                }
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-black/10 bg-white/80 hover:bg-white text-[11px] font-semibold text-brand-ink transition-colors"
+              >
+                <Download className="w-3 h-3" />
+                <span>Export CSV</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {loadingTransactions ? (

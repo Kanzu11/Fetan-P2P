@@ -10,8 +10,10 @@ import {
   User,
   Role,
   KycStatus,
+  P2POffer,
   P2POrder,
   WalletTransaction,
+  SupportTicket,
   displayName,
 } from '@/client/types';
 import {
@@ -28,6 +30,13 @@ import {
   CheckCircle2,
   Image as ImageIcon,
   Zap,
+  MessageSquare,
+  Terminal,
+  Ban,
+  Megaphone,
+  PauseCircle,
+  PlayCircle,
+  Trash2,
 } from 'lucide-react';
 import { ProtectedRoute } from '@/client/components/protected-route';
 import { ImageLightbox } from '@/client/components/image-lightbox';
@@ -42,8 +51,20 @@ export default function AdminDashboardPage() {
     telegramHandle?: string;
   };
 
+  type AdminAuditLogItem = {
+    id: string;
+    actorId?: string | null;
+    actorRole?: string | null;
+    action: string;
+    targetType?: string | null;
+    targetId?: string | null;
+    ip?: string | null;
+    details?: unknown;
+    createdAt: string;
+  };
+
   const [activeTab, setActiveTab] = useState<
-    'DISPUTES' | 'USERS' | 'MERCHANTS' | 'KYC' | 'WITHDRAWALS' | 'SUPERADMIN'
+    'DISPUTES' | 'ADS' | 'USERS' | 'MERCHANTS' | 'KYC' | 'WITHDRAWALS' | 'SUPPORT' | 'AUDIT' | 'SUPERADMIN'
   >('DISPUTES');
 
   // State
@@ -51,7 +72,12 @@ export default function AdminDashboardPage() {
   const [kycSubmissions, setKycSubmissions] = useState<KycSubmission[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [allOrders, setAllOrders] = useState<P2POrder[]>([]);
+  const [allOffers, setAllOffers] = useState<P2POffer[]>([]);
+  const [adFilter, setAdFilter] = useState<'ALL' | 'ACTIVE' | 'PAUSED' | 'SELL' | 'BUY'>('ALL');
   const [withdrawals, setWithdrawals] = useState<AdminWithdrawalItem[]>([]);
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [ticketReplies, setTicketReplies] = useState<Record<string, string>>({});
+  const [auditLogs, setAuditLogs] = useState<AdminAuditLogItem[]>([]);
   const [withdrawTxHashes, setWithdrawTxHashes] = useState<Record<string, string>>({});
   const [withdrawNotes, setWithdrawNotes] = useState<Record<string, string>>({});
   const [orderStatusFilter, setOrderStatusFilter] = useState<
@@ -74,13 +100,17 @@ export default function AdminDashboardPage() {
   const fetchAdminData = async () => {
     try {
       setLoading(true);
-      const [merchantsRes, kycRes, usersRes, ordersRes, withdrawalsRes] = await Promise.all([
-        fetch('/api/admin/merchants'),
-        fetch('/api/admin/kyc'),
-        fetch('/api/admin/users'),
-        fetch('/api/orders'),
-        fetch('/api/admin/withdrawals'),
-      ]);
+      const [merchantsRes, kycRes, usersRes, ordersRes, offersRes, withdrawalsRes, supportRes, auditRes] =
+        await Promise.all([
+          fetch('/api/admin/merchants'),
+          fetch('/api/admin/kyc'),
+          fetch('/api/admin/users'),
+          fetch('/api/orders'),
+          fetch('/api/offers?includeInactive=true'),
+          fetch('/api/admin/withdrawals'),
+          fetch('/api/support'),
+          fetch('/api/admin/audit'),
+        ]);
 
       if (merchantsRes.ok) {
         const mData = await merchantsRes.json();
@@ -102,9 +132,24 @@ export default function AdminDashboardPage() {
         setAllOrders(oData.orders || []);
       }
 
+      if (offersRes.ok) {
+        const offData = await offersRes.json();
+        setAllOffers(offData.offers || []);
+      }
+
       if (withdrawalsRes.ok) {
         const wData = await withdrawalsRes.json();
         setWithdrawals(wData.withdrawals || []);
+      }
+
+      if (supportRes.ok) {
+        const sData = await supportRes.json();
+        setSupportTickets(sData.tickets || []);
+      }
+
+      if (auditRes.ok) {
+        const aData = await auditRes.json();
+        setAuditLogs(aData.logs || []);
       }
     } catch (e) {
       console.error(e);
@@ -245,7 +290,7 @@ export default function AdminDashboardPage() {
     }
 
     if (targetUser.role === 'SUPERADMIN' || targetUser.telegramHandle === '@kanzedin') {
-      setAdminError('Security Guard: Superadmin account (@kanzedin) cannot be modified or demoted.');
+      setAdminError('Security Guard: Primary Superadmin account cannot be modified or demoted.');
       return;
     }
 
@@ -335,6 +380,31 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleResolveSupportTicket = async (ticketId: string) => {
+    setActionLoadingId(ticketId);
+    setAdminError(null);
+    try {
+      const reply = (ticketReplies[ticketId] || '').trim() || 'Resolved by Fetan Operations Team';
+      const res = await fetch('/api/support', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'RESOLVE',
+          ticketId,
+          adminReply: reply,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not resolve support ticket');
+      setNotification('Support ticket marked as resolved');
+      await fetchAdminData();
+    } catch (err: unknown) {
+      setAdminError(err instanceof Error ? err.message : 'Error resolving ticket');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   const handleReviewWithdrawal = async (txId: string, action: 'APPROVE' | 'REJECT') => {
     setActionLoadingId(txId);
     setAdminError(null);
@@ -367,6 +437,96 @@ export default function AdminDashboardPage() {
       await fetchAdminData();
     } catch (err: unknown) {
       setAdminError(err instanceof Error ? err.message : 'Error');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Action: Ban / Suspend or Reactivate User
+  const handleToggleSuspend = async (targetUser: User) => {
+    const nextSuspended = !Boolean(targetUser.isSuspended);
+    const reason = nextSuspended
+      ? window.prompt(
+          `Enter suspension reason for ${displayName(targetUser.name)}:`,
+          'Suspended by Fetan Compliance Admin'
+        )
+      : undefined;
+
+    if (nextSuspended && reason === null) return;
+
+    setActionLoadingId(targetUser.id);
+    setAdminError(null);
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetUserId: targetUser.id,
+          action: 'TOGGLE_SUSPEND',
+          newStatus: nextSuspended,
+          suspendReason: reason || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not update user suspension status');
+
+      setNotification(
+        nextSuspended
+          ? `${displayName(targetUser.name)} suspended and active ads paused.`
+          : `${displayName(targetUser.name)} reactivated.`
+      );
+      await fetchAdminData();
+    } catch (err: unknown) {
+      setAdminError(err instanceof Error ? err.message : 'Error updating user suspension');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Action: Pause / Activate Ad
+  const handleToggleAdActive = async (offer: P2POffer) => {
+    setActionLoadingId(offer.id);
+    setAdminError(null);
+    try {
+      const res = await fetch(`/api/offers/${encodeURIComponent(offer.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !offer.isActive }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not update ad status');
+
+      setNotification(
+        !offer.isActive
+          ? `Ad #${offer.id.slice(0, 8)} activated.`
+          : `Ad #${offer.id.slice(0, 8)} paused.`
+      );
+      await fetchAdminData();
+    } catch (err: unknown) {
+      setAdminError(err instanceof Error ? err.message : 'Error updating ad');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Action: Delete Ad
+  const handleDeleteAd = async (offer: P2POffer) => {
+    if (!window.confirm(`Permanently delete ${offer.offerType} ad by ${displayName(offer.merchantName)}?`)) {
+      return;
+    }
+    setActionLoadingId(offer.id);
+    setAdminError(null);
+    try {
+      const res = await fetch(`/api/offers/${encodeURIComponent(offer.id)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not delete ad');
+
+      setNotification(`Ad #${offer.id.slice(0, 8)} deleted.`);
+      await fetchAdminData();
+    } catch (err: unknown) {
+      setAdminError(err instanceof Error ? err.message : 'Error deleting ad');
     } finally {
       setActionLoadingId(null);
     }
@@ -489,6 +649,18 @@ export default function AdminDashboardPage() {
         </button>
 
         <button
+          onClick={() => setActiveTab('ADS')}
+          className={`px-4 py-2 rounded-full font-semibold whitespace-nowrap transition-all border flex items-center gap-1.5 ${
+            activeTab === 'ADS'
+              ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+              : 'bg-white/70 text-brand-ink-soft border-black/10 hover:bg-white hover:text-brand-ink'
+          }`}
+        >
+          <Megaphone className="w-3.5 h-3.5 text-brand-buy-600" />
+          <span>Manage Ads ({allOffers.length})</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('USERS')}
           className={`px-4 py-2 rounded-full font-semibold whitespace-nowrap transition-all border ${
             activeTab === 'USERS'
@@ -530,6 +702,30 @@ export default function AdminDashboardPage() {
           }`}
         >
           Withdrawals ({withdrawals.filter((w) => w.status === 'PENDING').length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('SUPPORT')}
+          className={`px-4 py-2 rounded-full font-semibold whitespace-nowrap transition-all border flex items-center gap-1.5 ${
+            activeTab === 'SUPPORT'
+              ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+              : 'bg-white/70 text-brand-ink-soft border-black/10 hover:bg-white hover:text-brand-ink'
+          }`}
+        >
+          <MessageSquare className="w-3.5 h-3.5 text-amber-500" />
+          <span>Support ({supportTickets.filter((s) => s.status !== 'RESOLVED').length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('AUDIT')}
+          className={`px-4 py-2 rounded-full font-semibold whitespace-nowrap transition-all border flex items-center gap-1.5 ${
+            activeTab === 'AUDIT'
+              ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+              : 'bg-white/70 text-brand-ink-soft border-black/10 hover:bg-white hover:text-brand-ink'
+          }`}
+        >
+          <Terminal className="w-3.5 h-3.5 text-sky-600" />
+          <span>Audit Log ({auditLogs.length})</span>
         </button>
 
         {isSuperadmin && (
@@ -703,6 +899,141 @@ export default function AdminDashboardPage() {
             </div>
           </div>
         </div>
+      ) : activeTab === 'ADS' ? (
+        /* TAB: MANAGE P2P ADS */
+        <div className="space-y-4 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[
+              { id: 'ALL', label: `All Ads (${allOffers.length})` },
+              { id: 'ACTIVE', label: `Active (${allOffers.filter((o) => o.isActive).length})` },
+              { id: 'PAUSED', label: `Paused (${allOffers.filter((o) => !o.isActive).length})` },
+              { id: 'SELL', label: `Merchant Sell Ads (${allOffers.filter((o) => o.offerType === 'SELL').length})` },
+              { id: 'BUY', label: `Merchant Buy Ads (${allOffers.filter((o) => o.offerType === 'BUY').length})` },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setAdFilter(f.id as 'ALL' | 'ACTIVE' | 'PAUSED' | 'SELL' | 'BUY')}
+                className={`px-3.5 py-1.5 rounded-full border font-semibold transition-all ${
+                  adFilter === f.id
+                    ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+                    : 'bg-white/70 text-brand-ink-soft border-black/10 hover:bg-white hover:text-brand-ink'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="liquid-glass-card rounded-[26px] overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-black/[0.07] bg-white/50 text-brand-ink-soft uppercase text-[11px] font-semibold">
+                    <th className="py-3.5 px-4">Ad & Merchant</th>
+                    <th className="py-3.5 px-4">Side & Price</th>
+                    <th className="py-3.5 px-4">Available & Limits</th>
+                    <th className="py-3.5 px-4">Payment Rails</th>
+                    <th className="py-3.5 px-4">Status</th>
+                    <th className="py-3.5 px-4 text-right">Admin Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/[0.06]">
+                  {allOffers
+                    .filter((o) => {
+                      if (adFilter === 'ACTIVE') return o.isActive;
+                      if (adFilter === 'PAUSED') return !o.isActive;
+                      if (adFilter === 'SELL' || adFilter === 'BUY') return o.offerType === adFilter;
+                      return true;
+                    })
+                    .map((offer) => (
+                      <tr key={offer.id} className="hover:bg-white/75 transition-colors">
+                        <td className="py-3.5 px-4">
+                          <div className="font-bold text-brand-ink">{displayName(offer.merchantName)}</div>
+                          <div className="font-mono text-[11px] text-brand-ink-soft">#{offer.id}</div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              offer.offerType === 'SELL'
+                                ? 'bg-brand-buy-50 text-brand-buy-800 border-brand-buy-300/60'
+                                : 'bg-sky-50 text-sky-800 border-sky-200'
+                            }`}
+                          >
+                            {offer.offerType === 'SELL' ? 'SELL (Buy USDT)' : 'BUY (Sell USDT)'}
+                          </span>
+                          <div className="font-mono font-bold text-brand-ink mt-1">
+                            {offer.pricePerUsdtEtb.toFixed(2)} ETB
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono tabular-nums">
+                          <div className="font-bold text-brand-ink">
+                            {offer.totalAvailable.toFixed(2)} USDT
+                          </div>
+                          <div className="text-[11px] text-brand-ink-soft">
+                            {offer.minLimitEtb.toLocaleString()}–{offer.maxLimitEtb.toLocaleString()} ETB
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-wrap gap-1">
+                            {offer.paymentMethods.map((m) => (
+                              <span
+                                key={m}
+                                className="px-2 py-0.5 rounded-full bg-black/[0.05] text-[10px] font-semibold text-brand-ink"
+                              >
+                                {m}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                              offer.isActive
+                                ? 'bg-brand-buy-50 text-brand-buy-800 border-brand-buy-300/60'
+                                : 'bg-amber-50 text-amber-800 border-amber-200'
+                            }`}
+                          >
+                            {offer.isActive ? 'ACTIVE' : 'PAUSED'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                          <button
+                            onClick={() => handleToggleAdActive(offer)}
+                            disabled={actionLoadingId === offer.id}
+                            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-colors ${
+                              offer.isActive
+                                ? 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100'
+                                : 'bg-brand-buy-50 border-brand-buy-300/60 text-brand-buy-800 hover:bg-brand-buy-100'
+                            }`}
+                          >
+                            {offer.isActive ? (
+                              <>
+                                <PauseCircle className="w-3.5 h-3.5" />
+                                <span>Pause</span>
+                              </>
+                            ) : (
+                              <>
+                                <PlayCircle className="w-3.5 h-3.5" />
+                                <span>Activate</span>
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAd(offer)}
+                            disabled={actionLoadingId === offer.id}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-semibold bg-rose-50 border border-rose-200 text-brand-sell hover:bg-rose-100 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       ) : activeTab === 'USERS' ? (
         /* TAB: ALL USERS & MERCHANTS */
         <div className="space-y-4 text-xs">
@@ -754,17 +1085,27 @@ export default function AdminDashboardPage() {
                     return (
                       <tr key={u.id} className="hover:bg-white/75 transition-colors">
                         <td className="py-3.5 px-4">
-                          <div className="font-bold text-brand-ink flex items-center gap-1.5">
+                          <div className="font-bold text-brand-ink flex items-center gap-1.5 flex-wrap">
                             <span>{displayName(u.name)}</span>
                             {isSelf && (
                               <span className="text-[10px] bg-black/[0.08] text-brand-ink px-2 py-0.5 rounded-full">
                                 YOU
                               </span>
                             )}
+                            {u.isSuspended && (
+                              <span className="text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200 px-2 py-0.5 rounded-full">
+                                SUSPENDED
+                              </span>
+                            )}
                           </div>
                           <div className="text-[11px] text-brand-ink-soft">
                             {u.telegramHandle || 'No Telegram'} • {u.email}
                           </div>
+                          {u.isSuspended && u.suspendReason && (
+                            <div className="text-[10px] text-brand-sell mt-0.5">
+                              Reason: {u.suspendReason}
+                            </div>
+                          )}
                         </td>
 
                         <td className="py-3.5 px-4">
@@ -857,6 +1198,21 @@ export default function AdminDashboardPage() {
                                   }`}
                                 >
                                   {u.role === 'ADMIN' ? 'Remove Admin' : 'Make Admin'}
+                                </button>
+                              )}
+
+                              {!isSelf && (
+                                <button
+                                  onClick={() => handleToggleSuspend(u)}
+                                  disabled={actionLoadingId === u.id}
+                                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-colors ${
+                                    u.isSuspended
+                                      ? 'bg-brand-buy-600 border-brand-buy-700 text-white hover:bg-brand-buy-700'
+                                      : 'bg-rose-50 border-rose-200 text-brand-sell hover:bg-rose-100'
+                                  }`}
+                                >
+                                  <Ban className="w-3 h-3" />
+                                  <span>{u.isSuspended ? 'Unban' : 'Ban / Suspend'}</span>
                                 </button>
                               )}
                             </>
@@ -1165,6 +1521,130 @@ export default function AdminDashboardPage() {
               </div>
             ))
           )}
+        </div>
+      ) : activeTab === 'SUPPORT' ? (
+        /* TAB: SUPPORT TICKETS */
+        <div className="space-y-3 text-xs">
+          {supportTickets.length === 0 ? (
+            <div className="p-12 text-center liquid-glass-card rounded-[26px] text-brand-ink-soft">
+              No support tickets or order complaints submitted yet.
+            </div>
+          ) : (
+            supportTickets.map((ticket) => (
+              <div
+                key={ticket.id}
+                className="liquid-glass-card rounded-[24px] p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+              >
+                <div className="space-y-1.5 max-w-2xl">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono font-bold text-brand-ink">#{ticket.id}</span>
+                    <span className="font-bold text-brand-ink">{displayName(ticket.userName)}</span>
+                    <span className="text-brand-ink-soft">({ticket.userEmail})</span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-black/[0.05] text-brand-ink">
+                      {ticket.category} &bull; {ticket.source}
+                    </span>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        ticket.status === 'RESOLVED'
+                          ? 'bg-brand-buy-50 text-brand-buy-800 border border-brand-buy-300/60'
+                          : 'bg-amber-50 text-amber-800 border border-amber-200'
+                      }`}
+                    >
+                      {ticket.status}
+                    </span>
+                  </div>
+                  <div className="font-semibold text-brand-ink">
+                    {ticket.subject}
+                    {ticket.orderId && (
+                      <Link
+                        href={`/trade/${ticket.orderId}`}
+                        className="ml-2 text-brand-buy-700 hover:underline font-mono"
+                      >
+                        Order #{ticket.orderId} →
+                      </Link>
+                    )}
+                  </div>
+                  <p className="text-brand-ink-soft leading-relaxed">{ticket.message}</p>
+                  {ticket.adminReply && (
+                    <div className="text-[11px] font-medium text-brand-buy-800 bg-brand-buy-50 px-3 py-1.5 rounded-xl border border-brand-buy-300/60">
+                      Reply: {ticket.adminReply}
+                    </div>
+                  )}
+                </div>
+
+                {ticket.status !== 'RESOLVED' && (
+                  <div className="flex flex-col sm:flex-row gap-2 lg:min-w-[360px]">
+                    <input
+                      type="text"
+                      value={ticketReplies[ticket.id] || ''}
+                      onChange={(e) =>
+                        setTicketReplies((prev) => ({ ...prev, [ticket.id]: e.target.value }))
+                      }
+                      placeholder="Write private resolution note..."
+                      className="flex-1 px-3.5 py-2 rounded-full border border-black/10 bg-white/80 text-[11px] text-brand-ink focus:outline-none focus:bg-white focus:border-brand-ink"
+                    />
+                    <button
+                      type="button"
+                      disabled={actionLoadingId === ticket.id}
+                      onClick={() => handleResolveSupportTicket(ticket.id)}
+                      className="px-4 py-2 rounded-full bg-brand-buy-600 hover:bg-brand-buy-700 text-white font-bold transition-colors disabled:opacity-50"
+                    >
+                      Mark Resolved
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      ) : activeTab === 'AUDIT' ? (
+        /* TAB: SECURITY AUDIT LOG */
+        <div className="liquid-glass-card rounded-[26px] overflow-hidden text-xs">
+          <div className="liquid-glass-dark p-5 text-white flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold">Immutable Security Audit Trail</h2>
+              <p className="text-xs text-white/60">Latest 100 security, escrow, and admin actions</p>
+            </div>
+            <span className="font-mono text-[11px] text-brand-buy-300">
+              {auditLogs.length} events
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-black/[0.07] bg-white/50 text-brand-ink-soft uppercase text-[11px] font-semibold">
+                  <th className="py-3 px-4">Timestamp</th>
+                  <th className="py-3 px-4">Action</th>
+                  <th className="py-3 px-4">Actor</th>
+                  <th className="py-3 px-4">Target</th>
+                  <th className="py-3 px-4">IP</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black/[0.06]">
+                {auditLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-white/75 transition-colors">
+                    <td className="py-2.5 px-4 font-mono text-[11px] text-brand-ink-soft whitespace-nowrap">
+                      {new Date(log.createdAt).toLocaleString()}
+                    </td>
+                    <td className="py-2.5 px-4">
+                      <span className="px-2.5 py-0.5 rounded-full bg-black/[0.06] font-mono text-[10px] font-bold text-brand-ink">
+                        {log.action}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-[11px] text-brand-ink">
+                      {log.actorRole || 'SYSTEM'} &bull; {log.actorId ? `${log.actorId.slice(0, 12)}` : '—'}
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-[11px] text-brand-ink-soft">
+                      {log.targetType ? `${log.targetType}:${log.targetId || ''}` : '—'}
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-[11px] text-brand-ink-soft">
+                      {log.ip || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         /* TAB: SUPERADMIN ROLE MANAGEMENT */

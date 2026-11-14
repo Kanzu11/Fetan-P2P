@@ -103,8 +103,14 @@ export async function DELETE(
       );
     }
 
-    await db.deleteOffer(offer.id);
-    return NextResponse.json({ success: true });
+    try {
+      await db.deleteOffer(offer.id);
+      return NextResponse.json({ success: true, deleted: true });
+    } catch {
+      // Preserve historical completed/cancelled order foreign keys by deactivating and zeroing availability
+      await db.updateOffer(offer.id, { isActive: false, totalAvailable: 0 });
+      return NextResponse.json({ success: true, archived: true });
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to delete offer';
     return NextResponse.json({ error: message }, { status: 400 });

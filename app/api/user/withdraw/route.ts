@@ -8,6 +8,7 @@ import { verifyAndConsumeOtp } from '@/server/security/otp';
 import { sanitizeAmount, validateCryptoAddress } from '@/server/security/sanitize';
 import { wsGateway } from '@/server/websocket-gateway';
 import { telegramBot } from '@/server/telegram-bot';
+import { isAdminRole } from '@/client/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (auth.user.kycStatus !== 'VERIFIED') {
+    if (auth.user.kycStatus !== 'VERIFIED' && !isAdminRole(auth.user.role)) {
       return NextResponse.json(
         { error: 'KYC verification must be approved before requesting withdrawals.' },
         { status: 403 }
@@ -41,9 +42,10 @@ export async function POST(req: Request) {
 
     const rawBody = await req.json();
     const rawAmount = rawBody?.amountUsdt ?? rawBody?.amount;
+    const amountCheck = sanitizeAmount(rawAmount, 5, 100_000, 6);
     const parsed = withdrawSchema.safeParse({
       ...rawBody,
-      amountUsdt: sanitizeAmount(rawAmount, 6) ?? rawAmount,
+      amountUsdt: amountCheck.valid ? amountCheck.amount : Number(rawAmount),
     });
 
     if (!parsed.success) {
@@ -150,9 +152,7 @@ export async function POST(req: Request) {
     });
     wsGateway.emitToRoom('admin:dashboard', 'withdrawal_requested', { tx: result.tx });
 
-    await telegramBot.broadcastAdminAlert(
-      `📤 *New Withdrawal Request*\nUser: *${auth.user.name}* (${auth.user.email})\nAmount: *${amountUsdt.toFixed(2)} USDT*\nNetwork: *${network}*\nTo: \`${cleanAddress}\`\nReview in Admin Console.`
-    );
+    await telegramBot.sendWithdrawalAlert(result.tx, auth.user);
 
     return NextResponse.json({
       success: true,

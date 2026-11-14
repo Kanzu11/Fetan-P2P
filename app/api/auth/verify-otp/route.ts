@@ -94,6 +94,17 @@ export async function POST(req: Request) {
       user = await db.updateUser(user.id, { role: 'SUPERADMIN', kycStatus: 'VERIFIED' });
     }
 
+    if (user.isSuspended) {
+      return NextResponse.json(
+        {
+          error: user.suspendReason
+            ? `Account suspended: ${user.suspendReason}`
+            : 'Your account has been suspended by Fetan Compliance.',
+        },
+        { status: 403 }
+      );
+    }
+
     await db.logAudit({
       actorId: user.id,
       actorRole: user.role,

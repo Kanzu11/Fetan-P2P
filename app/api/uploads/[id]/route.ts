@@ -59,6 +59,16 @@ export async function GET(
     }
 
     const bodyBuffer = Buffer.from(file.data);
+    const maybeUrl = bodyBuffer.toString('utf8');
+    if (maybeUrl.startsWith('https://res.cloudinary.com/')) {
+      return NextResponse.redirect(maybeUrl, {
+        status: 302,
+        headers: {
+          'Cache-Control': 'private, max-age=3600',
+        },
+      });
+    }
+
     return new Response(bodyBuffer, {
       status: 200,
       headers: {

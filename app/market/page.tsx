@@ -10,6 +10,7 @@ import {
   OfferType,
   PAYMENT_METHODS_META,
   displayName,
+  isAdminRole,
 } from '@/client/types';
 import {
   ShieldCheck,
@@ -263,8 +264,8 @@ function MarketContent() {
     e.preventDefault();
     if (!selectedOffer || !currentUser) return;
 
-    // Mandatory KYC check for all users (both Buy & Sell)
-    if (currentUser.kycStatus !== 'VERIFIED') {
+    // Mandatory KYC check for regular users (Admins/Superadmins are auto-verified)
+    if (currentUser.kycStatus !== 'VERIFIED' && !isAdminRole(currentUser.role)) {
       setTradeError(
         'Identity verification (KYC) is required for all users before buying or selling USDT. Click "Verify ID Now" below.'
       );
@@ -329,8 +330,8 @@ function MarketContent() {
 
   return (
     <div className="space-y-6 pb-8">
-      {/* Mandatory KYC Banner for Unverified / Pending Users */}
-      {currentUser && currentUser.kycStatus !== 'VERIFIED' && (
+      {/* Mandatory KYC Banner for Unverified / Pending Users (hidden for Admins) */}
+      {currentUser && currentUser.kycStatus !== 'VERIFIED' && !isAdminRole(currentUser.role) && (
         <div className="liquid-glass-card rounded-[24px] border-amber-300/70 bg-amber-50/75 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-full bg-amber-500/15 border border-amber-400/30 flex items-center justify-center shrink-0">
@@ -1024,7 +1025,7 @@ function MarketContent() {
                 </div>
               )}
 
-              {currentUser && currentUser.kycStatus !== 'VERIFIED' && (
+              {currentUser && currentUser.kycStatus !== 'VERIFIED' && !isAdminRole(currentUser.role) && (
                 <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-300/70 text-amber-950 space-y-2">
                   <div className="font-bold text-xs flex items-center gap-1.5">
                     <ShieldCheck className="w-4 h-4 text-amber-700" />

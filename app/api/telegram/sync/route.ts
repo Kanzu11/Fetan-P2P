@@ -7,7 +7,8 @@ import { escrowController } from '@/server/escrow-controller';
 import { requireAdmin } from '@/server/security/session';
 import { sanitizeString } from '@/server/security/sanitize';
 import { wsGateway } from '@/server/websocket-gateway';
-import type { KycSubmission } from '@/client/types';
+import type { KycSubmission, PaymentMethod } from '@/client/types';
+import { isAdminRole } from '@/client/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +53,27 @@ const syncBodySchema = z.discriminatedUnion('action', [
     actorTelegram: z.string().min(1),
     note: z.string().max(300).optional(),
   }),
+  z.object({
+    action: z.literal('GET_BOT_MARKET'),
+    tgId: z.union([z.string(), z.number()]).optional(),
+    username: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal('CREATE_BOT_ORDER'),
+    offerId: z.string().min(1),
+    usdtAmount: z.number().positive(),
+    paymentMethod: z.string().optional(),
+    tgId: z.union([z.string(), z.number()]).optional(),
+    username: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal('USER_ORDER_ACTION'),
+    orderId: z.string().min(1),
+    orderAction: z.enum(['MARK_PAID', 'RELEASE', 'CANCEL', 'DISPUTE']),
+    tgId: z.union([z.string(), z.number()]).optional(),
+    username: z.string().optional(),
+    note: z.string().max(300).optional(),
+  }),
 ]);
 
 export async function GET(req: Request) {
@@ -63,10 +85,23 @@ export async function GET(req: Request) {
     }
   }
 
+  const { searchParams } = new URL(req.url);
+  const includeMarket = searchParams.get('includeMarket') === 'true';
+  const lookup = searchParams.get('lookup');
+
+  const offers = includeMarket
+    ? (await db.getOffers()).filter((o) => o.isActive && o.totalAvailable > 0).slice(0, 20)
+    : undefined;
+  const user = lookup ? await db.getUserByTelegram(lookup) : undefined;
+  const orders = user ? await db.getOrdersForUser(user.id) : undefined;
+
   return NextResponse.json({
     status: 'online',
     botUsername: telegramBot.getBotUsername(),
     miniAppUrl: telegramBot.getMiniAppUrl(),
+    offers,
+    user,
+    orders,
   });
 }
 
@@ -150,16 +185,78 @@ export async function POST(req: Request) {
       const order =
         data.orderAction === 'RELEASE'
           ? await escrowController.releaseEscrow(
-              data.orderId,
-              adminUser.id,
-              sanitizeString(data.note, 250) || 'Released via Admin Sync'
-            )
+            data.orderId,
+            adminUser.id,
+            sanitizeString(data.note, 250) || 'Released via Admin Sync'
+          )
           : await escrowController.cancelEscrow(
-              data.orderId,
-              adminUser.id,
-              sanitizeString(data.note, 250) || 'Cancelled via Admin Sync'
-            );
+            data.orderId,
+            adminUser.id,
+            sanitizeString(data.note, 250) || 'Cancelled via Admin Sync'
+          );
 
+      return NextResponse.json({ success: true, order });
+    }
+
+    if (data.action === 'GET_BOT_MARKET') {
+      const lookupKey = data.tgId ? String(data.tgId) : data.username || '';
+      const user = lookupKey ? await db.getUserByTelegram(lookupKey) : undefined;
+      const offers = (await db.getOffers())
+        .filter((o) => o.isActive && o.totalAvailable > 0)
+        .slice(0, 12);
+      const orders = user ? (await db.getOrdersForUser(user.id)).slice(0, 12) : [];
+      return NextResponse.json({ success: true, user, offers, orders });
+    }
+
+    if (data.action === 'CREATE_BOT_ORDER') {
+      const lookupKey = data.tgId ? String(data.tgId) : data.username || '';
+      const user = lookupKey ? await db.getUserByTelegram(lookupKey) : undefined;
+      if (!user) {
+        return NextResponse.json(
+          { error: 'Please link your Fetan P2P account before placing trades.' },
+          { status: 404 }
+        );
+      }
+      if (user.kycStatus !== 'VERIFIED' && !isAdminRole(user.role)) {
+        return NextResponse.json(
+          { error: 'Identity verification is required before trading.' },
+          { status: 403 }
+        );
+      }
+      const offer = await db.getOffer(data.offerId);
+      if (!offer) {
+        return NextResponse.json({ error: 'Offer not found.' }, { status: 404 });
+      }
+      const method = (data.paymentMethod || offer.paymentMethods[0] || 'TELEBIRR') as PaymentMethod;
+      const order = await escrowController.lockEscrow({
+        offerId: offer.id,
+        buyerId: user.id,
+        usdtAmount: data.usdtAmount,
+        paymentMethod: method,
+      });
+      return NextResponse.json({ success: true, order });
+    }
+
+    if (data.action === 'USER_ORDER_ACTION') {
+      const lookupKey = data.tgId ? String(data.tgId) : data.username || '';
+      const user = lookupKey ? await db.getUserByTelegram(lookupKey) : undefined;
+      if (!user) {
+        return NextResponse.json({ error: 'Account not found for Telegram user.' }, { status: 404 });
+      }
+      let order;
+      if (data.orderAction === 'MARK_PAID') {
+        order = await escrowController.confirmPayment(data.orderId, user.id);
+      } else if (data.orderAction === 'RELEASE') {
+        order = await escrowController.releaseEscrow(data.orderId, user.id, data.note);
+      } else if (data.orderAction === 'CANCEL') {
+        order = await escrowController.cancelEscrow(data.orderId, user.id, data.note);
+      } else {
+        order = await escrowController.disputeTrade(
+          data.orderId,
+          user.id,
+          data.note || 'Opened dispute via Telegram'
+        );
+      }
       return NextResponse.json({ success: true, order });
     }
 

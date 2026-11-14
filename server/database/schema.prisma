@@ -62,6 +62,8 @@ model User {
   telegramNotifications Boolean               @default(true)
   telegramLinkCode      String?               @unique
   role                  Role                  @default(USER)
+  isSuspended           Boolean               @default(false)
+  suspendReason         String?
   kycStatus             KycStatus             @default(UNVERIFIED)
   kycDocType            String?               // 'NATIONAL_ID' | 'PASSPORT' | 'DRIVERS_LICENSE'
   kycDocNumber          String?

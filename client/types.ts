@@ -180,6 +180,8 @@ export interface User {
   telegramLinkCode?: string;
   phone?: string;
   role: Role;
+  isSuspended?: boolean;
+  suspendReason?: string;
   /** Mandatory for all users before placing or accepting any P2P order */
   kycStatus: KycStatus;
   kycDocType?: KycDocType;

@@ -9,6 +9,8 @@ import {
 } from '../client/types';
 import { wsGateway } from './websocket-gateway';
 import { telegramBot } from './telegram-bot';
+import { emailService } from './email-service';
+import { prisma } from './database/prisma';
 
 function resolveSellerPaymentDetails(
   seller: User,
@@ -151,12 +153,25 @@ export class EscrowController {
         }
 
         const initiator = await db.getUser(initiatorId);
-        if (!initiator || initiator.kycStatus !== 'VERIFIED') {
+        if (!initiator || (initiator.kycStatus !== 'VERIFIED' && !isAdminRole(initiator.role))) {
           throw new Error(
             'Identity verification (KYC) is required before trading. Please complete KYC first.'
           );
         }
-        if (buyer.kycStatus !== 'VERIFIED' || seller.kycStatus !== 'VERIFIED') {
+        if (initiator.isSuspended) {
+          throw new Error(
+            initiator.suspendReason
+              ? `Account suspended: ${initiator.suspendReason}`
+              : 'Your account is suspended and cannot open new P2P orders.'
+          );
+        }
+        if (buyer.isSuspended || seller.isSuspended) {
+          throw new Error('This counterparty account is currently suspended.');
+        }
+        if (
+          (buyer.kycStatus !== 'VERIFIED' && !isAdminRole(buyer.role)) ||
+          (seller.kycStatus !== 'VERIFIED' && !isAdminRole(seller.role))
+        ) {
           throw new Error('Both buyer and seller must have verified KYC before starting an order.');
         }
 
@@ -270,7 +285,7 @@ export class EscrowController {
           });
         }
 
-        return { savedOrder, newSellerBalance, newSellerLocked };
+        return { savedOrder, newSellerBalance, newSellerLocked, buyer, seller: updatedSeller };
       }
     );
 
@@ -280,6 +295,9 @@ export class EscrowController {
     });
     wsGateway.emitToRoom(`trade:${result.savedOrder.id}`, 'escrow_locked', result.savedOrder);
     void telegramBot.sendOrderNotification(result.savedOrder, 'CREATED');
+    void emailService
+      .notifyOrderCreated(result.savedOrder, result.buyer, result.seller)
+      .catch(() => {});
 
     return result.savedOrder;
   }
@@ -358,6 +376,10 @@ export class EscrowController {
       etbAmount: updatedOrder.etbAmount,
     });
     void telegramBot.sendOrderNotification(updatedOrder, 'PAID');
+    void db
+      .getUser(updatedOrder.sellerId)
+      .then((seller) => emailService.notifyOrderPaid(updatedOrder, seller || undefined))
+      .catch(() => {});
 
     if (allowDemoAutoRelease) {
       this.scheduleAutoRelease(orderId, 15);
@@ -429,9 +451,27 @@ export class EscrowController {
         const newSellerLocked = Number(Math.max(0, seller.usdtLocked - deductLocked).toFixed(6));
         const newBuyerBalance = Number((buyer.usdtBalance + order.usdtAmount).toFixed(6));
 
+        const elapsedMins = Math.min(
+          120,
+          Math.max(
+            1,
+            Math.round(
+              (Date.now() - new Date(order.paidAt || order.createdAt).getTime()) / 60000
+            )
+          )
+        );
+        const prevSellerTrades = seller.completedTrades || 0;
+        const prevAvgRelease = seller.avgReleaseTimeMins || 2;
+        const nextAvgRelease = Math.max(
+          1,
+          Math.round((prevAvgRelease * prevSellerTrades + elapsedMins) / (prevSellerTrades + 1))
+        );
+        const nextSellerCompletedTrades = prevSellerTrades + 1;
+
         await db.updateUser(seller.id, {
           usdtLocked: newSellerLocked,
-          completedTrades: (seller.completedTrades || 0) + 1,
+          completedTrades: nextSellerCompletedTrades,
+          avgReleaseTimeMins: nextAvgRelease,
         });
         await db.updateUser(buyer.id, {
           usdtBalance: newBuyerBalance,
@@ -501,9 +541,27 @@ export class EscrowController {
           details: { usdtAmount: order.usdtAmount, buyerId: buyer.id, sellerId: seller.id },
         });
 
-        return { updatedOrder, seller, buyer, newSellerLocked, newBuyerBalance };
+        return {
+          updatedOrder,
+          seller,
+          buyer,
+          newSellerLocked,
+          newBuyerBalance,
+          nextAvgRelease,
+          nextSellerCompletedTrades,
+        };
       }
     );
+
+    void prisma.p2POffer
+      .updateMany({
+        where: { merchantId: result.seller.id },
+        data: {
+          avgReleaseTimeMins: result.nextAvgRelease,
+          completedTrades: result.nextSellerCompletedTrades,
+        },
+      })
+      .catch(() => {});
 
     wsGateway.emitToRoom(`trade:${orderId}`, 'escrow_released', result.updatedOrder);
     wsGateway.emitToUser(result.seller.id, 'balance_updated', {
@@ -515,6 +573,9 @@ export class EscrowController {
       usdtLocked: result.buyer.usdtLocked,
     });
     void telegramBot.sendOrderNotification(result.updatedOrder, 'COMPLETED');
+    void emailService
+      .notifyOrderCompleted(result.updatedOrder, result.buyer, result.seller)
+      .catch(() => {});
 
     return result.updatedOrder;
   }
@@ -690,6 +751,7 @@ export class EscrowController {
     wsGateway.emitToRoom('admin:dashboard', 'dispute_alert', updatedOrder);
     wsGateway.emitToRoom(`trade:${orderId}`, 'dispute_alert', updatedOrder);
     void telegramBot.sendDisputeAlert(updatedOrder);
+    void emailService.notifyOrderDisputed(updatedOrder).catch(() => {});
 
     return updatedOrder;
   }
@@ -719,6 +781,8 @@ export class EscrowController {
         createdAt: new Date().toISOString(),
       };
 
+      const alreadySubmitted = isBuyer ? Boolean(order.buyerFeedback) : Boolean(order.sellerFeedback);
+
       const updatedOrder: P2POrder = {
         ...order,
         buyerFeedback: isBuyer ? feedback : order.buyerFeedback,
@@ -726,8 +790,135 @@ export class EscrowController {
         updatedAt: new Date().toISOString(),
       };
 
-      return db.saveOrder(updatedOrder);
+      const saved = await db.saveOrder(updatedOrder);
+
+      if (!alreadySubmitted) {
+        const targetUserId = isBuyer ? order.sellerId : order.buyerId;
+        const targetUser = await db.getUser(targetUserId);
+        if (targetUser) {
+          const nextPos = (targetUser.positiveFeedback || 0) + (rating === 'POSITIVE' ? 1 : 0);
+          const nextNeg = (targetUser.negativeFeedback || 0) + (rating === 'NEGATIVE' ? 1 : 0);
+          const total = nextPos + nextNeg;
+          const nextRating =
+            total > 0 ? Math.min(5, Math.max(1, Number(((nextPos / total) * 5).toFixed(1)))) : 5;
+          await db.updateUser(targetUserId, {
+            positiveFeedback: nextPos,
+            negativeFeedback: nextNeg,
+            rating: nextRating,
+          });
+          void prisma.p2POffer
+            .updateMany({
+              where: { merchantId: targetUserId },
+              data: { merchantRating: nextRating },
+            })
+            .catch(() => {});
+        }
+      }
+
+      return saved;
     });
+  }
+
+  /**
+   * 7. SWEEP EXPIRED UNPAID ORDERS & REFUND ESCROW TO SELLER
+   */
+  async sweepExpiredOrders(
+    expiredCandidates?: Array<{ id: string; sellerId: string }>
+  ): Promise<{ expiredCount: number }> {
+    const candidates =
+      expiredCandidates ??
+      (await prisma.p2POrder.findMany({
+        where: {
+          status: 'PENDING_PAYMENT',
+          expiresAt: { lte: new Date() },
+        },
+        select: { id: true, sellerId: true },
+        take: 25,
+      }));
+
+    let expiredCount = 0;
+
+    for (const candidate of candidates) {
+      try {
+        const res = await db.withLocks(
+          [`order:${candidate.id}`, `user:${candidate.sellerId}`],
+          async () => {
+            const order = await db.getOrder(candidate.id);
+            if (!order || order.status !== 'PENDING_PAYMENT') {
+              return null;
+            }
+            if (new Date(order.expiresAt).getTime() > Date.now()) {
+              return null;
+            }
+
+            const seller = await db.getUser(order.sellerId);
+            if (!seller) return null;
+
+            const unlockAmount = Math.min(seller.usdtLocked, order.usdtAmount);
+            const newSellerLocked = Number(Math.max(0, seller.usdtLocked - unlockAmount).toFixed(6));
+            const newSellerBalance = Number((seller.usdtBalance + unlockAmount).toFixed(6));
+
+            await db.updateUser(seller.id, {
+              usdtBalance: newSellerBalance,
+              usdtLocked: newSellerLocked,
+            });
+
+            const offer = await db.getOffer(order.offerId);
+            if (offer) {
+              await db.updateOffer(offer.id, {
+                totalAvailable: Number((offer.totalAvailable + order.usdtAmount).toFixed(4)),
+                isActive: true,
+              });
+            }
+
+            const now = new Date();
+            const updatedOrder: P2POrder = {
+              ...order,
+              status: 'CANCELLED',
+              cancelledAt: now.toISOString(),
+              cancelledBy: 'SYSTEM',
+              cancelReason: 'Payment window expired (15m auto-cancel)',
+              auditLogs: [
+                ...order.auditLogs,
+                {
+                  id: `log-${Date.now()}`,
+                  timestamp: now.toISOString(),
+                  message: `Payment timer expired. ${order.usdtAmount.toFixed(2)} USDT automatically unlocked back to ${displayName(seller.name)}.`,
+                  actor: 'SYSTEM',
+                },
+              ],
+              updatedAt: now.toISOString(),
+            };
+
+            await db.saveOrder(updatedOrder);
+            await db.logAudit({
+              actorId: 'SYSTEM',
+              actorRole: 'SYSTEM',
+              action: 'ORDER_AUTO_EXPIRED',
+              targetType: 'P2POrder',
+              targetId: order.id,
+              details: { unlockedUsdt: unlockAmount, sellerId: seller.id },
+            });
+
+            return { updatedOrder, sellerId: seller.id, newSellerBalance, newSellerLocked };
+          }
+        );
+
+        if (res) {
+          expiredCount++;
+          wsGateway.emitToRoom(`trade:${res.updatedOrder.id}`, 'escrow_released', res.updatedOrder);
+          wsGateway.emitToUser(res.sellerId, 'balance_updated', {
+            usdtBalance: res.newSellerBalance,
+            usdtLocked: res.newSellerLocked,
+          });
+          void telegramBot.sendOrderNotification(res.updatedOrder, 'CANCELLED');
+        }
+      } catch (err) {
+        console.warn(`Failed to sweep expired order ${candidate.id}:`, err);
+      }
+    }
+
+    return { expiredCount };
   }
 }
 

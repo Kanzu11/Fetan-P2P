@@ -4,16 +4,19 @@ import { db } from '@/server/database/store';
 import { requireAdmin, requireSuperadmin } from '@/server/security/session';
 import { getClientIp } from '@/server/security/rate-limiter';
 import { wsGateway } from '@/server/websocket-gateway';
+import { sanitizeString } from '@/server/security/sanitize';
+import { telegramBot } from '@/server/telegram-bot';
 import type { Role } from '@/client/types';
 
 export const dynamic = 'force-dynamic';
 
 const adminUserActionSchema = z.object({
   targetUserId: z.string().min(1),
-  action: z.enum(['TOGGLE_MERCHANT', 'UPDATE_KYC', 'TOGGLE_ADMIN']),
+  action: z.enum(['TOGGLE_MERCHANT', 'UPDATE_KYC', 'TOGGLE_ADMIN', 'TOGGLE_SUSPEND']),
   newKycStatus: z.enum(['UNVERIFIED', 'PENDING', 'VERIFIED', 'REJECTED']).optional(),
   newRole: z.enum(['USER', 'MERCHANT', 'ADMIN']).optional(),
   newStatus: z.boolean().optional(),
+  suspendReason: z.string().max(250).optional(),
 });
 
 export async function GET(req: Request) {
@@ -38,7 +41,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { targetUserId, action, newKycStatus, newRole, newStatus } = parsed.data;
+    const { targetUserId, action, newKycStatus, newRole, newStatus, suspendReason } = parsed.data;
     const target = await db.getUser(targetUserId);
     if (!target) {
       return NextResponse.json({ error: 'Target user not found' }, { status: 404 });
@@ -134,6 +137,64 @@ export async function POST(req: Request) {
         targetId: target.id,
         ip,
         details: { previousStatus: target.kycStatus, newKycStatus },
+      });
+    } else if (action === 'TOGGLE_SUSPEND') {
+      if (target.role === 'SUPERADMIN') {
+        return NextResponse.json(
+          { error: 'Superadmin account cannot be suspended or banned.' },
+          { status: 403 }
+        );
+      }
+
+      if (target.id === auth.user.id) {
+        return NextResponse.json(
+          { error: 'You cannot suspend or ban your own account.' },
+          { status: 400 }
+        );
+      }
+
+      if (target.role === 'ADMIN' && auth.user.role !== 'SUPERADMIN') {
+        const superCheck = await requireSuperadmin(req);
+        if (!superCheck.ok) return superCheck.response;
+      }
+
+      const nextSuspended =
+        typeof newStatus === 'boolean' ? newStatus : !Boolean(target.isSuspended);
+      const cleanReason = nextSuspended
+        ? sanitizeString(suspendReason, 220) || 'Suspended by Fetan Compliance Admin'
+        : '';
+
+      updated = await db.updateUser(target.id, {
+        isSuspended: nextSuspended,
+        suspendReason: nextSuspended ? cleanReason : '',
+      });
+
+      if (nextSuspended) {
+        const ownedOffers = await db.getOffers(undefined, undefined, true, target.id);
+        for (const off of ownedOffers) {
+          if (off.isActive) {
+            await db.updateOffer(off.id, { isActive: false });
+          }
+        }
+      }
+
+      if (target.telegramChatId) {
+        void telegramBot.sendTelegramMessage(
+          target.telegramChatId,
+          nextSuspended
+            ? `🚫 <b>Account Suspended</b>\nYour Fetan P2P account has been suspended.\nReason: ${cleanReason}`
+            : `✅ <b>Account Reactivated</b>\nYour Fetan P2P account has been unsuspended. Trading access is restored.`
+        );
+      }
+
+      await db.logAudit({
+        actorId: auth.user.id,
+        actorRole: auth.user.role,
+        action: nextSuspended ? 'USER_SUSPENDED' : 'USER_UNSUSPENDED',
+        targetType: 'User',
+        targetId: target.id,
+        ip,
+        details: { nextSuspended, suspendReason: cleanReason || null },
       });
     }
 

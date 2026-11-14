@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 const createOrderSchema = z.object({
   offerId: z.string().min(1),
-  usdtAmount: z.number().min(1, 'Minimum trade amount is 1 USDT.'),
+  usdtAmount: z.number().min(0.5, 'Minimum trade amount is 0.5 USDT.'),
   paymentMethod: z.enum([
     'TELEBIRR',
     'CBE',
@@ -27,6 +27,8 @@ const createOrderSchema = z.object({
 export async function GET(req: Request) {
   const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
+
+  await escrowController.sweepExpiredOrders().catch(() => {});
 
   const { searchParams } = new URL(req.url);
   const requestedUserId = searchParams.get('userId');
@@ -63,7 +65,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (auth.user.kycStatus !== 'VERIFIED') {
+    if (auth.user.kycStatus !== 'VERIFIED' && !isAdminRole(auth.user.role)) {
       return NextResponse.json(
         { error: 'Complete KYC identity verification before opening P2P escrow orders.' },
         { status: 403 }
@@ -71,9 +73,10 @@ export async function POST(req: Request) {
     }
 
     const rawBody = await req.json();
+    const amountCheck = sanitizeAmount(rawBody?.usdtAmount, 0.5, 1_000_000, 6);
     const parsed = createOrderSchema.safeParse({
       ...rawBody,
-      usdtAmount: sanitizeAmount(rawBody?.usdtAmount, 6) ?? Number(rawBody?.usdtAmount),
+      usdtAmount: amountCheck.valid ? amountCheck.amount : Number(rawBody?.usdtAmount),
     });
 
     if (!parsed.success) {
