@@ -179,6 +179,8 @@ export interface User {
   /** One-time or persistent code to link website account with @fetanp2probot */
   telegramLinkCode?: string;
   phone?: string;
+  emailVerified?: boolean;
+  hasPassword?: boolean;
   role: Role;
   isSuspended?: boolean;
   suspendReason?: string;

@@ -12,6 +12,7 @@ const verifySchema = z.object({
   email: z.string().email().max(120),
   code: z.string().regex(/^\d{6}$/, 'Verification code must be 6 digits.'),
   name: z.string().max(80).optional(),
+  purpose: z.enum(['SIGNUP', 'LOGIN']).optional(),
 });
 
 export async function POST(req: Request) {
@@ -43,9 +44,17 @@ export async function POST(req: Request) {
       );
     }
 
+    const targetPurpose =
+      parsed.data.purpose ||
+      ((await db.getLatestPendingOtpPurpose(cleanEmail, ['SIGNUP', 'LOGIN'])) as
+        | 'SIGNUP'
+        | 'LOGIN'
+        | undefined) ||
+      'LOGIN';
+
     const otpResult = await verifyAndConsumeOtp({
       email: cleanEmail,
-      purpose: 'LOGIN',
+      purpose: targetPurpose,
       code: parsed.data.code,
     });
 
@@ -80,18 +89,38 @@ export async function POST(req: Request) {
         .replace(/[._-]/g, ' ')
         .replace(/\b\w/g, (c) => c.toUpperCase());
 
+    const meta = (otpResult.metadata || {}) as { name?: string; passwordHash?: string };
+    const metaName = typeof meta.name === 'string' && meta.name.trim() ? meta.name.trim() : undefined;
+    const metaPasswordHash =
+      typeof meta.passwordHash === 'string' && meta.passwordHash ? meta.passwordHash : undefined;
+    const resolvedName = metaName || fallbackName;
+
     if (!user) {
       user = await db.createUser({
         email: cleanEmail,
-        name: fallbackName,
-        nickname: fallbackName.split(' ')[0],
+        name: resolvedName,
+        nickname: resolvedName.split(' ')[0],
+        passwordHash: metaPasswordHash,
         role: isSuperadminEmail ? 'SUPERADMIN' : 'USER',
         kycStatus: isSuperadminEmail ? 'VERIFIED' : 'UNVERIFIED',
         authProvider: 'email',
         emailVerified: true,
       });
-    } else if (isSuperadminEmail && user.role !== 'SUPERADMIN') {
-      user = await db.updateUser(user.id, { role: 'SUPERADMIN', kycStatus: 'VERIFIED' });
+    } else {
+      if (targetPurpose === 'SIGNUP' && metaPasswordHash) {
+        user = await db.updateUserPassword(user.id, metaPasswordHash, true);
+        if (metaName && user.name !== metaName) {
+          user = await db.updateUser(user.id, {
+            name: metaName,
+            nickname: metaName.split(' ')[0],
+          });
+        }
+      } else if (!user.emailVerified) {
+        user = await db.updateUser(user.id, { emailVerified: true });
+      }
+      if (isSuperadminEmail && user.role !== 'SUPERADMIN') {
+        user = await db.updateUser(user.id, { role: 'SUPERADMIN', kycStatus: 'VERIFIED' });
+      }
     }
 
     if (user.isSuspended) {
@@ -114,10 +143,20 @@ export async function POST(req: Request) {
       ip,
     });
 
+    const message =
+      targetPurpose === 'SIGNUP'
+        ? 'Email verified and account created! You can now sign in with your email and password.'
+        : `Signed in as ${user.name}`;
+
+    const cookieRes = new NextResponse();
+    setSessionCookie(cookieRes, user.id, user.role);
+    const jwtCookie = cookieRes.cookies.get('fetan_session');
+
     const response = NextResponse.json({
       success: true,
+      token: jwtCookie?.value || null,
       user,
-      message: `Signed in as ${user.name}`,
+      message,
     });
 
     return setSessionCookie(response, user.id, user.role);

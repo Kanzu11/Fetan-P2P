@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRealtime } from '@/client/components/realtime-provider';
+import { useLivePrices } from '@/client/hooks/use-live-prices';
 import { useI18n } from '@/client/i18n';
 import { PAYMENT_METHODS_META, displayName, WalletTransaction } from '@/client/types';
 import { WITHDRAWAL_FEES_USDT } from '@/client/config';
@@ -125,16 +126,13 @@ export default function WalletPage() {
     }
   }, [currentUser?.id]);
 
+  const { stats: livePriceStats } = useLivePrices();
+
   useEffect(() => {
-    fetch('/api/prices/live')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.stats?.referencePriceEtb) {
-          setMarketRateEtb(Number(data.stats.referencePriceEtb));
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (livePriceStats?.referencePriceEtb) {
+      setMarketRateEtb(Number(livePriceStats.referencePriceEtb));
+    }
+  }, [livePriceStats]);
 
   if (!currentUser) {
     return <div className="p-12 text-center text-slate-500 text-xs">Loading wallet...</div>;

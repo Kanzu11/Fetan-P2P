@@ -8,6 +8,7 @@ import {
   isAdminRole,
 } from '../client/types';
 import { wsGateway } from './websocket-gateway';
+import { pricingService } from '../client/pricing';
 import { telegramBot } from './telegram-bot';
 import { emailService } from './email-service';
 import { prisma } from './database/prisma';
@@ -294,6 +295,7 @@ export class EscrowController {
       usdtLocked: result.newSellerLocked,
     });
     wsGateway.emitToRoom(`trade:${result.savedOrder.id}`, 'escrow_locked', result.savedOrder);
+    void pricingService.broadcastLivePrices().catch(() => {});
     void telegramBot.sendOrderNotification(result.savedOrder, 'CREATED');
     void emailService
       .notifyOrderCreated(result.savedOrder, result.buyer, result.seller)
@@ -576,6 +578,7 @@ export class EscrowController {
     void emailService
       .notifyOrderCompleted(result.updatedOrder, result.buyer, result.seller)
       .catch(() => {});
+    void pricingService.broadcastLivePrices().catch(() => {});
 
     return result.updatedOrder;
   }
@@ -690,6 +693,7 @@ export class EscrowController {
       usdtLocked: result.newSellerLocked,
     });
     void telegramBot.sendOrderNotification(result.updatedOrder, 'CANCELLED');
+    void pricingService.broadcastLivePrices().catch(() => {});
 
     return result.updatedOrder;
   }
@@ -916,6 +920,10 @@ export class EscrowController {
       } catch (err) {
         console.warn(`Failed to sweep expired order ${candidate.id}:`, err);
       }
+    }
+
+    if (expiredCount > 0) {
+      void pricingService.broadcastLivePrices().catch(() => {});
     }
 
     return { expiredCount };

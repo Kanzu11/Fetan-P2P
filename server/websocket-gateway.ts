@@ -22,15 +22,30 @@ class WebSocketGateway {
     this.wss = wss;
 
     wss.on('connection', async (ws: WebSocket, req) => {
+      const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+      const channel = url.searchParams.get('channel');
       const token = parseCookieHeader(req.headers.cookie, SESSION_COOKIE_NAME);
       const session = verifySessionToken(token);
 
       if (!session) {
+        if (channel === 'prices') {
+          this.joinRoom('public:prices', ws);
+          this.joinRoom('public', ws);
+          ws.on('close', () => {
+            this.leaveRoom('public:prices', ws);
+            this.leaveRoom('public', ws);
+          });
+          return;
+        }
         ws.close(4001, 'Authentication required');
         return;
       }
 
-      const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+      if (channel === 'prices') {
+        this.joinRoom('public:prices', ws);
+        this.joinRoom('public', ws);
+      }
+
       const orderId = url.searchParams.get('orderId');
 
       this.joinRoom(`user:${session.sub}`, ws);
@@ -57,7 +72,11 @@ class WebSocketGateway {
           const parsed = JSON.parse(raw.toString());
           if (parsed.action === 'join_room' && typeof parsed.room === 'string') {
             const room: string = parsed.room;
-            if (room === `user:${session.sub}`) {
+            if (
+              room === `user:${session.sub}` ||
+              room === 'public:prices' ||
+              room === 'public'
+            ) {
               this.joinRoom(room, ws);
             } else if (
               room === 'admin:dashboard' &&

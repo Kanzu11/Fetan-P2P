@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import type { MarketPriceStats } from '@/client/pricing';
+import React, { useState } from 'react';
+import { useLivePrices } from '@/client/hooks/use-live-prices';
 import { useI18n } from '@/client/i18n';
 import {
   ArrowDownRight,
@@ -13,29 +13,19 @@ import {
 
 export function LivePriceTicker() {
   const { lang } = useI18n();
-  const [stats, setStats] = useState<MarketPriceStats | null>(null);
+  const { stats, connected, priceDirection, refresh } = useLivePrices();
   const [loading, setLoading] = useState(false);
 
-  const fetchPrices = async () => {
+  const handleRefresh = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/prices/live');
-      if (res.ok) {
-        const data = await res.json();
-        setStats(data.stats);
-      }
+      await refresh();
     } catch (e) {
-      console.error('Failed to fetch live prices:', e);
+      console.error('Failed to refresh live prices:', e);
     } finally {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    void fetchPrices();
-    const interval = setInterval(fetchPrices, 8000);
-    return () => clearInterval(interval);
-  }, []);
 
   if (!stats) {
     return (
@@ -55,14 +45,30 @@ export function LivePriceTicker() {
       {/* Top row: Average market price */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/[0.06] pb-3.5">
         <div className="flex items-center gap-2.5">
-          <span className="inline-flex rounded-full h-2 w-2 bg-brand-buy shadow-[0_0_0_4px_rgba(0,135,81,0.14)]" />
+          <span
+            className={`inline-flex rounded-full h-2 w-2 ${
+              connected
+                ? 'bg-brand-buy shadow-[0_0_0_4px_rgba(0,135,81,0.14)] animate-pulse'
+                : 'bg-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.14)]'
+            }`}
+            title={connected ? 'Real-time stream connected' : 'Connecting real-time price feed'}
+          />
           <div className="flex flex-wrap items-baseline gap-2">
             <span className="text-brand-ink-soft font-semibold text-[11px] uppercase tracking-wider">
               {lang === 'am' ? 'አማካይ የገበያ ዋጋ (1 USDT)' : 'Reference Desk Rate (1 USDT)'}
             </span>
-            <span className="text-lg font-bold font-mono text-brand-ink tabular-nums">
+            <span className="text-lg font-bold font-mono text-brand-ink tabular-nums inline-flex items-center gap-1">
               {stats.referencePriceEtb.toFixed(2)}{' '}
               <span className="text-xs font-sans font-medium text-brand-ink-soft">ETB</span>
+              {priceDirection === 'up' && (
+                <ArrowUpRight className="w-3.5 h-3.5 text-brand-buy" />
+              )}
+              {priceDirection === 'down' && (
+                <ArrowDownRight className="w-3.5 h-3.5 text-brand-sell" />
+              )}
+            </span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 border border-emerald-500/20">
+              {connected ? 'LIVE' : 'SYNC'}
             </span>
           </div>
         </div>
@@ -77,7 +83,7 @@ export function LivePriceTicker() {
           </span>
           <button
             type="button"
-            onClick={fetchPrices}
+            onClick={handleRefresh}
             disabled={loading}
             className="p-1.5 rounded-full bg-white/80 border border-black/[0.07] text-brand-ink-soft hover:text-brand-ink transition-colors"
             title="Refresh Prices"

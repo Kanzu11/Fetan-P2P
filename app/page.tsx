@@ -7,6 +7,7 @@ import { useRealtime } from '@/client/components/realtime-provider';
 import { GoogleSignInButton } from '@/client/components/google-signin-button';
 import { useI18n } from '@/client/i18n';
 import type { MarketPriceStats } from '@/client/pricing';
+import { useLivePrices } from '@/client/hooks/use-live-prices';
 import { PaymentMethod, PAYMENT_METHODS_META } from '@/client/types';
 import {
   ShieldCheck,
@@ -34,6 +35,8 @@ export default function LandingPage() {
     openAuthModal,
     requestLoginOtp,
     verifyLoginOtp,
+    loginWithPassword,
+    verifySignupOtp,
     loginWithGoogle,
     googleClientId,
     setNotification,
@@ -46,9 +49,10 @@ export default function LandingPage() {
   const [supportModalOpen, setSupportModalOpen] = useState(false);
   const [heroTab, setHeroTab] = useState<'LOGIN' | 'CALCULATOR'>('LOGIN');
 
-  // Inline Email OTP Login State
+  // Inline Email + Password Login State
   const [inlineEmail, setInlineEmail] = useState('');
-  const [inlineOtpStep, setInlineOtpStep] = useState<'EMAIL' | 'CODE'>('EMAIL');
+  const [inlinePassword, setInlinePassword] = useState('');
+  const [inlineOtpStep, setInlineOtpStep] = useState<'PASSWORD' | 'CODE'>('PASSWORD');
   const [inlineOtpCode, setInlineOtpCode] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -59,18 +63,7 @@ export default function LandingPage() {
   const [etbInput, setEtbInput] = useState<string>('15000');
   const [selectedRail, setSelectedRail] = useState<PaymentMethod>('TELEBIRR');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [liveStats, setLiveStats] = useState<MarketPriceStats | null>(null);
-
-  useEffect(() => {
-    fetch('/api/prices/live')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.stats) {
-          setLiveStats(data.stats);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const { stats: liveStats } = useLivePrices();
 
   const fallbackRef = Number(process.env.NEXT_PUBLIC_REFERENCE_ETB_PER_USDT || 186.5);
   const referenceRate = liveStats?.referencePriceEtb ?? fallbackRef;
@@ -81,25 +74,32 @@ export default function LandingPage() {
   const parsedEtb = parseFloat(etbInput) || 0;
   const calculatedUsdt = parsedEtb > 0 && unitRate > 0 ? parsedEtb / unitRate : 0;
 
-  const handleInlineRequestOtp = async (e: React.FormEvent) => {
+  const handleInlinePasswordSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inlineEmail.trim()) {
-      setAuthError('Please enter your email.');
+    if (!inlineEmail.trim() || !inlinePassword) {
+      setAuthError('Please enter your email and password.');
       return;
     }
     setAuthLoading(true);
     setAuthError(null);
     setAuthInfo(null);
     try {
-      const res = await requestLoginOtp(inlineEmail.trim());
-      if (res.success) {
+      const res = await loginWithPassword(inlineEmail.trim(), inlinePassword);
+      if (res.success && res.user) {
+        setNotification(`Welcome back, ${res.user.name}.`);
+        setInlineEmail('');
+        setInlinePassword('');
+        setInlineOtpCode('');
+        setInlineOtpStep('PASSWORD');
+        setAuthInfo(null);
+      } else if (res.requiresVerification) {
         setInlineOtpStep('CODE');
-        setAuthInfo(res.message || `6-digit code sent to ${inlineEmail.trim()}.`);
+        setAuthInfo(res.error || 'Enter the 6-digit email verification code from signup.');
       } else {
-        setAuthError(res.error || 'Could not send verification code');
+        setAuthError(res.error || 'Invalid email or password.');
       }
     } catch (err: unknown) {
-      setAuthError(err instanceof Error ? err.message : 'Request failed');
+      setAuthError(err instanceof Error ? err.message : 'Sign-in failed');
     } finally {
       setAuthLoading(false);
     }
@@ -114,12 +114,13 @@ export default function LandingPage() {
     setAuthLoading(true);
     setAuthError(null);
     try {
-      const res = await verifyLoginOtp(inlineEmail.trim(), inlineOtpCode.trim());
+      const res = await verifySignupOtp(inlineEmail.trim(), inlineOtpCode.trim());
       if (res.success && res.user) {
-        setNotification(`Welcome back, ${res.user.name}.`);
+        setNotification(`Welcome, ${res.user.name}.`);
         setInlineEmail('');
+        setInlinePassword('');
         setInlineOtpCode('');
-        setInlineOtpStep('EMAIL');
+        setInlineOtpStep('PASSWORD');
         setAuthInfo(null);
       } else {
         setAuthError(res.error || 'Invalid or expired code');
@@ -391,12 +392,12 @@ export default function LandingPage() {
                     <div className="relative flex items-center justify-center">
                       <div className="border-t border-white/10 w-full" />
                       <span className="px-2.5 text-[10px] text-white/45 font-semibold uppercase tracking-wider bg-[#0b1813]">
-                        or email code
+                        or email &amp; password
                       </span>
                     </div>
 
-                    {inlineOtpStep === 'EMAIL' ? (
-                      <form onSubmit={handleInlineRequestOtp} className="space-y-2.5">
+                    {inlineOtpStep === 'PASSWORD' ? (
+                      <form onSubmit={handleInlinePasswordSignIn} className="space-y-2.5">
                         <input
                           type="email"
                           value={inlineEmail}
@@ -405,14 +406,38 @@ export default function LandingPage() {
                           required
                           className="w-full px-3.5 py-2.5 rounded-xl border border-white/15 bg-white/[0.06] text-white placeholder-white/40 text-xs focus:outline-none focus:border-brand-buy-400"
                         />
+                        <input
+                          type="password"
+                          value={inlinePassword}
+                          onChange={(e) => setInlinePassword(e.target.value)}
+                          placeholder="Password"
+                          required
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-white/15 bg-white/[0.06] text-white placeholder-white/40 text-xs focus:outline-none focus:border-brand-buy-400"
+                        />
                         <button
                           type="submit"
                           disabled={authLoading}
                           className="w-full py-2.5 px-4 rounded-full bg-brand-buy-500 hover:bg-brand-buy-400 text-brand-ink text-xs font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                         >
-                          <Mail className="w-3.5 h-3.5" />
-                          <span>{authLoading ? 'Sending code...' : 'Send 6-Digit Email Code'}</span>
+                          <span>{authLoading ? 'Signing in...' : 'Sign In'}</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
                         </button>
+                        <div className="flex items-center justify-between text-[11px] pt-0.5 px-1">
+                          <button
+                            type="button"
+                            onClick={openAuthModal}
+                            className="text-brand-buy-300 hover:text-brand-buy-200 font-medium"
+                          >
+                            Create account
+                          </button>
+                          <button
+                            type="button"
+                            onClick={openAuthModal}
+                            className="text-white/60 hover:text-white"
+                          >
+                            Forgot password?
+                          </button>
+                        </div>
                       </form>
                     ) : (
                       <form onSubmit={handleInlineVerifyOtp} className="space-y-2.5">
@@ -439,7 +464,7 @@ export default function LandingPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              setInlineOtpStep('EMAIL');
+                              setInlineOtpStep('PASSWORD');
                               setInlineOtpCode('');
                               setAuthInfo(null);
                             }}

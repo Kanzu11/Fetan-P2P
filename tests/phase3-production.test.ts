@@ -10,6 +10,19 @@ import { escrowController } from '../server/escrow-controller';
 import { sanitizeAmount } from '../server/security/sanitize';
 import { WITHDRAWAL_FEES_USDT } from '../client/config';
 import { pricingService } from '../client/pricing';
+import {
+  validatePasswordStrength,
+  hashPassword,
+  verifyPassword,
+} from '../server/security/password';
+import { createOtpChallenge } from '../server/security/otp';
+import { verifySessionToken } from '../server/security/session';
+import { prisma } from '../server/database/prisma';
+import { wsGateway } from '../server/websocket-gateway';
+import { POST as verifyOtpRoute } from '../app/api/auth/verify-otp/route';
+import { POST as loginRoute } from '../app/api/auth/login/route';
+import { POST as resetPasswordRoute } from '../app/api/auth/reset-password/route';
+import { GET as priceStreamRoute } from '../app/api/prices/stream/route';
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -196,4 +209,197 @@ test('ETB P2P price band aligns with BingX market (up to 195 ETB max) and sender
 
   const ok195 = await pricingService.validatePrice(195);
   assert.equal(ok195.valid, true, '195 ETB must be allowed within BingX market band');
+});
+
+test('scrypt password hashing validates strength and verifies passwords cleanly', async () => {
+  assert.equal(validatePasswordStrength('short').valid, false);
+  assert.equal(validatePasswordStrength('StrongPass#2026').valid, true);
+
+  const hash = await hashPassword('StrongPass#2026');
+  assert.ok(hash.startsWith('scrypt$'));
+  assert.equal(await verifyPassword('StrongPass#2026', hash), true);
+  assert.equal(await verifyPassword('WrongPass#2026', hash), false);
+});
+
+test('Signup OTP -> Email+Password Login -> Forgot/Reset Password + JWT Flow works end-to-end', async () => {
+  const testEmail = `test_pwd_${Date.now()}@fetan.test`;
+  const testIp = '198.51.100.42';
+  const initialPassword = 'InitialPassword#2026';
+  const resetPassword = 'UpdatedPassword#2026';
+  let createdUserId: string | undefined;
+
+  try {
+    const initialHash = await hashPassword(initialPassword);
+    const { code: signupCode } = await createOtpChallenge({
+      email: testEmail,
+      purpose: 'SIGNUP',
+      metadata: { name: 'Test Trader', passwordHash: initialHash },
+    });
+
+    const verifyRes = await verifyOtpRoute(
+      new Request('http://localhost/api/auth/verify-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': testIp,
+        },
+        body: JSON.stringify({
+          email: testEmail,
+          code: signupCode,
+          purpose: 'SIGNUP',
+        }),
+      })
+    );
+    assert.equal(verifyRes.status, 200);
+    const verifyData = (await verifyRes.json()) as {
+      success: boolean;
+      token: string;
+      user: {
+        id: string;
+        emailVerified?: boolean;
+        hasPassword?: boolean;
+        passwordHash?: unknown;
+      };
+    };
+    createdUserId = verifyData.user.id;
+    assert.equal(verifyData.success, true);
+    assert.equal(verifyData.user.emailVerified, true);
+    assert.equal(verifyData.user.hasPassword, true);
+    assert.equal(verifyData.user.passwordHash, undefined);
+    assert.equal(verifySessionToken(verifyData.token)?.sub, createdUserId);
+
+    const wrongLoginRes = await loginRoute(
+      new Request('http://localhost/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': testIp,
+        },
+        body: JSON.stringify({ email: testEmail, password: 'WrongPassword#999' }),
+      })
+    );
+    assert.equal(wrongLoginRes.status, 401);
+
+    const goodLoginRes = await loginRoute(
+      new Request('http://localhost/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': testIp,
+        },
+        body: JSON.stringify({ email: testEmail, password: initialPassword }),
+      })
+    );
+    assert.equal(goodLoginRes.status, 200);
+    const loginSetCookie = goodLoginRes.headers.get('set-cookie') || '';
+    assert.ok(loginSetCookie.includes('fetan_session='));
+    const goodLoginData = (await goodLoginRes.json()) as {
+      success: boolean;
+      token: string;
+      user: { id: string };
+    };
+    assert.equal(goodLoginData.success, true);
+    assert.equal(verifySessionToken(goodLoginData.token)?.sub, createdUserId);
+
+    const { code: resetCode } = await createOtpChallenge({
+      email: testEmail,
+      purpose: 'RESET_PASSWORD',
+      metadata: { userId: createdUserId },
+    });
+
+    const resetRes = await resetPasswordRoute(
+      new Request('http://localhost/api/auth/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': testIp,
+        },
+        body: JSON.stringify({
+          email: testEmail,
+          code: resetCode,
+          newPassword: resetPassword,
+        }),
+      })
+    );
+    assert.equal(resetRes.status, 200);
+
+    const stalePassRes = await loginRoute(
+      new Request('http://localhost/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': testIp,
+        },
+        body: JSON.stringify({ email: testEmail, password: initialPassword }),
+      })
+    );
+    assert.equal(stalePassRes.status, 401);
+
+    const newPassRes = await loginRoute(
+      new Request('http://localhost/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': testIp,
+        },
+        body: JSON.stringify({ email: testEmail, password: resetPassword }),
+      })
+    );
+    assert.equal(newPassRes.status, 200);
+  } finally {
+    await prisma.auditLog.deleteMany({
+      where: {
+        OR: [
+          ...(createdUserId ? [{ actorId: createdUserId }, { targetId: createdUserId }] : []),
+          { ip: testIp },
+        ],
+      },
+    });
+    await prisma.otpChallenge.deleteMany({ where: { email: testEmail } });
+    await prisma.rateLimitRecord.deleteMany({
+      where: {
+        OR: [{ key: { contains: testEmail } }, { key: { contains: testIp } }],
+      },
+    });
+    if (createdUserId) {
+      await prisma.user.deleteMany({ where: { id: createdUserId } });
+    }
+  }
+});
+
+test('Real-time live price WebSocket broadcast and SSE stream emit referencePriceEtb', async () => {
+  let receivedEvent: { room: string; event: string; data: unknown } | null = null;
+  const unsubscribe = wsGateway.onAnyEvent((evt) => {
+    if (evt.room === 'public:prices' && evt.event === 'price_updated') {
+      receivedEvent = evt;
+    }
+  });
+
+  try {
+    const stats = await pricingService.broadcastLivePrices();
+    assert.ok(typeof stats.referencePriceEtb === 'number' && stats.referencePriceEtb > 0);
+    assert.ok(receivedEvent !== null, 'wsGateway must broadcast price_updated to public:prices');
+  } finally {
+    unsubscribe();
+  }
+
+  const abortController = new AbortController();
+  const res = await priceStreamRoute(
+    new Request('http://localhost/api/prices/stream', {
+      signal: abortController.signal,
+    })
+  );
+  assert.ok(res.headers.get('Content-Type')?.includes('text/event-stream'));
+  assert.ok(res.body, 'SSE response body must exist');
+
+  const reader = res.body.getReader();
+  try {
+    const chunk = await reader.read();
+    const text = new TextDecoder().decode(chunk.value);
+    assert.ok(text.includes('event: price_updated'));
+    assert.ok(text.includes('referencePriceEtb'));
+  } finally {
+    await reader.cancel();
+    abortController.abort();
+  }
 });

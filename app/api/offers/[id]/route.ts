@@ -71,6 +71,8 @@ export async function PATCH(
         : {}),
     });
 
+    void pricingService.broadcastLivePrices().catch(() => {});
+
     return NextResponse.json({ success: true, offer: updated });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to update offer';
@@ -105,10 +107,12 @@ export async function DELETE(
 
     try {
       await db.deleteOffer(offer.id);
+      void pricingService.broadcastLivePrices().catch(() => {});
       return NextResponse.json({ success: true, deleted: true });
     } catch {
       // Preserve historical completed/cancelled order foreign keys by deactivating and zeroing availability
       await db.updateOffer(offer.id, { isActive: false, totalAvailable: 0 });
+      void pricingService.broadcastLivePrices().catch(() => {});
       return NextResponse.json({ success: true, archived: true });
     }
   } catch (err: unknown) {

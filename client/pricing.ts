@@ -1,4 +1,5 @@
 import { db } from '../server/database/store';
+import { wsGateway } from '../server/websocket-gateway';
 
 export interface MarketPriceStats {
   referencePriceEtb: number;
@@ -118,6 +119,12 @@ class PricingService {
       };
     }
     return { valid: true };
+  }
+  async broadcastLivePrices(): Promise<MarketPriceStats> {
+    const stats = await this.getLiveStats();
+    wsGateway.emitToRoom('public:prices', 'price_updated', { stats });
+    wsGateway.emitToRoom('public', 'price_updated', { stats });
+    return stats;
   }
 }
 

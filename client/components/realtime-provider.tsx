@@ -12,6 +12,7 @@ export interface AuthResult {
 export interface OtpRequestResult {
   success: boolean;
   message?: string;
+  expiresInMinutes?: number;
   error?: string;
 }
 
@@ -26,6 +27,26 @@ interface RealtimeContextType {
   closeAuthModal: () => void;
   requestLoginOtp: (email: string) => Promise<OtpRequestResult>;
   verifyLoginOtp: (email: string, code: string, name?: string) => Promise<AuthResult>;
+  loginWithPassword: (
+    email: string,
+    password: string
+  ) => Promise<AuthResult & { requiresVerification?: boolean; email?: string; message?: string }>;
+  signupWithPassword: (
+    name: string,
+    email: string,
+    password: string
+  ) => Promise<OtpRequestResult & { message?: string }>;
+  verifySignupOtp: (
+    email: string,
+    code: string,
+    name?: string
+  ) => Promise<AuthResult & { message?: string }>;
+  requestPasswordReset: (email: string) => Promise<OtpRequestResult & { message?: string }>;
+  resetPasswordWithOtp: (
+    email: string,
+    code: string,
+    newPassword: string
+  ) => Promise<AuthResult & { message?: string }>;
   loginWithGoogle: (idToken: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -134,6 +155,127 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         return { success: true, user: data.user };
       }
       return { success: false, error: data.error || 'Invalid or expired verification code' };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Network error' };
+    }
+  };
+
+  const loginWithPassword = async (
+    email: string,
+    password: string
+  ): Promise<AuthResult & { requiresVerification?: boolean; email?: string; message?: string }> => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.user) {
+        setCurrentUser(data.user);
+        await fetchCurrentUser();
+        return { success: true, user: data.user, message: data.message };
+      }
+      return {
+        success: false,
+        error: data.error || 'Failed to sign in',
+        requiresVerification: Boolean(data.requiresVerification),
+        email: data.email,
+      };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Network error' };
+    }
+  };
+
+  const signupWithPassword = async (
+    name: string,
+    email: string,
+    password: string
+  ): Promise<OtpRequestResult & { message?: string }> => {
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Failed to register account' };
+      }
+      return {
+        success: true,
+        expiresInMinutes: data.expiresInMinutes,
+        message: data.message,
+      };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Network error' };
+    }
+  };
+
+  const verifySignupOtp = async (
+    email: string,
+    code: string,
+    name?: string
+  ): Promise<AuthResult & { message?: string }> => {
+    try {
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code, name, purpose: 'SIGNUP' }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.user) {
+        setCurrentUser(data.user);
+        await fetchCurrentUser();
+        return { success: true, user: data.user, message: data.message };
+      }
+      return { success: false, error: data.error || 'Invalid verification code' };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Verification error' };
+    }
+  };
+
+  const requestPasswordReset = async (
+    email: string
+  ): Promise<OtpRequestResult & { message?: string }> => {
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Failed to send reset code' };
+      }
+      return {
+        success: true,
+        expiresInMinutes: data.expiresInMinutes,
+        message: data.message,
+      };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Network error' };
+    }
+  };
+
+  const resetPasswordWithOtp = async (
+    email: string,
+    code: string,
+    newPassword: string
+  ): Promise<AuthResult & { message?: string }> => {
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code, newPassword }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.user) {
+        setCurrentUser(data.user);
+        await fetchCurrentUser();
+        return { success: true, user: data.user, message: data.message };
+      }
+      return { success: false, error: data.error || 'Failed to reset password' };
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : 'Network error' };
     }
@@ -248,6 +390,11 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         closeAuthModal: () => setAuthModalOpen(false),
         requestLoginOtp,
         verifyLoginOtp,
+        loginWithPassword,
+        signupWithPassword,
+        verifySignupOtp,
+        requestPasswordReset,
+        resetPasswordWithOtp,
         loginWithGoogle,
         logout,
         refreshUser: fetchCurrentUser,

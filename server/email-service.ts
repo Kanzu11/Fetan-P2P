@@ -32,7 +32,7 @@ class EmailService {
   async sendOtpEmail(params: {
     to: string;
     code: string;
-    purpose: 'LOGIN' | 'WITHDRAW';
+    purpose: 'LOGIN' | 'SIGNUP' | 'RESET_PASSWORD' | 'WITHDRAW';
     amountUsdt?: number;
     network?: string;
     destinationAddress?: string;
@@ -43,9 +43,23 @@ class EmailService {
 
     const { to, code, purpose, amountUsdt, network, destinationAddress } = params;
     const isWithdraw = purpose === 'WITHDRAW';
+    const isReset = purpose === 'RESET_PASSWORD';
+    const isSignup = purpose === 'SIGNUP';
 
-    const title = isWithdraw ? 'Confirm Your USDT Withdrawal' : 'Your Fetan P2P Sign-In Code';
-    const badge = isWithdraw ? 'Security 2FA Code' : 'Login Verification';
+    const title = isWithdraw
+      ? 'Confirm Your USDT Withdrawal'
+      : isReset
+      ? 'Reset Your Fetan P2P Password'
+      : isSignup
+      ? 'Verify Your Email Address'
+      : 'Your Fetan P2P Sign-In Code';
+    const badge = isWithdraw
+      ? 'Security 2FA Code'
+      : isReset
+      ? 'Password Reset'
+      : isSignup
+      ? 'Email Verification'
+      : 'Login Verification';
 
     const detailHtml = isWithdraw
       ? `<p>You requested a withdrawal on Fetan P2P:</p>
@@ -55,6 +69,10 @@ class EmailService {
            <li><strong>Destination:</strong> <code>${destinationAddress || ''}</code></li>
          </ul>
          <p>If you did not request this withdrawal, ignore this email and lock your account immediately.</p>`
+      : isReset
+      ? `<p>Enter this 6-digit password reset code to choose a new password for your Fetan P2P account. It expires in <strong>10 minutes</strong>.</p>`
+      : isSignup
+      ? `<p>Welcome to Fetan P2P! Enter this 6-digit verification code to verify your email address (first-time setup only). After this, you can sign in directly with your email and password.</p>`
       : `<p>Enter this 6-digit verification code to sign in to your Fetan P2P account. It expires in <strong>10 minutes</strong>.</p>`;
 
     const html = this.wrapTemplate(
@@ -68,12 +86,18 @@ class EmailService {
        <p style="font-size: 12px; color: #64748b;">Never share this code with anyone, including Fetan support staff.</p>`
     );
 
+    const subject = isWithdraw
+      ? `[Fetan P2P] Withdrawal Confirmation Code: ${code}`
+      : isReset
+      ? `[Fetan P2P] Password Reset Code: ${code}`
+      : isSignup
+      ? `[Fetan P2P] Verify Your Email: ${code}`
+      : `[Fetan P2P] Your Verification Code: ${code}`;
+
     await this.transporter.sendMail({
       from: `"Fetan P2P Security" <${process.env.EMAIL_USER}>`,
       to,
-      subject: isWithdraw
-        ? `[Fetan P2P] Withdrawal Confirmation Code: ${code}`
-        : `[Fetan P2P] Your Verification Code: ${code}`,
+      subject,
       html,
     });
   }

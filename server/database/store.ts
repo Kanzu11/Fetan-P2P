@@ -32,6 +32,8 @@ function mapUser(row: {
   email: string;
   name: string;
   nickname: string | null;
+  passwordHash: string | null;
+  emailVerified: boolean;
   phone: string | null;
   telegramHandle: string | null;
   telegramChatId: string | null;
@@ -68,6 +70,8 @@ function mapUser(row: {
     name: row.name,
     nickname: row.nickname || undefined,
     phone: row.phone || undefined,
+    emailVerified: Boolean(row.emailVerified),
+    hasPassword: Boolean(row.passwordHash),
     telegramHandle: row.telegramHandle || undefined,
     telegramChatId: row.telegramChatId || undefined,
     telegramNotifications: row.telegramNotifications,
@@ -560,6 +564,63 @@ export class DatabaseStore {
     return row ? mapUser(row) : undefined;
   }
 
+  async getUserAuthByEmail(
+    email: string
+  ): Promise<{ user: User; passwordHash: string | null; emailVerified: boolean } | undefined> {
+    await this.ensureBootstrapped();
+    const row = await this.client().user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+    });
+    if (!row) return undefined;
+    return {
+      user: mapUser(row),
+      passwordHash: row.passwordHash,
+      emailVerified: Boolean(row.emailVerified),
+    };
+  }
+
+  async updateUserPassword(
+    userId: string,
+    passwordHash: string,
+    emailVerified = true
+  ): Promise<User> {
+    const row = await this.client().user.update({
+      where: { id: userId },
+      data: {
+        passwordHash,
+        emailVerified,
+        lastLoginAt: new Date(),
+      },
+    });
+    return mapUser(row);
+  }
+
+  async touchUserLogin(userId: string): Promise<User> {
+    const row = await this.client().user.update({
+      where: { id: userId },
+      data: { lastLoginAt: new Date() },
+    });
+    return mapUser(row);
+  }
+
+  async getLatestPendingOtpPurpose(
+    email: string,
+    purposes: string[]
+  ): Promise<string | undefined> {
+    await this.ensureBootstrapped();
+    const row = await this.client().otpChallenge.findFirst({
+      where: {
+        email: email.trim().toLowerCase(),
+        consumedAt: null,
+        expiresAt: { gt: new Date() },
+        purpose: { in: purposes },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { purpose: true },
+    });
+    return row?.purpose;
+  }
+
   async getAllUsers(): Promise<User[]> {
     await this.ensureBootstrapped();
     const rows = await this.client().user.findMany({ orderBy: { createdAt: 'desc' } });
@@ -627,6 +688,7 @@ export class DatabaseStore {
     email: string;
     name: string;
     nickname?: string;
+    passwordHash?: string;
     role?: User['role'];
     kycStatus?: User['kycStatus'];
     authProvider?: string;
@@ -646,6 +708,7 @@ export class DatabaseStore {
         email: cleanEmail,
         name: params.name.trim(),
         nickname: (params.nickname || params.name).trim(),
+        passwordHash: params.passwordHash || null,
         role: params.role || 'USER',
         kycStatus: params.kycStatus || 'UNVERIFIED',
         merchantStatus: params.role === 'MERCHANT' || params.role === 'SUPERADMIN' ? 'APPROVED' : 'NONE',
@@ -685,6 +748,7 @@ export class DatabaseStore {
     if (updates.kycSubmittedAt !== undefined)
       data.kycSubmittedAt = updates.kycSubmittedAt ? new Date(updates.kycSubmittedAt) : null;
     if (updates.merchantStatus !== undefined) data.merchantStatus = updates.merchantStatus;
+    if (updates.emailVerified !== undefined) data.emailVerified = updates.emailVerified;
     if (updates.usdtBalance !== undefined) data.usdtBalance = updates.usdtBalance;
     if (updates.usdtLocked !== undefined) data.usdtLocked = updates.usdtLocked;
     if (updates.paymentDetails !== undefined)

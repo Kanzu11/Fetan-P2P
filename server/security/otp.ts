@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/server/database/prisma';
 
-export type OtpPurpose = 'LOGIN' | 'WITHDRAW';
+export type OtpPurpose = 'LOGIN' | 'SIGNUP' | 'RESET_PASSWORD' | 'WITHDRAW';
 
 const OTP_TTL_MINUTES = 10;
 const OTP_MAX_ATTEMPTS = 5;

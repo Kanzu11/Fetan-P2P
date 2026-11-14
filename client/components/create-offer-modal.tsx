@@ -5,6 +5,7 @@ import { useRealtime } from './realtime-provider';
 import { useI18n } from '@/client/i18n';
 import { OfferType, PaymentMethod, PAYMENT_METHODS_META } from '@/client/types';
 import type { MarketPriceStats } from '@/client/pricing';
+import { useLivePrices } from '@/client/hooks/use-live-prices';
 import { Tag, Plus, Check, ShieldAlert, X } from 'lucide-react';
 
 export function CreateOfferModal({
@@ -35,21 +36,17 @@ export function CreateOfferModal({
     'Online now. Please send from an account with your own name and do not write crypto in the payment note.'
   );
 
-  const [marketStats, setMarketStats] = useState<MarketPriceStats | null>(null);
+  const { stats: liveStats } = useLivePrices();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const marketStats = liveStats;
 
   useEffect(() => {
     if (!isOpen) return;
-    fetch('/api/prices/live')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.stats) {
-          setMarketStats(data.stats);
-          setFixedPrice(data.stats.referencePriceEtb.toFixed(2));
-        }
-      })
-      .catch(console.error);
+    if (liveStats?.referencePriceEtb) {
+      setFixedPrice(liveStats.referencePriceEtb.toFixed(2));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   if (!isOpen || !currentUser) return null;
