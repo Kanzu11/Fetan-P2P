@@ -19,18 +19,6 @@ const nextConfig = {
       },
     ],
   },
-  async rewrites() {
-    const backendUrl = process.env.BACKEND_URL?.trim().replace(/\/+$/, '');
-    if (!backendUrl) return [];
-    return {
-      beforeFiles: [
-        {
-          source: '/api/:path*',
-          destination: `${backendUrl}/api/:path*`,
-        },
-      ],
-    };
-  },
   async headers() {
     return [
       {
