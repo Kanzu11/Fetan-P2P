@@ -20,7 +20,7 @@ export interface MarketPriceStats {
 class PricingService {
   private getFallbackRate(): number {
     const envRate = Number(process.env.REFERENCE_ETB_PER_USDT);
-    return Number.isFinite(envRate) && envRate > 0 ? envRate : 158.45;
+    return Number.isFinite(envRate) && envRate > 0 ? envRate : 186.5;
   }
 
   async getLiveStats(): Promise<MarketPriceStats> {
@@ -40,7 +40,7 @@ class PricingService {
     const bestSell =
       buyOffers.length > 0
         ? Math.max(...buyOffers.map((o) => o.pricePerUsdtEtb))
-        : Number((bestBuy * 0.99).toFixed(2));
+        : Number((bestBuy * 0.992).toFixed(2));
 
     const reference = Number(((bestBuy + bestSell) / 2).toFixed(2));
     const spread = Number(Math.max(0, bestBuy - bestSell).toFixed(2));
@@ -73,8 +73,9 @@ class PricingService {
         .toFixed(2)
     );
 
-    const minLimit = Number((reference * 0.85).toFixed(2));
-    const maxLimit = Number((reference * 1.15).toFixed(2));
+    // Ethiopian P2P / BingX-aligned market band: supports existing ~150 ETB floor up to 195 ETB ceiling
+    const minLimit = Math.min(150, Number((reference * 0.85).toFixed(2)));
+    const maxLimit = Math.max(195, Number((reference * 1.045).toFixed(2)));
 
     return {
       referencePriceEtb: reference,

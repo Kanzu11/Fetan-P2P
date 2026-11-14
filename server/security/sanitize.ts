@@ -116,7 +116,8 @@ export function validateTxHash(
 export function sanitizeAmount(
   value: unknown,
   min: number = 1,
-  max: number = 1_000_000
+  max: number = 1_000_000,
+  decimals: number = 6
 ): { valid: boolean; amount: number; error?: string } {
   const num = typeof value === 'number' ? value : parseFloat(String(value));
 
@@ -132,8 +133,9 @@ export function sanitizeAmount(
     return { valid: false, amount: num, error: `Maximum amount cannot exceed ${max.toLocaleString()}.` };
   }
 
-  // Round to 2 decimal places to prevent floating point exploit
-  const rounded = Math.round(num * 100) / 100;
+  const safeDecimals = Math.min(8, Math.max(0, Math.floor(decimals)));
+  const factor = 10 ** safeDecimals;
+  const rounded = Math.round(num * factor) / factor;
   return { valid: true, amount: rounded };
 }
 

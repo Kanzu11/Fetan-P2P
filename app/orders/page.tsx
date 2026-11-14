@@ -23,9 +23,11 @@ import {
   Tag,
   Trash2,
   Power,
+  Download,
 } from 'lucide-react';
 import { CreateOfferModal } from '@/client/components/create-offer-modal';
 import { ProtectedRoute } from '@/client/components/protected-route';
+import { downloadCsvFile } from '@/client/csv-export';
 
 function OrdersContent() {
   const searchParams = useSearchParams();
@@ -180,36 +182,73 @@ function OrdersContent() {
       {mainTab === 'ORDERS' ? (
         /* TAB 1: ORDERS */
         <div className="space-y-4">
-          {/* Status Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-            {[
-              { id: 'ALL', label: `All (${orders.length})` },
-              { id: 'ACTIVE', label: `Open (${activeCount})` },
-              {
-                id: 'COMPLETED',
-                label: `Completed (${orders.filter((o) => o.status === 'COMPLETED').length})`,
-              },
-              {
-                id: 'DISPUTED',
-                label: `Appeals (${orders.filter((o) => o.status === 'DISPUTED').length})`,
-              },
-              {
-                id: 'CANCELLED',
-                label: `Cancelled (${orders.filter((o) => o.status === 'CANCELLED').length})`,
-              },
-            ].map((tab) => (
+          {/* Status Filter Pills & Export */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+              {[
+                { id: 'ALL', label: `All (${orders.length})` },
+                { id: 'ACTIVE', label: `Open (${activeCount})` },
+                {
+                  id: 'COMPLETED',
+                  label: `Completed (${orders.filter((o) => o.status === 'COMPLETED').length})`,
+                },
+                {
+                  id: 'DISPUTED',
+                  label: `Appeals (${orders.filter((o) => o.status === 'DISPUTED').length})`,
+                },
+                {
+                  id: 'CANCELLED',
+                  label: `Cancelled (${orders.filter((o) => o.status === 'CANCELLED').length})`,
+                },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setStatusFilter(tab.id as any)}
+                  className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all border ${
+                    statusFilter === tab.id
+                      ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
+                      : 'bg-white/70 text-brand-ink-soft border-black/10 hover:bg-white hover:text-brand-ink'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {filteredOrders.length > 0 && (
               <button
-                key={tab.id}
-                onClick={() => setStatusFilter(tab.id as any)}
-                className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all border ${
-                  statusFilter === tab.id
-                    ? 'bg-brand-ink text-white border-brand-ink shadow-sm'
-                    : 'bg-white/70 text-brand-ink-soft border-black/10 hover:bg-white hover:text-brand-ink'
-                }`}
+                type="button"
+                onClick={() =>
+                  downloadCsvFile(
+                    `fetan-orders-${new Date().toISOString().slice(0, 10)}.csv`,
+                    [
+                      'Order ID',
+                      'Side',
+                      'Status',
+                      'USDT Amount',
+                      'ETB Amount',
+                      'Rate (ETB/USDT)',
+                      'Payment Method',
+                      'Created At',
+                    ],
+                    filteredOrders.map((o) => [
+                      o.id,
+                      currentUser?.id === o.sellerId ? 'SELL' : 'BUY',
+                      o.status,
+                      o.usdtAmount.toFixed(2),
+                      o.etbAmount.toFixed(2),
+                      o.unitPriceEtb.toFixed(2),
+                      o.paymentMethod,
+                      o.createdAt,
+                    ])
+                  )
+                }
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-black/10 bg-white/80 hover:bg-white text-xs font-semibold text-brand-ink transition-colors"
               >
-                {tab.label}
+                <Download className="w-3.5 h-3.5" />
+                <span>Export CSV</span>
               </button>
-            ))}
+            )}
           </div>
 
           {loading ? (

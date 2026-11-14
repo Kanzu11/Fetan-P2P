@@ -30,10 +30,17 @@ export const FEATURES = {
 // These are *defaults* shown when the live price feed is offline;
 // the UI always attempts to fetch /api/prices/live first.
 export const PRICE_DEFAULTS = {
-  // Reference rate: 1 USDT → ETB (updated when API responds)
-  referenceEtbPerUsdt: Number(process.env.NEXT_PUBLIC_REFERENCE_ETB_PER_USDT) || 158.35,
-  // ±10% safe band around the reference used for "allowed ad price"
+  // Reference rate: 1 USDT → ETB (BingX / Ethiopian P2P market fallback)
+  referenceEtbPerUsdt: Number(process.env.NEXT_PUBLIC_REFERENCE_ETB_PER_USDT) || 186.5,
+  // Safe band around reference price
   spreadPercent: Number(process.env.NEXT_PUBLIC_PRICE_SPREAD_PERCENT) || 10,
+};
+
+// --- Network withdrawal fees (paid by the sender, not the platform) ---
+export const WITHDRAWAL_FEES_USDT: Record<'TRC20' | 'BEP20' | 'TON', number> = {
+  TRC20: 1.0,
+  BEP20: 0.5,
+  TON: 0.5,
 };
 
 // --- Merchant / KYC thresholds ---
@@ -63,7 +70,7 @@ export const STATIC = {
   volume24hEtb: Number(process.env.NEXT_PUBLIC_VOLUME_24H_ETB) || 642850,
 
   // Hardcoded current market price fallback (ETB per USDT)
-  priceEtbPerUsdt: Number(process.env.NEXT_PUBLIC_PRICE_ETB_PER_USDT) || 158.35,
+  priceEtbPerUsdt: Number(process.env.NEXT_PUBLIC_PRICE_ETB_PER_USDT) || 186.5,
 
   // Number of verified merchants (from DB; fallback shown on landing)
   verifiedMerchantsCount: Number(

@@ -768,7 +768,8 @@ export default function EscrowRoomPage() {
                 </strong>
               </span>
               <span>
-                Fee: <strong className="font-mono text-brand-buy-700">0.00 USDT</strong>
+                Transfer Fee:{' '}
+                <strong className="font-mono text-brand-ink">Paid by Sender</strong>
               </span>
             </div>
           </div>
@@ -946,7 +947,7 @@ export default function EscrowRoomPage() {
                   <h4 className="font-bold text-brand-buy-900 text-base">{t.completedTitle}</h4>
                   <p className="text-xs text-brand-buy-900/80 max-w-md mx-auto leading-relaxed">
                     <span className="font-mono font-bold">{order.usdtAmount.toFixed(2)} USDT</span> has been added to{' '}
-                    <strong>{displayName(order.buyerName)}</strong>&apos;s wallet with <span className="font-mono">0.00 USDT</span> fee.
+                    <strong>{displayName(order.buyerName)}</strong>&apos;s wallet (sender covered transfer fees).
                   </p>
                   {order.resolvedBy && (
                     <p className="text-[11px] text-brand-buy-700 font-medium">

@@ -8,6 +8,8 @@ import { verifyAndConsumeOtp } from '@/server/security/otp';
 import { sanitizeAmount, validateCryptoAddress } from '@/server/security/sanitize';
 import { wsGateway } from '@/server/websocket-gateway';
 import { telegramBot } from '@/server/telegram-bot';
+import { isAdminRole } from '@/client/types';
+import { WITHDRAWAL_FEES_USDT } from '@/client/config';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +34,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (auth.user.kycStatus !== 'VERIFIED') {
+    if (auth.user.kycStatus !== 'VERIFIED' && !isAdminRole(auth.user.role)) {
       return NextResponse.json(
         { error: 'KYC verification must be approved before requesting withdrawals.' },
         { status: 403 }
@@ -41,9 +43,10 @@ export async function POST(req: Request) {
 
     const rawBody = await req.json();
     const rawAmount = rawBody?.amountUsdt ?? rawBody?.amount;
+    const amountCheck = sanitizeAmount(rawAmount, 5, 100_000, 6);
     const parsed = withdrawSchema.safeParse({
       ...rawBody,
-      amountUsdt: sanitizeAmount(rawAmount, 6) ?? rawAmount,
+      amountUsdt: amountCheck.valid ? amountCheck.amount : Number(rawAmount),
     });
 
     if (!parsed.success) {
@@ -55,6 +58,17 @@ export async function POST(req: Request) {
 
     const { amountUsdt, network, otpCode } = parsed.data;
     const cleanAddress = parsed.data.destinationAddress.trim();
+    const networkFeeUsdt = WITHDRAWAL_FEES_USDT[network];
+    const netPayoutUsdt = Number((amountUsdt - networkFeeUsdt).toFixed(6));
+
+    if (netPayoutUsdt <= 0) {
+      return NextResponse.json(
+        {
+          error: `Withdrawal amount must exceed the ${network} network fee (${networkFeeUsdt.toFixed(2)} USDT, paid by sender).`,
+        },
+        { status: 400 }
+      );
+    }
 
     const addrCheck = validateCryptoAddress(cleanAddress, network);
     if (!addrCheck.valid) {
@@ -127,7 +141,7 @@ export async function POST(req: Request) {
         address: cleanAddress,
         status: 'PENDING',
         createdAt: new Date().toISOString(),
-        note: `Pending admin review & on-chain payout (${network})`,
+        note: `Fee: ${networkFeeUsdt.toFixed(2)} USDT (paid by user) • Net payout: ${netPayoutUsdt.toFixed(2)} USDT (${network}) — Pending review`,
       });
 
       return { updatedUser, tx };
@@ -140,25 +154,31 @@ export async function POST(req: Request) {
       targetType: 'WalletTransaction',
       targetId: result.tx.id,
       ip,
-      details: { amountUsdt, network, destinationAddress: cleanAddress },
+      details: {
+        amountUsdt,
+        networkFeeUsdt,
+        netPayoutUsdt,
+        network,
+        destinationAddress: cleanAddress,
+      },
     });
 
     wsGateway.emitToUser(auth.user.id, 'balance_updated', {
       usdtBalance: result.updatedUser.usdtBalance,
       usdtLocked: result.updatedUser.usdtLocked,
-      message: `Withdrawal request submitted: -${amountUsdt.toFixed(2)} USDT (${network}) pending review.`,
+      message: `Withdrawal submitted: -${amountUsdt.toFixed(2)} USDT (Fee: ${networkFeeUsdt.toFixed(2)}, Net payout: ${netPayoutUsdt.toFixed(2)} USDT via ${network}).`,
     });
     wsGateway.emitToRoom('admin:dashboard', 'withdrawal_requested', { tx: result.tx });
 
-    await telegramBot.broadcastAdminAlert(
-      `📤 *New Withdrawal Request*\nUser: *${auth.user.name}* (${auth.user.email})\nAmount: *${amountUsdt.toFixed(2)} USDT*\nNetwork: *${network}*\nTo: \`${cleanAddress}\`\nReview in Admin Console.`
-    );
+    await telegramBot.sendWithdrawalAlert(result.tx, auth.user);
 
     return NextResponse.json({
       success: true,
       user: result.updatedUser,
       transaction: result.tx,
-      message: `Withdrawal of ${amountUsdt.toFixed(2)} USDT queued for payout verification.`,
+      feeUsdt: networkFeeUsdt,
+      netPayoutUsdt,
+      message: `Withdrawal queued: ${netPayoutUsdt.toFixed(2)} USDT net payout after ${networkFeeUsdt.toFixed(2)} USDT ${network} network fee (paid by sender).`,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Withdrawal failed';

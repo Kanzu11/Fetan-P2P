@@ -1,9 +1,55 @@
 import { db, eq } from 'sdk/db';
-import { api } from 'sdk';
-import { users, orders, kycSubmissions, merchantApplications, supportTickets } from '../schema.js';
+import { EndpointError } from 'sdk';
+import {
+  users,
+  orders,
+  kycSubmissions,
+  merchantApplications,
+  supportTickets,
+  kvConfig,
+} from '../schema.js';
+
+async function upsertKvConfig(key, value) {
+  const existing = await db.select().from(kvConfig).where(eq(kvConfig.key, key)).get();
+  const now = new Date().toISOString();
+  if (existing) {
+    await db.update(kvConfig).set({ value, updatedAt: now }).where(eq(kvConfig.key, key)).run();
+  } else {
+    await db.insert(kvConfig).values({ key, value, updatedAt: now }).run();
+  }
+}
+
+function parseNeonDatabaseUrl(rawUrl, explicitEndpoint) {
+  const cleaned = String(rawUrl || '').trim();
+  const hostMatch = cleaned.match(/@([^/?:]+)/);
+  if (!hostMatch) {
+    throw new Error('Invalid DATABASE_URL host');
+  }
+  const sqlEndpoint = explicitEndpoint || `https://${hostMatch[1]}/sql`;
+  // Strip libpq-only channel_binding param for HTTP SQL endpoint compatibility
+  const connString = cleaned
+    .replace(/([?&])channel_binding=[^&]*&?/g, '$1')
+    .replace(/[?&]$/, '');
+  return { sqlEndpoint, connString, host: hostMatch[1] };
+}
 
 export default async function (input, ctx) {
+  // Block Mini App client callers — only backend /manage/run (TGCLOUD_TOKEN) may sync config/state
+  if (ctx?.initData?.user) {
+    throw new EndpointError('Forbidden', { code: 'FORBIDDEN' });
+  }
+
   const { action, payload } = input || {};
+
+  if (action === 'SET_NEON_CONFIG' && (payload?.databaseUrl || payload?.connString)) {
+    const { sqlEndpoint, connString, host } = parseNeonDatabaseUrl(
+      payload.databaseUrl || payload.connString,
+      payload.sqlEndpoint
+    );
+    await upsertKvConfig('neon_conn_string', connString);
+    await upsertKvConfig('neon_sql_endpoint', sqlEndpoint);
+    return { ok: true, synced: 'neon_config', host };
+  }
 
   if (action === 'UPSERT_USER' && payload?.user) {
     const u = payload.user;
@@ -48,8 +94,8 @@ export default async function (input, ctx) {
     if (existing) {
       await db.update(orders).set({
         status: o.status,
-        proofReceiptUrl: o.proofReceiptUrl,
-        disputeReason: o.disputeReason,
+        proofReceiptUrl: o.proofReceiptUrl || null,
+        disputeReason: o.disputeReason || null,
         updatedAt: new Date().toISOString(),
       }).where(eq(orders.id, o.id)).run();
     } else {
@@ -65,8 +111,8 @@ export default async function (input, ctx) {
         unitPriceEtb: o.unitPriceEtb,
         paymentMethod: o.paymentMethod,
         status: o.status,
-        proofReceiptUrl: o.proofReceiptUrl,
-        disputeReason: o.disputeReason,
+        proofReceiptUrl: o.proofReceiptUrl || null,
+        disputeReason: o.disputeReason || null,
         createdAt: o.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }).run();
@@ -77,7 +123,11 @@ export default async function (input, ctx) {
   if (action === 'UPSERT_KYC' && payload?.kyc) {
     const k = payload.kyc;
     const existing = await db.select().from(kycSubmissions).where(eq(kycSubmissions.id, k.id)).get();
-    if (!existing) {
+    if (existing) {
+      await db.update(kycSubmissions).set({
+        status: k.status,
+      }).where(eq(kycSubmissions.id, k.id)).run();
+    } else {
       await db.insert(kycSubmissions).values({
         id: k.id,
         userId: k.userId,
@@ -89,13 +139,54 @@ export default async function (input, ctx) {
         submittedAt: k.submittedAt,
       }).run();
     }
+    if (k.userId) {
+      const localUser = await db.select().from(users).where(eq(users.id, k.userId)).get();
+      if (localUser) {
+        await db.update(users).set({ kycStatus: k.status }).where(eq(users.id, k.userId)).run();
+      }
+    }
     return { ok: true, synced: 'kyc' };
+  }
+
+  if (action === 'UPSERT_MERCHANT_APP' && payload?.app) {
+    const a = payload.app;
+    const existing = await db.select().from(merchantApplications).where(eq(merchantApplications.id, a.id)).get();
+    if (existing) {
+      await db.update(merchantApplications).set({
+        status: a.status,
+      }).where(eq(merchantApplications.id, a.id)).run();
+    } else {
+      await db.insert(merchantApplications).values({
+        id: a.id,
+        userId: a.userId,
+        userName: a.userName,
+        userEmail: a.userEmail,
+        usdtBalance: Number(a.usdtBalance || 0),
+        status: a.status,
+        submittedAt: a.submittedAt,
+      }).run();
+    }
+    if (a.userId && a.status === 'APPROVED') {
+      const localUser = await db.select().from(users).where(eq(users.id, a.userId)).get();
+      if (localUser) {
+        await db.update(users).set({
+          role: localUser.role === 'ADMIN' || localUser.role === 'SUPERADMIN' ? localUser.role : 'MERCHANT',
+          kycStatus: 'VERIFIED',
+        }).where(eq(users.id, a.userId)).run();
+      }
+    }
+    return { ok: true, synced: 'merchant_app' };
   }
 
   if (action === 'UPSERT_TICKET' && payload?.ticket) {
     const t = payload.ticket;
     const existing = await db.select().from(supportTickets).where(eq(supportTickets.id, t.id)).get();
-    if (!existing) {
+    if (existing) {
+      await db.update(supportTickets).set({
+        status: t.status,
+        adminReply: t.adminReply || null,
+      }).where(eq(supportTickets.id, t.id)).run();
+    } else {
       await db.insert(supportTickets).values({
         id: t.id,
         userId: t.userId,
@@ -105,6 +196,7 @@ export default async function (input, ctx) {
         subject: t.subject,
         message: t.message,
         status: t.status,
+        adminReply: t.adminReply || null,
         createdAt: t.createdAt,
       }).run();
     }

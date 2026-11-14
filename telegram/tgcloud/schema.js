@@ -69,3 +69,9 @@ export const supportTickets = table('support_tickets', {
   adminReply: text('admin_reply'),
   createdAt: text('created_at'),
 });
+
+export const kvConfig = table('kv_config', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: text('updated_at'),
+});

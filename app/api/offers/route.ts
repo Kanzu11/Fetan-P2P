@@ -70,7 +70,7 @@ export async function POST(req: Request) {
     const auth = await requireAuth(req);
     if (!auth.ok) return auth.response;
 
-    if (auth.user.kycStatus !== 'VERIFIED') {
+    if (auth.user.kycStatus !== 'VERIFIED' && !isAdminRole(auth.user.role)) {
       return NextResponse.json(
         { error: 'Please complete KYC verification before publishing offers.' },
         { status: 403 }

@@ -72,7 +72,7 @@ export default function LandingPage() {
       .catch(() => {});
   }, []);
 
-  const fallbackRef = Number(process.env.NEXT_PUBLIC_REFERENCE_ETB_PER_USDT || 158.45);
+  const fallbackRef = Number(process.env.NEXT_PUBLIC_REFERENCE_ETB_PER_USDT || 186.5);
   const referenceRate = liveStats?.referencePriceEtb ?? fallbackRef;
   const unitRate =
     calcSide === 'BUY'
@@ -503,7 +503,7 @@ export default function LandingPage() {
 
                     <div className="rounded-2xl bg-white/[0.06] border border-white/10 p-3.5 space-y-1">
                       <div className="text-[11px] text-white/55">
-                        Estimated {calcSide === 'BUY' ? 'Received' : 'Sold'} (0% fee)
+                        Estimated {calcSide === 'BUY' ? 'Received' : 'Sold'} (Sender pays transfer fee)
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-xl font-bold font-mono text-brand-buy-400 tabular-nums">
@@ -623,7 +623,7 @@ export default function LandingPage() {
 
                 <div className="rounded-2xl bg-white/[0.06] border border-white/10 p-3.5 space-y-1">
                   <div className="flex justify-between text-[11px] text-white/55">
-                    <span>{calcSide === 'BUY' ? 'You receive (0% fee)' : 'You sell'}</span>
+                    <span>{calcSide === 'BUY' ? 'You receive (Sender covers transfer fee)' : 'You sell'}</span>
                     <ArrowUpDown className="w-3.5 h-3.5 text-white/40" />
                   </div>
                   <div className="flex items-center justify-between">

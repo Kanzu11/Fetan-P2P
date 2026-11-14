@@ -160,6 +160,19 @@ export async function requireAuth(req?: Request): Promise<AuthCheckSuccess | Aut
       ),
     };
   }
+  if (user.isSuspended) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        {
+          error: user.suspendReason
+            ? `Account suspended: ${user.suspendReason}`
+            : 'Your account has been suspended by Fetan Compliance.',
+        },
+        { status: 403 }
+      ),
+    };
+  }
   return { ok: true, user };
 }
 

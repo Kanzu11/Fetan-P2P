@@ -137,7 +137,7 @@ export function LivePriceTicker() {
             {stats.minPriceLimitEtb.toFixed(2)} – {stats.maxPriceLimitEtb.toFixed(2)}
           </div>
           <div className="text-[11px] text-brand-ink-soft/80">
-            {lang === 'am' ? '±15% የገበያ ጥበቃ' : '±15% escrow band'}
+            {lang === 'am' ? 'የP2P ገበያ ዋጋ ክልል' : 'P2P market price band'}
           </div>
         </div>
       </div>

@@ -38,6 +38,8 @@ function mapUser(row: {
   telegramNotifications: boolean;
   telegramLinkCode: string | null;
   role: 'USER' | 'MERCHANT' | 'ADMIN' | 'SUPERADMIN';
+  isSuspended: boolean;
+  suspendReason: string | null;
   kycStatus: 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
   kycDocType: string | null;
   kycDocNumber: string | null;
@@ -71,6 +73,8 @@ function mapUser(row: {
     telegramNotifications: row.telegramNotifications,
     telegramLinkCode: row.telegramLinkCode || undefined,
     role: row.role,
+    isSuspended: Boolean(row.isSuspended),
+    suspendReason: row.suspendReason || undefined,
     kycStatus: row.kycStatus,
     kycDocType: (row.kycDocType as KycDocType) || undefined,
     kycDocNumber: row.kycDocNumber || undefined,
@@ -385,6 +389,7 @@ export class DatabaseStore {
 
         if (superAdminEmail) {
           const existing = await prisma.user.findUnique({ where: { email: superAdminEmail } });
+          const adminChatId = (process.env.TELEGRAM_ADMIN_CHAT_ID || '').trim() || null;
           if (!existing) {
             const id = `usr-super-${Date.now().toString(36)}`;
             const superTg = (process.env.ADMIN_TELEGRAM_USERNAME || '').replace(/^@/, '');
@@ -395,6 +400,7 @@ export class DatabaseStore {
                 name: 'Platform Superadmin',
                 nickname: 'Superadmin',
                 telegramHandle: superTg ? `@${superTg}` : null,
+                telegramChatId: adminChatId,
                 telegramNotifications: true,
                 telegramLinkCode: `FETAN-SA-${Math.floor(1000 + Math.random() * 9000)}`,
                 role: 'SUPERADMIN',
@@ -405,11 +411,21 @@ export class DatabaseStore {
                 depositAddresses: generateUserDepositAddresses(id) as unknown as Prisma.InputJsonValue,
               },
             });
-          } else if (existing.role !== 'SUPERADMIN') {
-            await prisma.user.update({
-              where: { id: existing.id },
-              data: { role: 'SUPERADMIN', kycStatus: 'VERIFIED' },
-            });
+          } else {
+            const patch: Prisma.UserUpdateInput = {};
+            if (existing.role !== 'SUPERADMIN') {
+              patch.role = 'SUPERADMIN';
+              patch.kycStatus = 'VERIFIED';
+            }
+            if (adminChatId && !existing.telegramChatId) {
+              patch.telegramChatId = adminChatId;
+            }
+            if (Object.keys(patch).length > 0) {
+              await prisma.user.update({
+                where: { id: existing.id },
+                data: patch,
+              });
+            }
           }
         }
         this.bootstrapped = true;
@@ -661,6 +677,8 @@ export class DatabaseStore {
       data.telegramNotifications = updates.telegramNotifications;
     if (updates.telegramLinkCode !== undefined) data.telegramLinkCode = updates.telegramLinkCode || null;
     if (updates.role !== undefined) data.role = updates.role;
+    if (updates.isSuspended !== undefined) data.isSuspended = updates.isSuspended;
+    if (updates.suspendReason !== undefined) data.suspendReason = updates.suspendReason || null;
     if (updates.kycStatus !== undefined) data.kycStatus = updates.kycStatus;
     if (updates.kycDocType !== undefined) data.kycDocType = updates.kycDocType || null;
     if (updates.kycDocNumber !== undefined) data.kycDocNumber = updates.kycDocNumber || null;

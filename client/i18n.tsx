@@ -126,13 +126,13 @@ const translations: Record<Language, Translations> = {
     applyMerchant: 'Become Merchant',
     reqMinDeposit: 'Needs 10 USDT',
 
-    heroBadge: '0% Buyer Fee • Safe USDT Escrow',
+    heroBadge: 'Verified Escrow • Sender Covers Transfer Fees',
     heroTitle: 'Buy and sell USDT in Ethiopia with Birr.',
     heroSub:
       'Pay and get paid directly with Telebirr, CBE, Bank of Abyssinia, and Awash Bank. We hold the USDT safely until the Birr payment is confirmed.',
     whatIsEscrowTitle: 'How Our Escrow Keeps Your Money Safe',
     whatIsEscrowDesc:
-      'When you start an order, Fetan locks the seller’s USDT right away. You send Birr straight to the seller’s Telebirr or bank account. Once the seller checks their balance and confirms, the USDT moves into your wallet with zero extra fees.',
+      'When you start an order, Fetan locks the seller’s USDT right away. You send the exact Birr amount (and cover any Telebirr/bank transfer fee yourself) directly to the seller. Once the seller checks their balance and confirms, the USDT moves into your wallet.',
     btnStartTrading: 'Buy & Sell USDT',
     btnBecomeMerchant: 'Become a Merchant',
     btnEscrowDemo: 'View Active Order',
@@ -196,7 +196,7 @@ const translations: Record<Language, Translations> = {
     cancelOrderBtn: 'Cancel Order',
     completedTitle: 'Order Completed',
     completedDesc:
-      'The payment was confirmed and the USDT has been added to the buyer’s wallet with zero fee.',
+      'The payment was confirmed and the full ordered USDT has been added to the buyer’s wallet.',
     disputedTitle: 'Appeal in Review',
     cancelledTitle: 'Order Cancelled',
     chatTitle: 'Order Chat',
@@ -236,7 +236,7 @@ const translations: Record<Language, Translations> = {
     applyMerchant: 'ነጋዴ ይሁኑ',
     reqMinDeposit: '10 USDT ያስፈልጋል',
 
-    heroBadge: '0% ክፍያ • አስተማማኝ የUSDT ጥበቃ',
+    heroBadge: 'አስተማማኝ የUSDT ጥበቃ • የዝውውር ክፍያ በላኪው',
     heroTitle: 'በኢትዮጵያ USDT በብር በቀላሉ ይግዙ እና ይሽጡ።',
     heroSub:
       'በቴሌብር፣ በኢትዮጵያ ንግድ ባንክ (CBE)፣ በአቢሲኒያ ባንክ እና በአዋሽ ባንክ በቀጥታ ይገበያዩ። ክፍያው እስኪረጋገጥ ድረስ የሻጩ USDT በፈጣን ዋስትና ተቆልፎ ይጠበቃል።',
@@ -306,7 +306,7 @@ const translations: Record<Language, Translations> = {
     cancelOrderBtn: 'ትዕዛዙን ሰርዝ',
     completedTitle: 'ትዕዛዙ ተጠናቋል',
     completedDesc:
-      'ክፍያው ተረጋግጦ USDT ያለምንም ክፍያ ወደ ገዢው ዋሌት ገብቷል።',
+      'ክፍያው ተረጋግጦ የታዘዘው USDT በሙሉ ወደ ገዢው ዋሌት ገብቷል።',
     disputedTitle: 'ትዕዛዙ በአድሚን እየታየ ነው',
     cancelledTitle: 'ትዕዛዙ ተሰርዟል',
     chatTitle: 'የትዕዛዝ ውይይት',

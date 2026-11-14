@@ -20,6 +20,8 @@ export async function GET(
   const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
+  await escrowController.sweepExpiredOrders().catch(() => {});
+
   const order = await db.getOrder(context.params.id);
   if (!order) {
     return NextResponse.json({ error: 'Order not found' }, { status: 404 });

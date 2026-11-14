@@ -23,7 +23,7 @@ export function CreateOfferModal({
   const [pricingType, setPricingType] = useState<'FIXED' | 'FLOATING'>('FIXED');
 
   // Pricing values
-  const [fixedPrice, setFixedPrice] = useState('158.50');
+  const [fixedPrice, setFixedPrice] = useState('186.50');
   const [floatingMargin, setFloatingMargin] = useState('100.0');
 
   // Order quantities and limits
@@ -303,7 +303,7 @@ export function CreateOfferModal({
                     {marketStats.minPriceLimitEtb.toFixed(2)} – {marketStats.maxPriceLimitEtb.toFixed(2)} ETB
                   </strong>
                 </span>
-                <span>0% Ad Fee</span>
+                <span>Sender pays transfer fee</span>
               </div>
             )}
           </div>

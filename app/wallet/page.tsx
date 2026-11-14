@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRealtime } from '@/client/components/realtime-provider';
 import { useI18n } from '@/client/i18n';
 import { PAYMENT_METHODS_META, displayName, WalletTransaction } from '@/client/types';
+import { WITHDRAWAL_FEES_USDT } from '@/client/config';
 import {
   Wallet,
   Lock,
@@ -26,8 +27,10 @@ import {
   History,
   QrCode,
   Info,
+  Download,
 } from 'lucide-react';
 import { ProtectedRoute } from '@/client/components/protected-route';
+import { downloadCsvFile } from '@/client/csv-export';
 
 export default function WalletPage() {
   const { currentUser, refreshUser, setNotification } = useRealtime();
@@ -46,9 +49,10 @@ export default function WalletPage() {
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
 
-  // Transactions ledger state
+  // Transactions & live reference rate state
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
+  const [marketRateEtb, setMarketRateEtb] = useState<number>(186.5);
 
   // Withdraw + 2FA Email OTP state
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -121,6 +125,17 @@ export default function WalletPage() {
     }
   }, [currentUser?.id]);
 
+  useEffect(() => {
+    fetch('/api/prices/live')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.stats?.referencePriceEtb) {
+          setMarketRateEtb(Number(data.stats.referencePriceEtb));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   if (!currentUser) {
     return <div className="p-12 text-center text-slate-500 text-xs">Loading wallet...</div>;
   }
@@ -130,7 +145,10 @@ export default function WalletPage() {
     process.env.NEXT_PUBLIC_TELEGRAM_MINIAPP_URL || 'https://app9136159373.tgcloud.ai/';
 
   const totalEquityUsdt = currentUser.usdtBalance + currentUser.usdtLocked;
-  const etbEquivalent = totalEquityUsdt * 158.35;
+  const etbEquivalent = totalEquityUsdt * marketRateEtb;
+  const currentWithdrawFee = WITHDRAWAL_FEES_USDT[network];
+  const parsedWithdrawAmount = Number(withdrawAmount) || 0;
+  const netWithdrawPayout = Math.max(0, parsedWithdrawAmount - currentWithdrawFee);
 
   const depositAddresses = {
     TRC20: currentUser.depositAddresses?.trc20 || '',
@@ -357,7 +375,7 @@ export default function WalletPage() {
       if (res.ok && data.success) {
         setComplaintMessage('');
         setComplaintOrderId('');
-        setNotification('Sent to Superadmin @kanzedin via Telegram Bot & Email!');
+        setNotification('Support ticket sent to Fetan Operations Desk via Telegram & Email!');
       }
     } catch (e) {
       console.error(e);
@@ -603,7 +621,8 @@ export default function WalletPage() {
 
             <div className="text-[11px] text-brand-ink-soft space-y-1">
               <div>• Minimum deposit: <strong className="font-mono text-brand-ink">1.00 USDT</strong></div>
-              <div>• Deposits are credited automatically after required blockchain confirmations.</div>
+              <div>• Sender pays blockchain gas/network transfer fee when sending USDT.</div>
+              <div>• Deposits are credited with exact on-chain amount received after confirmations.</div>
             </div>
           </div>
 
@@ -796,7 +815,19 @@ export default function WalletPage() {
             </div>
 
             <div className="p-3.5 rounded-2xl bg-white/60 border border-black/[0.08] text-[11px] text-brand-ink-soft space-y-1">
-              <div>• Network fee: <strong className="font-mono text-brand-ink">0.00 USDT (Covered by platform)</strong></div>
+              <div className="flex justify-between">
+                <span>• Network fee ({network}, paid by sender):</span>
+                <strong className="font-mono text-brand-ink">{currentWithdrawFee.toFixed(2)} USDT</strong>
+              </div>
+              {parsedWithdrawAmount > 0 && (
+                <div className="flex justify-between text-brand-buy-700 font-semibold">
+                  <span>• Net amount you receive on-chain:</span>
+                  <strong className="font-mono">{netWithdrawPayout.toFixed(2)} USDT</strong>
+                </div>
+              )}
+              <div>
+                • Schedule: <strong className="font-mono text-brand-ink">TRC20: 1.00 • BEP20: 0.50 • TON: 0.50 USDT</strong>
+              </div>
               <div>• Minimum withdrawal: <strong className="font-mono text-brand-ink">5.00 USDT</strong></div>
               <div>• Security: <strong className="text-brand-ink">KYC approved + Email 2FA required before dispatch</strong></div>
             </div>
@@ -1149,9 +1180,35 @@ export default function WalletPage() {
             <History className="w-4 h-4 text-brand-ink" />
             <h3 className="text-sm font-bold text-brand-ink">On-Chain Activity & Wallet Ledger</h3>
           </div>
-          <span className="text-[11px] font-mono text-brand-ink-soft">
-            {transactions.length} record{transactions.length === 1 ? '' : 's'}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] font-mono text-brand-ink-soft">
+              {transactions.length} record{transactions.length === 1 ? '' : 's'}
+            </span>
+            {transactions.length > 0 && (
+              <button
+                type="button"
+                onClick={() =>
+                  downloadCsvFile(
+                    `fetan-wallet-ledger-${new Date().toISOString().slice(0, 10)}.csv`,
+                    ['Type', 'Amount (USDT)', 'Network', 'Status', 'TxHash', 'Address', 'Created At'],
+                    transactions.map((tx) => [
+                      tx.type,
+                      tx.amount.toFixed(4),
+                      tx.network,
+                      tx.status,
+                      tx.txHash || '',
+                      tx.address || '',
+                      tx.createdAt,
+                    ])
+                  )
+                }
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-black/10 bg-white/80 hover:bg-white text-[11px] font-semibold text-brand-ink transition-colors"
+              >
+                <Download className="w-3 h-3" />
+                <span>Export CSV</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {loadingTransactions ? (

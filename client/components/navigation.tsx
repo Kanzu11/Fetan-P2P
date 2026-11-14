@@ -71,11 +71,11 @@ export function Navigation() {
     matchPrefix?: string;
     badge?: number;
   }> = [
-    { href: '/', label: t.navOverview, exact: true },
-    { href: '/market', label: t.navMarket },
-    { href: '/orders', label: t.navOrders, badge: activeOrdersCount },
-    { href: '/wallet', label: t.navWallet },
-  ];
+      { href: '/', label: t.navOverview, exact: true },
+      { href: '/market', label: t.navMarket },
+      { href: '/orders', label: t.navOrders, badge: activeOrdersCount },
+      { href: '/wallet', label: t.navWallet },
+    ];
 
   if (latestActiveOrderId) {
     navLinks.push({
@@ -113,11 +113,10 @@ export function Navigation() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className={`px-3.5 py-1.5 rounded-full text-[13px] transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap ${
-                      active
-                        ? 'bg-white text-brand-ink font-semibold shadow-[0_1px_4px_rgba(10,22,18,0.1)]'
-                        : 'text-brand-ink-soft hover:text-brand-ink font-medium'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-full text-[13px] transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap ${active
+                      ? 'bg-white text-brand-ink font-semibold shadow-[0_1px_4px_rgba(10,22,18,0.1)]'
+                      : 'text-brand-ink-soft hover:text-brand-ink font-medium'
+                      }`}
                   >
                     <span>{link.label}</span>
                     {link.badge !== undefined && link.badge > 0 && (
@@ -132,11 +131,10 @@ export function Navigation() {
               {isAdmin && (
                 <Link
                   href="/admin"
-                  className={`px-3.5 py-1.5 rounded-full text-[13px] transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap ${
-                    pathname.startsWith('/admin')
-                      ? 'bg-brand-ink text-white font-semibold shadow-sm'
-                      : 'text-brand-ink-soft hover:text-brand-ink font-medium'
-                  }`}
+                  className={`px-3.5 py-1.5 rounded-full text-[13px] transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap ${pathname.startsWith('/admin')
+                    ? 'bg-brand-ink text-white font-semibold shadow-sm'
+                    : 'text-brand-ink-soft hover:text-brand-ink font-medium'
+                    }`}
                 >
                   <Building2 className="w-3.5 h-3.5" />
                   <span>{t.navAdmin}</span>
@@ -151,22 +149,20 @@ export function Navigation() {
                 <button
                   type="button"
                   onClick={() => setLang('en')}
-                  className={`px-2.5 py-1 rounded-full transition-all ${
-                    lang === 'en'
-                      ? 'bg-white text-brand-ink font-semibold shadow-xs'
-                      : 'text-brand-ink-soft hover:text-brand-ink'
-                  }`}
+                  className={`px-2.5 py-1 rounded-full transition-all ${lang === 'en'
+                    ? 'bg-white text-brand-ink font-semibold shadow-xs'
+                    : 'text-brand-ink-soft hover:text-brand-ink'
+                    }`}
                 >
                   EN
                 </button>
                 <button
                   type="button"
                   onClick={() => setLang('am')}
-                  className={`px-2.5 py-1 rounded-full transition-all ${
-                    lang === 'am'
-                      ? 'bg-white text-brand-ink font-semibold shadow-xs'
-                      : 'text-brand-ink-soft hover:text-brand-ink'
-                  }`}
+                  className={`px-2.5 py-1 rounded-full transition-all ${lang === 'am'
+                    ? 'bg-white text-brand-ink font-semibold shadow-xs'
+                    : 'text-brand-ink-soft hover:text-brand-ink'
+                    }`}
                 >
                   አማ
                 </button>
@@ -232,7 +228,7 @@ export function Navigation() {
                             {currentUser.email}
                           </div>
                           <div className="pt-1 flex items-center gap-1.5">
-                            {currentUser.kycStatus === 'VERIFIED' ? (
+                            {currentUser.kycStatus === 'VERIFIED' || isAdminRole(currentUser.role) ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-buy bg-brand-buy/10 px-2 py-0.5 rounded-full">
                                 <ShieldCheck className="w-3 h-3" /> {t.verified}
                               </span>
@@ -260,7 +256,7 @@ export function Navigation() {
                           <span>Profile &amp; Edit Details</span>
                         </button>
 
-                        {currentUser.kycStatus !== 'VERIFIED' && (
+                        {currentUser.kycStatus !== 'VERIFIED' && !isAdminRole(currentUser.role) && (
                           <button
                             type="button"
                             onClick={() => {
@@ -444,7 +440,7 @@ export function Navigation() {
                       <span>Profile &amp; Edit Details</span>
                     </button>
 
-                    {currentUser.kycStatus !== 'VERIFIED' && (
+                    {currentUser.kycStatus !== 'VERIFIED' && !isAdminRole(currentUser.role) && (
                       <button
                         type="button"
                         onClick={() => {
@@ -520,9 +516,8 @@ export function Navigation() {
         <div className="liquid-glass-nav rounded-[24px] px-1.5 py-1.5 flex justify-around items-center text-[11px] font-medium text-brand-ink-soft pointer-events-auto">
           <Link
             href="/"
-            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
-              pathname === '/' ? 'bg-white text-brand-ink font-semibold shadow-xs' : 'hover:text-brand-ink'
-            }`}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${pathname === '/' ? 'bg-white text-brand-ink font-semibold shadow-xs' : 'hover:text-brand-ink'
+              }`}
           >
             <Home className="w-[18px] h-[18px] mb-0.5" />
             <span>{t.navOverview}</span>
@@ -530,11 +525,10 @@ export function Navigation() {
 
           <Link
             href="/market"
-            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
-              pathname.startsWith('/market')
-                ? 'bg-white text-brand-ink font-semibold shadow-xs'
-                : 'hover:text-brand-ink'
-            }`}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${pathname.startsWith('/market')
+              ? 'bg-white text-brand-ink font-semibold shadow-xs'
+              : 'hover:text-brand-ink'
+              }`}
           >
             <ArrowLeftRight className="w-[18px] h-[18px] mb-0.5" />
             <span>{t.navMarket}</span>
@@ -542,11 +536,10 @@ export function Navigation() {
 
           <Link
             href="/orders"
-            className={`relative flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
-              pathname.startsWith('/orders')
-                ? 'bg-white text-brand-ink font-semibold shadow-xs'
-                : 'hover:text-brand-ink'
-            }`}
+            className={`relative flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${pathname.startsWith('/orders')
+              ? 'bg-white text-brand-ink font-semibold shadow-xs'
+              : 'hover:text-brand-ink'
+              }`}
           >
             <div className="relative">
               <ClipboardList className="w-[18px] h-[18px] mb-0.5" />
@@ -561,11 +554,10 @@ export function Navigation() {
 
           <Link
             href="/wallet"
-            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
-              pathname.startsWith('/wallet')
-                ? 'bg-white text-brand-ink font-semibold shadow-xs'
-                : 'hover:text-brand-ink'
-            }`}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${pathname.startsWith('/wallet')
+              ? 'bg-white text-brand-ink font-semibold shadow-xs'
+              : 'hover:text-brand-ink'
+              }`}
           >
             <Wallet className="w-[18px] h-[18px] mb-0.5" />
             <span>{t.navWallet}</span>
@@ -574,11 +566,10 @@ export function Navigation() {
           {isAdmin ? (
             <Link
               href="/admin"
-              className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
-                pathname.startsWith('/admin')
-                  ? 'bg-brand-ink text-white font-semibold shadow-xs'
-                  : 'hover:text-brand-ink'
-              }`}
+              className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${pathname.startsWith('/admin')
+                ? 'bg-brand-ink text-white font-semibold shadow-xs'
+                : 'hover:text-brand-ink'
+                }`}
             >
               <Building2 className="w-[18px] h-[18px] mb-0.5" />
               <span>{t.navAdmin}</span>
@@ -586,11 +577,10 @@ export function Navigation() {
           ) : latestActiveOrderId ? (
             <Link
               href={`/trade/${latestActiveOrderId}`}
-              className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
-                pathname.startsWith('/trade')
-                  ? 'bg-white text-brand-ink font-semibold shadow-xs'
-                  : 'hover:text-brand-ink'
-              }`}
+              className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${pathname.startsWith('/trade')
+                ? 'bg-white text-brand-ink font-semibold shadow-xs'
+                : 'hover:text-brand-ink'
+                }`}
             >
               <Lock className="w-[18px] h-[18px] mb-0.5 text-brand-buy" />
               <span>Escrow</span>

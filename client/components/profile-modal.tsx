@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRealtime } from './realtime-provider';
-import { displayName } from '@/client/types';
+import { displayName, isAdminRole } from '@/client/types';
 import {
   User,
   ShieldCheck,
@@ -146,32 +146,29 @@ export function ProfileModal({
         <div className="px-4 py-2.5 bg-white/60 border-b border-black/[0.06] flex gap-1.5 text-xs font-semibold shrink-0 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab('OVERVIEW')}
-            className={`px-3.5 py-1.5 rounded-full transition-all whitespace-nowrap ${
-              activeTab === 'OVERVIEW'
-                ? 'bg-brand-ink text-white font-bold shadow-sm'
-                : 'text-brand-ink-soft hover:text-brand-ink hover:bg-white/70'
-            }`}
+            className={`px-3.5 py-1.5 rounded-full transition-all whitespace-nowrap ${activeTab === 'OVERVIEW'
+              ? 'bg-brand-ink text-white font-bold shadow-sm'
+              : 'text-brand-ink-soft hover:text-brand-ink hover:bg-white/70'
+              }`}
           >
             Account Overview
           </button>
           <button
             onClick={() => setActiveTab('EDIT')}
-            className={`px-3.5 py-1.5 rounded-full transition-all flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'EDIT'
-                ? 'bg-brand-ink text-white font-bold shadow-sm'
-                : 'text-brand-ink-soft hover:text-brand-ink hover:bg-white/70'
-            }`}
+            className={`px-3.5 py-1.5 rounded-full transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'EDIT'
+              ? 'bg-brand-ink text-white font-bold shadow-sm'
+              : 'text-brand-ink-soft hover:text-brand-ink hover:bg-white/70'
+              }`}
           >
             <Edit3 className="w-3.5 h-3.5" />
             <span>Edit Profile</span>
           </button>
           <button
             onClick={() => setActiveTab('PAYMENT_METHODS')}
-            className={`px-3.5 py-1.5 rounded-full transition-all flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'PAYMENT_METHODS'
-                ? 'bg-brand-ink text-white font-bold shadow-sm'
-                : 'text-brand-ink-soft hover:text-brand-ink hover:bg-white/70'
-            }`}
+            className={`px-3.5 py-1.5 rounded-full transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'PAYMENT_METHODS'
+              ? 'bg-brand-ink text-white font-bold shadow-sm'
+              : 'text-brand-ink-soft hover:text-brand-ink hover:bg-white/70'
+              }`}
           >
             <Building2 className="w-3.5 h-3.5" />
             <span>Bank & Telebirr</span>
@@ -229,22 +226,21 @@ export function ProfileModal({
                   <span className="text-brand-ink-soft font-medium text-[11px]">Identity KYC</span>
                   <div className="flex items-center justify-between gap-2">
                     <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
-                        currentUser.kycStatus === 'VERIFIED'
-                          ? 'bg-brand-buy-50 text-brand-buy-800 border border-brand-buy-300/60'
-                          : currentUser.kycStatus === 'PENDING'
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[10px] ${currentUser.kycStatus === 'VERIFIED' || isAdminRole(currentUser.role)
+                        ? 'bg-brand-buy-50 text-brand-buy-800 border border-brand-buy-300/60'
+                        : currentUser.kycStatus === 'PENDING'
                           ? 'bg-amber-50 text-amber-800 border border-amber-200'
                           : 'bg-black/[0.05] text-brand-ink'
-                      }`}
+                        }`}
                     >
-                      {currentUser.kycStatus === 'VERIFIED' ? (
+                      {currentUser.kycStatus === 'VERIFIED' || isAdminRole(currentUser.role) ? (
                         <ShieldCheck className="w-3 h-3 text-brand-buy-600" />
                       ) : (
                         <Clock className="w-3 h-3" />
                       )}
-                      <span>{currentUser.kycStatus}</span>
+                      <span>{isAdminRole(currentUser.role) ? 'VERIFIED' : currentUser.kycStatus}</span>
                     </span>
-                    {currentUser.kycStatus !== 'VERIFIED' && (
+                    {currentUser.kycStatus !== 'VERIFIED' && !isAdminRole(currentUser.role) && (
                       <button
                         onClick={() => {
                           onClose();
