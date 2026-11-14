@@ -215,7 +215,13 @@ test('Unauthenticated & legacy endpoints fail closed with 401/410', async () => 
   const legacyDepositRes = await postLegacyDeposit();
   assert.equal(legacyDepositRes.status, 410);
 
-  const legacyLoginRes = await postLegacyLogin();
+  const legacyLoginRes = await postLegacyLogin(
+    new Request('http://localhost/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'legacy@fetan.test' }),
+    })
+  );
   assert.equal(legacyLoginRes.status, 410);
 
   const adminUsersUnauth = await getAdminUsers(new Request('http://localhost/api/admin/users'));

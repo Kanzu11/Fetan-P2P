@@ -14,19 +14,8 @@ const loginSchema = z.object({
 
 /**
  * Email + password login endpoint.
- * Note: Returns 410 if called without a Request (legacy unverified signature check in security tests).
  */
-export async function POST(req?: Request) {
-  if (!req) {
-    return NextResponse.json(
-      {
-        error:
-          'Unverified direct email login is disabled. Request a 6-digit verification code via /api/auth/request-otp or provide a valid password.',
-      },
-      { status: 410 }
-    );
-  }
-
+export async function POST(req: Request) {
   try {
     const ip = getClientIp(req);
     const ipLimit = await rateLimiter.checkAsync(`login-ip:${ip}`, 20, 900);
@@ -38,6 +27,15 @@ export async function POST(req?: Request) {
     }
 
     const body = await req.json();
+    if (body && typeof body === 'object' && 'email' in body && !('password' in body)) {
+      return NextResponse.json(
+        {
+          error:
+            'Unverified direct email login is disabled. Provide your password or request a 6-digit verification code via /api/auth/request-otp.',
+        },
+        { status: 410 }
+      );
+    }
     const parsed = loginSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
