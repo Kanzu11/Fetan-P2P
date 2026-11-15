@@ -1,5 +1,57 @@
+import crypto from 'crypto';
 import nodemailer, { type Transporter } from 'nodemailer';
 import { P2POrder, KycSubmission, MerchantApplication, SupportTicket, User } from '../client/types';
+
+function getRelaySecret(): string {
+  return (
+    process.env.EMAIL_RELAY_SECRET?.trim() ||
+    process.env.JWT_SECRET?.trim() ||
+    ''
+  );
+}
+
+/**
+ * Signs an internal email relay payload with HMAC-SHA256 so Render can safely
+ * delegate SMTP delivery over HTTPS to the Vercel frontend deployment.
+ */
+export function signEmailRelayPayload(timestamp: string, rawBody: string): string {
+  const secret = getRelaySecret();
+  if (!secret) {
+    throw new Error('JWT_SECRET or EMAIL_RELAY_SECRET is required for email relay signing.');
+  }
+  return crypto
+    .createHmac('sha256', secret)
+    .update(`${timestamp}.${rawBody}`)
+    .digest('hex');
+}
+
+export function verifyEmailRelaySignature(
+  timestamp: string,
+  rawBody: string,
+  signature: string
+): { valid: boolean; error?: string } {
+  const secret = getRelaySecret();
+  if (!secret) {
+    return { valid: false, error: 'Relay signing secret is not configured.' };
+  }
+  const tsNum = Number(timestamp);
+  if (!Number.isFinite(tsNum) || Math.abs(Date.now() - tsNum) > 5 * 60 * 1000) {
+    return { valid: false, error: 'Relay signature timestamp expired.' };
+  }
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(`${timestamp}.${rawBody}`)
+    .digest('hex');
+  const expectedBuf = Buffer.from(expected, 'utf8');
+  const providedBuf = Buffer.from((signature || '').trim(), 'utf8');
+  if (expectedBuf.length !== providedBuf.length) {
+    return { valid: false, error: 'Invalid relay signature.' };
+  }
+  if (!crypto.timingSafeEqual(expectedBuf, providedBuf)) {
+    return { valid: false, error: 'Invalid relay signature.' };
+  }
+  return { valid: true };
+}
 
 class EmailService {
   private transporter: Transporter | null = null;
@@ -7,19 +59,76 @@ class EmailService {
   constructor() {
     const user = process.env.EMAIL_USER?.trim();
     const pass = process.env.EMAIL_PASS?.trim();
+    const service = (process.env.EMAIL_SERVICE || 'gmail').trim().toLowerCase();
     if (user && pass) {
-      this.transporter = nodemailer.createTransport({
-        service: process.env.EMAIL_SERVICE || 'gmail',
-        auth: { user, pass },
-        connectionTimeout: 8000,
-        greetingTimeout: 8000,
-        socketTimeout: 10000,
-      });
+      this.transporter = nodemailer.createTransport(
+        service === 'gmail'
+          ? {
+              host: 'smtp.gmail.com',
+              port: 465,
+              secure: true,
+              auth: { user, pass },
+              connectionTimeout: 8000,
+              greetingTimeout: 8000,
+              socketTimeout: 10000,
+            }
+          : {
+              service,
+              auth: { user, pass },
+              connectionTimeout: 8000,
+              greetingTimeout: 8000,
+              socketTimeout: 10000,
+            }
+      );
     }
   }
 
+  private getRelayUrl(): string | null {
+    const explicit = process.env.EMAIL_RELAY_URL?.trim();
+    if (explicit) return explicit;
+
+    // Avoid self-relay loops when running inside Vercel itself
+    if (process.env.VERCEL === '1') return null;
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '');
+    if (
+      appUrl &&
+      appUrl.startsWith('https://') &&
+      !appUrl.includes('onrender.com') &&
+      !appUrl.includes('localhost')
+    ) {
+      return `${appUrl}/api/internal/email-relay`;
+    }
+    return null;
+  }
+
+  private getWebhookUrl(): string | null {
+    return process.env.EMAIL_WEBHOOK_URL?.trim() || null;
+  }
+
   isConfigured(): boolean {
-    return Boolean(this.transporter && process.env.EMAIL_USER);
+    return Boolean(
+      (this.transporter && process.env.EMAIL_USER) ||
+        this.getWebhookUrl() ||
+        (this.getRelayUrl() && getRelaySecret())
+    );
+  }
+
+  async sendDirectSmtp(params: {
+    from?: string;
+    to: string;
+    subject: string;
+    html: string;
+  }): Promise<void> {
+    if (!this.transporter || !process.env.EMAIL_USER) {
+      throw new Error('Email SMTP is not configured on the server.');
+    }
+    await this.transporter.sendMail({
+      from: params.from || `"Fetan P2P Security" <${process.env.EMAIL_USER}>`,
+      to: params.to,
+      subject: params.subject,
+      html: params.html,
+    });
   }
 
   private async deliverMail(params: {
@@ -28,11 +137,49 @@ class EmailService {
     subject: string;
     html: string;
   }): Promise<void> {
-    if (!this.transporter || !process.env.EMAIL_USER) {
-      throw new Error('Email SMTP is not configured on the server.');
+    const webhookUrl = this.getWebhookUrl();
+    if (webhookUrl) {
+      const secret = process.env.EMAIL_WEBHOOK_SECRET?.trim() || '';
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...params, secret }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Email webhook failed (${res.status}): ${text.slice(0, 150)}`);
+      }
+      return;
     }
 
-    await this.transporter.sendMail(params);
+    const relayUrl = this.getRelayUrl();
+    const useRelayFirst = Boolean(relayUrl && getRelaySecret() && process.env.RENDER === 'true');
+
+    if (useRelayFirst && relayUrl) {
+      const timestamp = String(Date.now());
+      const rawBody = JSON.stringify(params);
+      const signature = signEmailRelayPayload(timestamp, rawBody);
+      const res = await fetch(relayUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-fetan-timestamp': timestamp,
+          'x-fetan-signature': signature,
+        },
+        body: rawBody,
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(
+          data.error || `Vercel email relay failed with HTTP ${res.status}.`
+        );
+      }
+      return;
+    }
+
+    await this.sendDirectSmtp(params);
   }
 
   private getSuperadminEmails(): string[] {

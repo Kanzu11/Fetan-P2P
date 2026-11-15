@@ -79,11 +79,24 @@ export async function POST(req: Request) {
       },
     });
 
-    await emailService.sendOtpEmail({
-      to: cleanEmail,
-      code,
-      purpose: 'SIGNUP',
-    });
+    try {
+      await emailService.sendOtpEmail({
+        to: cleanEmail,
+        code,
+        purpose: 'SIGNUP',
+      });
+    } catch (mailErr) {
+      console.error('Signup verification email failed:', mailErr);
+      return NextResponse.json(
+        {
+          error:
+            mailErr instanceof Error
+              ? `Could not deliver verification email: ${mailErr.message}`
+              : 'Email delivery service timed out.',
+        },
+        { status: 502 }
+      );
+    }
 
     await db.logAudit({
       actorId: existing?.user.id,

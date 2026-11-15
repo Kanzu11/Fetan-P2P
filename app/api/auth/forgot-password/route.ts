@@ -55,11 +55,24 @@ export async function POST(req: Request) {
         metadata: { userId: existing.id },
       });
 
-      await emailService.sendOtpEmail({
-        to: cleanEmail,
-        code,
-        purpose: 'RESET_PASSWORD',
-      });
+      try {
+        await emailService.sendOtpEmail({
+          to: cleanEmail,
+          code,
+          purpose: 'RESET_PASSWORD',
+        });
+      } catch (mailErr) {
+        console.error('Forgot password email send failed:', mailErr);
+        return NextResponse.json(
+          {
+            error:
+              mailErr instanceof Error
+                ? `Could not deliver reset email: ${mailErr.message}`
+                : 'Email delivery service timed out or could not reach recipient.',
+          },
+          { status: 502 }
+        );
+      }
 
       await db.logAudit({
         actorId: existing.id,

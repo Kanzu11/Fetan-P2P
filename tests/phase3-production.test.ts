@@ -23,6 +23,11 @@ import { POST as verifyOtpRoute } from '../app/api/auth/verify-otp/route';
 import { POST as loginRoute } from '../app/api/auth/login/route';
 import { POST as resetPasswordRoute } from '../app/api/auth/reset-password/route';
 import { GET as priceStreamRoute } from '../app/api/prices/stream/route';
+import {
+  signEmailRelayPayload,
+  verifyEmailRelaySignature,
+} from '../server/email-service';
+import { POST as emailRelayRoute } from '../app/api/internal/email-relay/route';
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -402,4 +407,42 @@ test('Real-time live price WebSocket broadcast and SSE stream emit referencePric
     await reader.cancel();
     abortController.abort();
   }
+});
+
+test('Internal SMTP email relay signs payloads, rejects tampering/expiry, and verifies middleware bypass', async () => {
+  const ts = String(Date.now());
+  const rawBody = JSON.stringify({
+    to: 'trader@example.com',
+    subject: 'Test',
+    html: '<p>Hello</p>',
+  });
+
+  const sig = signEmailRelayPayload(ts, rawBody);
+  assert.equal(verifyEmailRelaySignature(ts, rawBody, sig).valid, true);
+  assert.equal(
+    verifyEmailRelaySignature(ts, `${rawBody} `, sig).valid,
+    false,
+    'Tampered payload must fail HMAC verification'
+  );
+  assert.equal(
+    verifyEmailRelaySignature(String(Date.now() - 10 * 60 * 1000), rawBody, sig).valid,
+    false,
+    'Expired relay timestamp must be rejected'
+  );
+
+  const unauthRes = await emailRelayRoute(
+    new Request('http://localhost/api/internal/email-relay', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-fetan-timestamp': ts,
+        'x-fetan-signature': 'invalid_sig',
+      },
+      body: rawBody,
+    })
+  );
+  assert.equal(unauthRes.status, 401);
+
+  const middlewareSrc = fs.readFileSync(path.join(ROOT, 'middleware.ts'), 'utf8');
+  assert.ok(middlewareSrc.includes('/api/internal/email-relay'));
 });
