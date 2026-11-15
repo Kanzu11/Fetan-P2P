@@ -5,18 +5,60 @@ class EmailService {
   private transporter: Transporter | null = null;
 
   constructor() {
-    const user = process.env.EMAIL_USER;
-    const pass = process.env.EMAIL_PASS;
+    const user = process.env.EMAIL_USER?.trim();
+    const pass = process.env.EMAIL_PASS?.trim();
     if (user && pass) {
       this.transporter = nodemailer.createTransport({
         service: process.env.EMAIL_SERVICE || 'gmail',
         auth: { user, pass },
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
+        socketTimeout: 10000,
       });
     }
   }
 
   isConfigured(): boolean {
-    return Boolean(this.transporter && process.env.EMAIL_USER);
+    return Boolean(
+      process.env.RESEND_API_KEY?.trim() || (this.transporter && process.env.EMAIL_USER)
+    );
+  }
+
+  private async deliverMail(params: {
+    from: string;
+    to: string;
+    subject: string;
+    html: string;
+  }): Promise<void> {
+    const resendKey = process.env.RESEND_API_KEY?.trim();
+    if (resendKey) {
+      const fromAddr = process.env.RESEND_FROM?.trim() || 'Fetan P2P <onboarding@resend.dev>';
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${resendKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: fromAddr,
+          to: params.to.split(',').map((s) => s.trim()).filter(Boolean),
+          subject: params.subject,
+          html: params.html,
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        throw new Error(`Resend HTTP ${res.status}: ${errBody.slice(0, 200)}`);
+      }
+      return;
+    }
+
+    if (!this.transporter || !process.env.EMAIL_USER) {
+      throw new Error('Email SMTP is not configured on the server.');
+    }
+
+    await this.transporter.sendMail(params);
   }
 
   private getSuperadminEmails(): string[] {
@@ -94,8 +136,8 @@ class EmailService {
       ? `[Fetan P2P] Verify Your Email: ${code}`
       : `[Fetan P2P] Your Verification Code: ${code}`;
 
-    await this.transporter.sendMail({
-      from: `"Fetan P2P Security" <${process.env.EMAIL_USER}>`,
+    await this.deliverMail({
+      from: `"Fetan P2P Security" <${process.env.EMAIL_USER || 'security@fetanp2p.com'}>`,
       to,
       subject,
       html,
@@ -103,7 +145,7 @@ class EmailService {
   }
 
   async sendEmail(to: string | string[], subject: string, html: string) {
-    if (!this.transporter || !process.env.EMAIL_USER) {
+    if (!this.isConfigured()) {
       return;
     }
     const recipients = Array.isArray(to)
@@ -114,8 +156,8 @@ class EmailService {
     if (finalRecipients.length === 0) return;
 
     try {
-      await this.transporter.sendMail({
-        from: `"Fetan P2P" <${process.env.EMAIL_USER}>`,
+      await this.deliverMail({
+        from: `"Fetan P2P" <${process.env.EMAIL_USER || 'noreply@fetanp2p.com'}>`,
         to: finalRecipients.join(', '),
         subject,
         html,

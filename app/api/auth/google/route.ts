@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/server/database/store';
 import { rateLimiter, getClientIp } from '@/server/security/rate-limiter';
-import { setSessionCookie } from '@/server/security/session';
+import { setSessionCookie, signSessionToken } from '@/server/security/session';
 import { sanitizeString } from '@/server/security/sanitize';
 
 export const dynamic = 'force-dynamic';
@@ -19,15 +19,24 @@ export async function POST(req: Request) {
       return rateLimiter.rateLimitResponse(limit.resetSeconds);
     }
 
-    const googleClientId =
-      process.env.GOOGLE_CLIENT_ID?.trim() ||
-      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim();
+    const cleanEnvIds = (raw?: string) =>
+      (raw || '')
+        .split(',')
+        .map((id) => id.trim().replace(/^['"]|['"]$/g, ''))
+        .filter(Boolean);
 
-    if (!googleClientId) {
+    const allowedClientIds = Array.from(
+      new Set([
+        ...cleanEnvIds(process.env.GOOGLE_CLIENT_ID),
+        ...cleanEnvIds(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID),
+      ])
+    );
+
+    if (allowedClientIds.length === 0) {
       return NextResponse.json(
         {
           error:
-            'Google OAuth is not configured yet (GOOGLE_CLIENT_ID / NEXT_PUBLIC_GOOGLE_CLIENT_ID missing in .env). Use Email Code sign-in.',
+            'Google OAuth is not configured yet (GOOGLE_CLIENT_ID / NEXT_PUBLIC_GOOGLE_CLIENT_ID missing in .env). Use Email + Password sign-in.',
         },
         { status: 501 }
       );
@@ -54,8 +63,13 @@ export async function POST(req: Request) {
       exp?: string;
     };
 
-    if (payload.aud !== googleClientId) {
-      return NextResponse.json({ error: 'Google token audience mismatch.' }, { status: 401 });
+    if (!payload.aud || !allowedClientIds.includes(payload.aud.trim())) {
+      return NextResponse.json(
+        {
+          error: `Google token audience mismatch. Token aud (${payload.aud || 'missing'}) does not match server GOOGLE_CLIENT_ID.`,
+        },
+        { status: 401 }
+      );
     }
 
     const verifiedFlag = payload.email_verified === true || payload.email_verified === 'true';
@@ -91,8 +105,14 @@ export async function POST(req: Request) {
         authProvider: 'google',
         emailVerified: true,
       });
-    } else if (isSuperadminEmail && user.role !== 'SUPERADMIN') {
-      user = await db.updateUser(user.id, { role: 'SUPERADMIN', kycStatus: 'VERIFIED' });
+    } else {
+      user = await db.touchUserLogin(user.id);
+      if (!user.emailVerified) {
+        user = await db.updateUser(user.id, { emailVerified: true });
+      }
+      if (isSuperadminEmail && user.role !== 'SUPERADMIN') {
+        user = await db.updateUser(user.id, { role: 'SUPERADMIN', kycStatus: 'VERIFIED' });
+      }
     }
 
     if (user.isSuspended) {
@@ -115,8 +135,10 @@ export async function POST(req: Request) {
       ip,
     });
 
+    const token = signSessionToken(user.id, user.role);
     const response = NextResponse.json({
       success: true,
+      token,
       user,
       message: `Signed in with Google as ${user.name}`,
     });
