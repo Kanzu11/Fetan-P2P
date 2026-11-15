@@ -8,6 +8,7 @@ import { ExtensionGuard } from '@/client/components/extension-guard';
 import { EXTENSION_GUARD_INLINE_SCRIPT } from '@/client/extension-guard-script';
 import { Navigation } from '@/client/components/navigation';
 import { ToastBanner } from '@/client/components/toast-banner';
+import { Analytics } from '@vercel/analytics/next';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -96,6 +97,7 @@ export default function RootLayout({
             </main>
           </RealtimeProvider>
         </I18nProvider>
+        <Analytics />
       </body>
     </html>
   );

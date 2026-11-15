@@ -19,9 +19,7 @@ class EmailService {
   }
 
   isConfigured(): boolean {
-    return Boolean(
-      process.env.RESEND_API_KEY?.trim() || (this.transporter && process.env.EMAIL_USER)
-    );
+    return Boolean(this.transporter && process.env.EMAIL_USER);
   }
 
   private async deliverMail(params: {
@@ -30,30 +28,6 @@ class EmailService {
     subject: string;
     html: string;
   }): Promise<void> {
-    const resendKey = process.env.RESEND_API_KEY?.trim();
-    if (resendKey) {
-      const fromAddr = process.env.RESEND_FROM?.trim() || 'Fetan P2P <onboarding@resend.dev>';
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${resendKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: fromAddr,
-          to: params.to.split(',').map((s) => s.trim()).filter(Boolean),
-          subject: params.subject,
-          html: params.html,
-        }),
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!res.ok) {
-        const errBody = await res.text().catch(() => '');
-        throw new Error(`Resend HTTP ${res.status}: ${errBody.slice(0, 200)}`);
-      }
-      return;
-    }
-
     if (!this.transporter || !process.env.EMAIL_USER) {
       throw new Error('Email SMTP is not configured on the server.');
     }
