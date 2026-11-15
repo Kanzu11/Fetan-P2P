@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { User, P2POrder, displayName, isAdminRole } from '@/client/types';
 
 export interface AuthResult {
@@ -60,6 +61,7 @@ interface RealtimeContextType {
 const RealtimeContext = createContext<RealtimeContextType | undefined>(undefined);
 
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [googleClientId, setGoogleClientId] = useState<string | null>(
     process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || null
@@ -304,12 +306,15 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const logout = async (): Promise<void> => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {
+      console.error('Logout failed:', e);
+    } finally {
       setCurrentUser(null);
       setActiveOrdersCount(0);
       setLatestActiveOrderId('');
       setNotification('Logged out successfully.');
-    } catch (e) {
-      console.error('Logout failed:', e);
+      router.replace('/');
+      router.refresh();
     }
   };
 
