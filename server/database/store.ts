@@ -17,7 +17,12 @@ import {
   KycDocType,
   OPEN_ORDER_STATUSES,
 } from '../../client/types';
-import { generateUserDepositAddresses } from '../crypto-address-service';
+import {
+  depositAddressesEqual,
+  generateUserDepositAddresses,
+  resolveUserDepositAddresses,
+  type UserCryptoAddresses,
+} from '../crypto-address-service';
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
 
@@ -60,9 +65,10 @@ function mapUser(row: {
   createdAt: Date;
   updatedAt: Date;
 }): User {
-  const derivedAddresses =
-    (row.depositAddresses as User['depositAddresses'] | null) ||
-    generateUserDepositAddresses(row.id);
+  const derivedAddresses = resolveUserDepositAddresses(
+    row.id,
+    row.depositAddresses as Partial<UserCryptoAddresses> | null
+  );
 
   return {
     id: row.id,
@@ -543,15 +549,22 @@ export class DatabaseStore {
     const row = await this.client().user.findUnique({ where: { id } });
     if (!row) return undefined;
 
-    if (!row.depositAddresses) {
-      const generated = generateUserDepositAddresses(row.id);
-      if (generated) {
-        await this.client().user.update({
-          where: { id: row.id },
-          data: { depositAddresses: generated as unknown as Prisma.InputJsonValue },
-        });
-        row.depositAddresses = generated as unknown as Prisma.JsonValue;
-      }
+    const resolvedAddresses = resolveUserDepositAddresses(
+      row.id,
+      row.depositAddresses as Partial<UserCryptoAddresses> | null
+    );
+    if (
+      resolvedAddresses &&
+      !depositAddressesEqual(
+        row.depositAddresses as Partial<UserCryptoAddresses> | null,
+        resolvedAddresses
+      )
+    ) {
+      await this.client().user.update({
+        where: { id: row.id },
+        data: { depositAddresses: resolvedAddresses as unknown as Prisma.InputJsonValue },
+      });
+      row.depositAddresses = resolvedAddresses as unknown as Prisma.JsonValue;
     }
     return mapUser(row);
   }

@@ -28,6 +28,14 @@ import {
   verifyEmailRelaySignature,
 } from '../server/email-service';
 import { POST as emailRelayRoute } from '../app/api/internal/email-relay/route';
+import { HDNodeWallet } from 'ethers';
+import {
+  cleanDepositEnvValue,
+  generateUserDepositAddresses,
+  isDepositConfigured,
+  normalizeTonAddressToRaw,
+  resolveUserDepositAddresses,
+} from '../server/crypto-address-service';
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -445,4 +453,55 @@ test('Internal SMTP email relay signs payloads, rejects tampering/expiry, and ve
 
   const middlewareSrc = fs.readFileSync(path.join(ROOT, 'middleware.ts'), 'utf8');
   assert.ok(middlewareSrc.includes('/api/internal/email-relay'));
+});
+
+test('Crypto deposit derivation handles quotes/placeholders, rejects zpub without breaking TON, and normalizes TON EQ/UQ/raw', () => {
+  assert.equal(cleanDepositEnvValue('  "xpub6CQ8...your_master_public_key_here"  '), '');
+  assert.equal(cleanDepositEnvValue("  'EQ...your_ton_hot_wallet_address' "), '');
+
+  const uqAddr = 'UQCUWIMl9oxdDFHROjuf4kJtpNd7uouWJLeAE-XyxC_-mwfN';
+  const rawExpected = '0:94588325f68c5d0c51d13a3b9fe2426da4d77bba8b9624b78013e5f2c42ffe9b';
+  assert.equal(normalizeTonAddressToRaw(uqAddr), rawExpected);
+  assert.equal(normalizeTonAddressToRaw(rawExpected), rawExpected);
+  assert.equal(normalizeTonAddressToRaw('UQCUWIMl9oxdDFHROjuf4kJtpNd7uouWJLeAE-XyxC_-mwfX'), null);
+
+  const prevXpub = process.env.DEPOSIT_XPUB;
+  const prevTon = process.env.DEPOSIT_TON_ADDRESS;
+  try {
+    // 1. zpub must fail closed for BEP20/TRC20 while leaving valid TON working
+    process.env.DEPOSIT_XPUB =
+      '"zpub6oGgPhENSeCTSzbbkF41jQ91sNsrt4SS1cbUcXTxjqPhYyAAV6hYhyAo7168CJK55QHiTpiKv54Lkk4Uh91fFD6h49b7yXYnQd2GGbocTgR"';
+    process.env.DEPOSIT_TON_ADDRESS = ` "${uqAddr}" `;
+
+    assert.equal(isDepositConfigured('TON'), true);
+    assert.equal(isDepositConfigured('BEP20'), false);
+    assert.equal(isDepositConfigured('TRC20'), false);
+
+    const tonOnly = generateUserDepositAddresses('usr-test-deposit-1');
+    assert.ok(tonOnly);
+    assert.equal(tonOnly.ton, uqAddr);
+    assert.match(tonOnly.tonMemo, /^FETAN\d+$/);
+    assert.equal(tonOnly.bep20, '');
+    assert.equal(tonOnly.trc20, '');
+
+    // 2. Valid account-level BIP44 xpub (m/44'/60'/0') with quotes enables all 3 networks
+    const testAccountXpub = HDNodeWallet.createRandom(undefined, "m/44'/60'/0'")
+      .neuter().extendedKey;
+    process.env.DEPOSIT_XPUB = `"${testAccountXpub}"`;
+
+    assert.equal(isDepositConfigured('BEP20'), true);
+    assert.equal(isDepositConfigured('TRC20'), true);
+
+    const full = resolveUserDepositAddresses('usr-test-deposit-1', tonOnly);
+    assert.ok(full);
+    assert.match(full.bep20, /^0x[a-fA-F0-9]{40}$/);
+    assert.match(full.trc20, /^T[1-9A-HJ-NP-Za-km-z]{33}$/);
+    assert.equal(full.ton, uqAddr);
+    assert.equal(full.tonMemo, tonOnly.tonMemo);
+  } finally {
+    if (prevXpub === undefined) delete process.env.DEPOSIT_XPUB;
+    else process.env.DEPOSIT_XPUB = prevXpub;
+    if (prevTon === undefined) delete process.env.DEPOSIT_TON_ADDRESS;
+    else process.env.DEPOSIT_TON_ADDRESS = prevTon;
+  }
 });

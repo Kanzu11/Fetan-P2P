@@ -1,5 +1,5 @@
 import { formatUnits, getBytes, encodeBase58, concat, sha256 } from 'ethers';
-import type { UserCryptoAddresses } from '@/server/crypto-address-service';
+import { normalizeTonAddressToRaw, type UserCryptoAddresses } from '@/server/crypto-address-service';
 
 export type DepositNetwork = 'TRC20' | 'BEP20' | 'TON';
 
@@ -279,13 +279,24 @@ async function verifyTonUsdtDeposit(
     }>;
   } | null;
 
+  const expectedRawTon = normalizeTonAddressToRaw(expectedTonAddress);
+  const expectedUsdtMasterRaw = normalizeTonAddressToRaw(TON_USDT_JETTON_MASTER);
+
   let matchedUnits = 0n;
   let fromAddr: string | undefined;
 
   for (const transfer of body?.jetton_transfers || []) {
     if (transfer.transaction_aborted) continue;
-    if (transfer.jetton_master && transfer.jetton_master !== TON_USDT_JETTON_MASTER) continue;
-    if (transfer.destination !== expectedTonAddress) continue;
+    if (transfer.jetton_master) {
+      const masterRaw = normalizeTonAddressToRaw(transfer.jetton_master);
+      if (masterRaw && expectedUsdtMasterRaw ? masterRaw !== expectedUsdtMasterRaw : transfer.jetton_master !== TON_USDT_JETTON_MASTER) {
+        continue;
+      }
+    }
+    const destRaw = normalizeTonAddressToRaw(transfer.destination);
+    if (destRaw && expectedRawTon ? destRaw !== expectedRawTon : transfer.destination !== expectedTonAddress) {
+      continue;
+    }
 
     const memoText = transfer.decoded_forward_payload?.text?.trim() || '';
     if (!expectedMemo || memoText !== expectedMemo) continue;
@@ -332,10 +343,25 @@ export async function verifyOnChainUsdtDeposit(params: {
 
   switch (network) {
     case 'BEP20':
+      if (!userAddresses.bep20) {
+        throw new Error(
+          'BEP-20 deposit derivation (DEPOSIT_XPUB) is not configured on this server yet.'
+        );
+      }
       return verifyBep20UsdtDeposit(txHash, userAddresses.bep20);
     case 'TRC20':
+      if (!userAddresses.trc20) {
+        throw new Error(
+          'TRC-20 deposit derivation (DEPOSIT_XPUB) is not configured on this server yet.'
+        );
+      }
       return verifyTrc20UsdtDeposit(txHash, userAddresses.trc20);
     case 'TON':
+      if (!userAddresses.ton) {
+        throw new Error(
+          'TON deposit wallet (DEPOSIT_TON_ADDRESS) is not configured on this server yet.'
+        );
+      }
       return verifyTonUsdtDeposit(txHash, userAddresses.ton, userAddresses.tonMemo);
   }
 }

@@ -612,7 +612,15 @@ export default function WalletPage() {
                   <span>Platform Deposit Node Gateway</span>
                 </div>
                 <p className="text-[11px] leading-relaxed text-amber-900/85">
-                  On-chain address derivation requires master public key configuration (`DEPOSIT_XPUB` & `DEPOSIT_TON_ADDRESS` in `.env`). In the meantime, you can deposit by submitting a valid transaction hash on the right panel.
+                  {network === 'TON' ? (
+                    <>
+                      On-chain TON deposit display requires a valid <code>DEPOSIT_TON_ADDRESS</code> configured on the backend server environment.
+                    </>
+                  ) : (
+                    <>
+                      On-chain {network} address derivation requires a valid BIP44 extended public key (<code>DEPOSIT_XPUB</code> starting with <code>xpub</code>, not <code>zpub</code>) on the backend server environment.
+                    </>
+                  )}
                 </p>
               </div>
             )}
