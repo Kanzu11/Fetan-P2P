@@ -64,12 +64,7 @@ export async function POST(req: Request) {
       } catch (mailErr) {
         console.error('Forgot password email send failed:', mailErr);
         return NextResponse.json(
-          {
-            error:
-              mailErr instanceof Error
-                ? `Could not deliver reset email: ${mailErr.message}`
-                : 'Email delivery service timed out or could not reach recipient.',
-          },
+          { error: 'Unable to deliver reset email right now. Please try again shortly.' },
           { status: 502 }
         );
       }

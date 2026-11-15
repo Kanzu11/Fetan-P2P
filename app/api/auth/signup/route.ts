@@ -88,12 +88,7 @@ export async function POST(req: Request) {
     } catch (mailErr) {
       console.error('Signup verification email failed:', mailErr);
       return NextResponse.json(
-        {
-          error:
-            mailErr instanceof Error
-              ? `Could not deliver verification email: ${mailErr.message}`
-              : 'Email delivery service timed out.',
-        },
+        { error: 'Unable to deliver verification email right now. Please try again shortly.' },
         { status: 502 }
       );
     }

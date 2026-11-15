@@ -123,8 +123,9 @@ class EmailService {
     if (!this.transporter || !process.env.EMAIL_USER) {
       throw new Error('Email SMTP is not configured on the server.');
     }
+    const senderLabel = params.from?.includes('Security') ? 'Fetan P2P Security' : 'Fetan P2P';
     await this.transporter.sendMail({
-      from: params.from || `"Fetan P2P Security" <${process.env.EMAIL_USER}>`,
+      from: `"${senderLabel}" <${process.env.EMAIL_USER}>`,
       to: params.to,
       subject: params.subject,
       html: params.html,
@@ -200,8 +201,8 @@ class EmailService {
     network?: string;
     destinationAddress?: string;
   }): Promise<void> {
-    if (!this.transporter || !process.env.EMAIL_USER) {
-      throw new Error('Email SMTP is not configured on the server.');
+    if (!this.isConfigured()) {
+      throw new Error('Email delivery service is not configured on the server.');
     }
 
     const { to, code, purpose, amountUsdt, network, destinationAddress } = params;
