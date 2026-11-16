@@ -1,0 +1,45 @@
+[Unit]
+Description=Fetan P2P Isolated BEP-20 Payout Engine Worker
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
+
+[Service]
+Type=simple
+User=fetan-payout
+Group=fetan-payout
+WorkingDirectory=/opt/fetan-payout
+ExecStart=/usr/bin/node --enable-source-maps dist/workers/payout-engine/payout-engine.js
+
+# Load hot wallet private key via systemd ramfs credential (root:root 0600 source file)
+LoadCredential=hot_wallet_key:/etc/fetan/hot_wallet_key
+
+# Non-secret config + Neon DB URL (root:fetan-payout 0640)
+EnvironmentFile=/etc/fetan/payout.env
+Environment=NODE_ENV=production
+
+Restart=always
+RestartSec=10
+
+# Sandbox & memory isolation (mitigates compromised npm dependencies & disk leaks)
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+LimitCORE=0
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+# Note: MemoryDenyWriteExecute is omitted intentionally because V8/Node JIT requires RWX code pages on ARM64.
+
+[Install]
+WantedBy=multi-user.target

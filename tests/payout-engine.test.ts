@@ -44,6 +44,7 @@ import { createOtpChallenge } from '../server/security/otp';
 import { SESSION_COOKIE_NAME, signSessionToken } from '../server/security/session';
 import { POST as postWithdrawAlias } from '../app/api/withdraw/route';
 import { POST as postAdminWithdrawals } from '../app/api/admin/withdrawals/route';
+import { GET as getHealth } from '../app/api/health/route';
 import type { Redis } from '@upstash/redis';
 import os from 'node:os';
 import { BaseWallet, keccak256, parseEther, parseUnits, Transaction, Wallet } from 'ethers';
@@ -1113,4 +1114,45 @@ test('Phase 3: Worker enforces drain protection, pre-flight revert refund, happy
     });
     await purgeTestUsers([u.id]);
   }
+});
+
+test('Phase 4: /api/health reports DB + worker heartbeat and Oracle Cloud ARM deploy bundle enforces hardening', async () => {
+  const healthRes = await getHealth();
+  assert.equal(healthRes.status, 200);
+  const body = (await healthRes.json()) as {
+    ok: boolean;
+    database: string;
+    payoutWorker: { configured: boolean; paused: boolean };
+  };
+  assert.equal(body.ok, true);
+  assert.equal(body.database, 'connected');
+  assert.equal(body.payoutWorker.configured, true);
+
+  const deployDir = path.join(process.cwd(), 'workers/payout-engine/deploy');
+  for (const fname of [
+    'setup-oracle.sh',
+    'fetan-payout.service',
+    'nftables.conf',
+    'payout.env.example',
+    'README-oracle.md',
+  ]) {
+    assert.ok(fs.existsSync(path.join(deployDir, fname)), `Missing deploy file: ${fname}`);
+  }
+
+  const serviceUnit = fs.readFileSync(path.join(deployDir, 'fetan-payout.service'), 'utf8');
+  assert.ok(serviceUnit.includes('User=fetan-payout'));
+  assert.ok(serviceUnit.includes('LimitCORE=0'));
+  assert.ok(serviceUnit.includes('NoNewPrivileges=yes'));
+  assert.ok(serviceUnit.includes('ProtectSystem=strict'));
+  assert.ok(serviceUnit.includes('dist/workers/payout-engine/payout-engine.js'));
+  assert.ok(serviceUnit.includes('LoadCredential=hot_wallet_key:/etc/fetan/hot_wallet_key'));
+
+  const setupSh = fs.readFileSync(path.join(deployDir, 'setup-oracle.sh'), 'utf8');
+  assert.ok(setupSh.includes('swapoff -a'));
+  assert.ok(setupSh.includes('PermitRootLogin no'));
+  assert.ok(setupSh.includes('nftables'));
+
+  const nft = fs.readFileSync(path.join(deployDir, 'nftables.conf'), 'utf8');
+  assert.ok(nft.includes('policy drop'));
+  assert.ok(nft.includes('tcp dport 5432 accept'));
 });
