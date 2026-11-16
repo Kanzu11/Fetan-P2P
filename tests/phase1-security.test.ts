@@ -78,12 +78,20 @@ after(async () => {
       await prisma.rateLimitRecord.deleteMany({ where: { key: { in: createdRateKeys } } });
     }
     if (createdUserIds.length > 0) {
-      await prisma.auditLog.deleteMany({
-        where: {
-          OR: [{ actorId: { in: createdUserIds } }, { targetId: { in: createdUserIds } }],
-        },
+      await prisma.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(`SET LOCAL fetan.allow_test_ledger_cleanup = 'on'`);
+        await tx.walletBalance.deleteMany({ where: { userId: { in: createdUserIds } } });
+        await tx.withdrawalBroadcast.deleteMany({
+          where: { withdrawal: { userId: { in: createdUserIds } } },
+        });
+        await tx.withdrawal.deleteMany({ where: { userId: { in: createdUserIds } } });
+        await tx.auditLog.deleteMany({
+          where: {
+            OR: [{ actorId: { in: createdUserIds } }, { targetId: { in: createdUserIds } }],
+          },
+        });
+        await tx.user.deleteMany({ where: { id: { in: createdUserIds } } });
       });
-      await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
     }
   } finally {
     await prisma.$disconnect();

@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'async_hooks';
-import { Prisma } from '@prisma/client';
+import { LedgerEntryType, Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 import {
   User,
@@ -742,7 +742,11 @@ export class DatabaseStore {
     return this.updateUser(user.id, user);
   }
 
-  async updateUser(id: string, updates: Partial<User>): Promise<User> {
+  async updateUser(
+    id: string,
+    updates: Partial<User>,
+    ledgerMeta?: { type: LedgerEntryType; referenceId: string; delta?: number }
+  ): Promise<User> {
     const data: Prisma.UserUpdateInput = {};
     if (updates.name !== undefined) data.name = updates.name;
     if (updates.nickname !== undefined) data.nickname = updates.nickname;
@@ -775,8 +779,53 @@ export class DatabaseStore {
     if (updates.positiveFeedback !== undefined) data.positiveFeedback = updates.positiveFeedback;
     if (updates.negativeFeedback !== undefined) data.negativeFeedback = updates.negativeFeedback;
 
+    let previousBalance: Prisma.Decimal | null = null;
+    if (ledgerMeta && updates.usdtBalance !== undefined && ledgerMeta.delta === undefined) {
+      const prev = await this.client().user.findUnique({
+        where: { id },
+        select: { usdtBalance: true },
+      });
+      previousBalance = prev ? prev.usdtBalance : new Prisma.Decimal(0);
+    }
+
     const row = await this.client().user.update({ where: { id }, data });
+
+    if (ledgerMeta && updates.usdtBalance !== undefined) {
+      const amountDelta =
+        ledgerMeta.delta !== undefined
+          ? new Prisma.Decimal(ledgerMeta.delta).toDecimalPlaces(6)
+          : row.usdtBalance.minus(previousBalance ?? new Prisma.Decimal(0)).toDecimalPlaces(6);
+
+      await this.client().walletBalance.create({
+        data: {
+          userId: id,
+          type: ledgerMeta.type,
+          amount: amountDelta,
+          balanceAfter: row.usdtBalance,
+          referenceId: ledgerMeta.referenceId,
+        },
+      });
+    }
+
     return mapUser(row);
+  }
+
+  async recordLedgerEntry(params: {
+    userId: string;
+    type: LedgerEntryType;
+    amount: number | string | Prisma.Decimal;
+    balanceAfter: number | string | Prisma.Decimal;
+    referenceId: string;
+  }): Promise<void> {
+    await this.client().walletBalance.create({
+      data: {
+        userId: params.userId,
+        type: params.type,
+        amount: new Prisma.Decimal(params.amount).toDecimalPlaces(6),
+        balanceAfter: new Prisma.Decimal(params.balanceAfter).toDecimalPlaces(6),
+        referenceId: params.referenceId,
+      },
+    });
   }
 
   async createOrGetTelegramUser(params: {

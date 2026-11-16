@@ -91,11 +91,16 @@ export async function POST(req: Request) {
         throw new Error('This transaction hash has already been verified and credited.');
       }
 
+      const txId = `dep-${crypto.randomUUID()}`;
       const newBalance = Number((lockedUser.usdtBalance + verified.amountUsdt).toFixed(6));
-      const updatedUser = await db.updateUser(lockedUser.id, { usdtBalance: newBalance });
+      const updatedUser = await db.updateUser(
+        lockedUser.id,
+        { usdtBalance: newBalance },
+        { type: 'DEPOSIT_CREDIT', referenceId: txId, delta: verified.amountUsdt }
+      );
 
       const tx = await db.saveWalletTransaction({
-        id: `dep-${crypto.randomUUID()}`,
+        id: txId,
         userId: lockedUser.id,
         type: 'DEPOSIT',
         amount: verified.amountUsdt,

@@ -214,18 +214,23 @@ export class EscrowController {
         const newSellerBalance = Number((seller.usdtBalance - usdtAmount).toFixed(6));
         const newSellerLocked = Number((seller.usdtLocked + usdtAmount).toFixed(6));
 
-        await db.updateUser(seller.id, {
-          usdtBalance: newSellerBalance,
-          usdtLocked: newSellerLocked,
-        });
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + 15 * 60 * 1000);
+        const orderId = await db.nextOrderId();
+
+        await db.updateUser(
+          seller.id,
+          {
+            usdtBalance: newSellerBalance,
+            usdtLocked: newSellerLocked,
+          },
+          { type: 'ESCROW_LOCK', referenceId: orderId, delta: -usdtAmount }
+        );
 
         await db.updateOffer(offer.id, {
           totalAvailable: Number(Math.max(0, offer.totalAvailable - usdtAmount).toFixed(4)),
         });
 
-        const now = new Date();
-        const expiresAt = new Date(now.getTime() + 15 * 60 * 1000);
-        const orderId = await db.nextOrderId();
         const methodShortName = PAYMENT_METHODS_META[paymentMethod]?.shortName || paymentMethod;
 
         const order: P2POrder = {
@@ -475,10 +480,14 @@ export class EscrowController {
           completedTrades: nextSellerCompletedTrades,
           avgReleaseTimeMins: nextAvgRelease,
         });
-        await db.updateUser(buyer.id, {
-          usdtBalance: newBuyerBalance,
-          completedTrades: (buyer.completedTrades || 0) + 1,
-        });
+        await db.updateUser(
+          buyer.id,
+          {
+            usdtBalance: newBuyerBalance,
+            completedTrades: (buyer.completedTrades || 0) + 1,
+          },
+          { type: 'ESCROW_RELEASE', referenceId: order.id, delta: order.usdtAmount }
+        );
 
         const now = new Date();
         const isReleasedByAdmin = isAdmin && order.sellerId !== actorId && !isSystemAutoRelease;
@@ -621,10 +630,14 @@ export class EscrowController {
         const newSellerLocked = Number(Math.max(0, seller.usdtLocked - unlockAmount).toFixed(6));
         const newSellerBalance = Number((seller.usdtBalance + unlockAmount).toFixed(6));
 
-        await db.updateUser(seller.id, {
-          usdtBalance: newSellerBalance,
-          usdtLocked: newSellerLocked,
-        });
+        await db.updateUser(
+          seller.id,
+          {
+            usdtBalance: newSellerBalance,
+            usdtLocked: newSellerLocked,
+          },
+          { type: 'ESCROW_REFUND', referenceId: order.id, delta: unlockAmount }
+        );
 
         const offer = await db.getOffer(order.offerId);
         if (offer) {
@@ -862,10 +875,14 @@ export class EscrowController {
             const newSellerLocked = Number(Math.max(0, seller.usdtLocked - unlockAmount).toFixed(6));
             const newSellerBalance = Number((seller.usdtBalance + unlockAmount).toFixed(6));
 
-            await db.updateUser(seller.id, {
-              usdtBalance: newSellerBalance,
-              usdtLocked: newSellerLocked,
-            });
+            await db.updateUser(
+              seller.id,
+              {
+                usdtBalance: newSellerBalance,
+                usdtLocked: newSellerLocked,
+              },
+              { type: 'ESCROW_REFUND', referenceId: order.id, delta: unlockAmount }
+            );
 
             const offer = await db.getOffer(order.offerId);
             if (offer) {
