@@ -49,6 +49,11 @@ export default function AdminDashboardPage() {
     userName?: string;
     userEmail?: string;
     telegramHandle?: string;
+    withdrawalId?: string;
+    withdrawalStatus?: string;
+    riskReason?: string | null;
+    attempts?: number;
+    confirmations?: number;
   };
 
   type AdminAuditLogItem = {
@@ -405,13 +410,16 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleReviewWithdrawal = async (txId: string, action: 'APPROVE' | 'REJECT') => {
+  const handleReviewWithdrawal = async (w: AdminWithdrawalItem, action: 'APPROVE' | 'REJECT') => {
+    const txId = w.id;
     setActionLoadingId(txId);
     setAdminError(null);
     try {
       const txHash = (withdrawTxHashes[txId] || '').trim();
       const note = (withdrawNotes[txId] || '').trim();
-      if (action === 'APPROVE' && !txHash) {
+      const isAutoBep20Approve =
+        action === 'APPROVE' && w.network === 'BEP20' && w.withdrawalStatus === 'MANUAL_REVIEW';
+      if (action === 'APPROVE' && !isAutoBep20Approve && !txHash) {
         throw new Error('Enter the verified payout blockchain TxHash before approving.');
       }
 
@@ -431,7 +439,9 @@ export default function AdminDashboardPage() {
 
       setNotification(
         action === 'APPROVE'
-          ? 'Withdrawal approved & TxHash recorded.'
+          ? data.queuedForWorker
+            ? 'BEP-20 withdrawal approved and queued for automatic worker payout.'
+            : 'Withdrawal approved & TxHash recorded.'
           : 'Withdrawal rejected & USDT refunded to user balance.'
       );
       await fetchAdminData();
@@ -1463,7 +1473,7 @@ export default function AdminDashboardPage() {
                           : 'bg-rose-50 text-rose-800 border border-rose-200'
                       }`}
                     >
-                      {w.status}
+                      {w.withdrawalStatus || w.status}
                     </span>
                   </div>
                   <div className="text-brand-ink font-semibold">
@@ -1477,20 +1487,30 @@ export default function AdminDashboardPage() {
                       TxHash: {w.txHash}
                     </div>
                   )}
+                  {w.riskReason && (
+                    <div className="text-[11px] text-amber-800 font-semibold">
+                      Risk: {w.riskReason}
+                    </div>
+                  )}
                   {w.note && <div className="text-[11px] text-brand-ink-soft">Note: {w.note}</div>}
                 </div>
 
-                {w.status === 'PENDING' && (
+                {w.status === 'PENDING' &&
+                  w.withdrawalStatus !== 'SIMULATING' &&
+                  w.withdrawalStatus !== 'PROCESSING' &&
+                  w.withdrawalStatus !== 'NEEDS_RECONCILIATION' && (
                   <div className="flex flex-col sm:flex-row gap-2 lg:min-w-[440px]">
-                    <input
-                      type="text"
-                      value={withdrawTxHashes[w.id] || ''}
-                      onChange={(e) =>
-                        setWithdrawTxHashes((prev) => ({ ...prev, [w.id]: e.target.value }))
-                      }
-                      placeholder="On-chain payout TxHash..."
-                      className="flex-1 px-3.5 py-2 rounded-full border border-black/10 bg-white/80 font-mono text-[11px] text-brand-ink focus:outline-none focus:bg-white focus:border-brand-ink"
-                    />
+                    {!(w.network === 'BEP20' && w.withdrawalStatus === 'MANUAL_REVIEW') && (
+                      <input
+                        type="text"
+                        value={withdrawTxHashes[w.id] || ''}
+                        onChange={(e) =>
+                          setWithdrawTxHashes((prev) => ({ ...prev, [w.id]: e.target.value }))
+                        }
+                        placeholder="On-chain payout TxHash..."
+                        className="flex-1 px-3.5 py-2 rounded-full border border-black/10 bg-white/80 font-mono text-[11px] text-brand-ink focus:outline-none focus:bg-white focus:border-brand-ink"
+                      />
+                    )}
                     <input
                       type="text"
                       value={withdrawNotes[w.id] || ''}
@@ -1502,14 +1522,16 @@ export default function AdminDashboardPage() {
                     />
                     <div className="flex gap-1.5">
                       <button
-                        onClick={() => handleReviewWithdrawal(w.id, 'APPROVE')}
+                        onClick={() => handleReviewWithdrawal(w, 'APPROVE')}
                         disabled={actionLoadingId === w.id}
                         className="px-3.5 py-2 rounded-full bg-brand-buy-600 text-white font-bold hover:bg-brand-buy-700 transition-colors disabled:opacity-50"
                       >
-                        Approve
+                        {w.network === 'BEP20' && w.withdrawalStatus === 'MANUAL_REVIEW'
+                          ? 'Approve Auto Payout'
+                          : 'Approve'}
                       </button>
                       <button
-                        onClick={() => handleReviewWithdrawal(w.id, 'REJECT')}
+                        onClick={() => handleReviewWithdrawal(w, 'REJECT')}
                         disabled={actionLoadingId === w.id}
                         className="px-3.5 py-2 rounded-full bg-brand-sell text-white font-bold hover:opacity-95 transition-colors disabled:opacity-50"
                       >

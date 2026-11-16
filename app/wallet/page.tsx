@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRealtime } from '@/client/components/realtime-provider';
 import { useLivePrices } from '@/client/hooks/use-live-prices';
@@ -63,6 +63,11 @@ export default function WalletPage() {
   const [withdrawOtpLoading, setWithdrawOtpLoading] = useState(false);
   const [withdrawOtpMessage, setWithdrawOtpMessage] = useState<string | null>(null);
   const [withdrawLoading, setWithdrawLoading] = useState(false);
+  const withdrawIdempotencyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    withdrawIdempotencyRef.current = null;
+  }, [network, withdrawAmount, withdrawAddress]);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
 
   // Ethiopian Payment Methods state
@@ -226,22 +231,34 @@ export default function WalletPage() {
       setWithdrawError('Enter the 6-digit verification code sent to your email.');
       return;
     }
+    if (!withdrawIdempotencyRef.current) {
+      withdrawIdempotencyRef.current = crypto.randomUUID();
+    }
     setWithdrawLoading(true);
     setWithdrawError(null);
     try {
       const res = await fetch('/api/user/withdraw', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': withdrawIdempotencyRef.current,
+        },
         body: JSON.stringify({
           network,
-          amountUsdt: Number(withdrawAmount),
+          amountUsdt: withdrawAmount.trim(),
           destinationAddress: withdrawAddress.trim(),
           otpCode: withdrawOtpCode.trim(),
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not process withdrawal');
+      if (!res.ok) {
+        if (res.status < 500) {
+          withdrawIdempotencyRef.current = null;
+        }
+        throw new Error(data.error || 'Could not process withdrawal');
+      }
 
+      withdrawIdempotencyRef.current = null;
       setWithdrawAmount('');
       setWithdrawAddress('');
       setWithdrawOtpCode('');
@@ -249,7 +266,9 @@ export default function WalletPage() {
       setWithdrawOtpMessage(null);
       await refreshUser();
       await fetchTransactions();
-      setNotification(`Withdrawal of ${data.transaction?.amount ?? ''} USDT queued for review.`);
+      setNotification(
+        data.message || `Withdrawal of ${data.transaction?.amount ?? ''} USDT queued.`
+      );
     } catch (err: unknown) {
       setWithdrawError(err instanceof Error ? err.message : 'Could not process withdrawal');
     } finally {

@@ -724,6 +724,15 @@ class TelegramBotManager {
           await ctx.replyWithHTML('❌ Pending withdrawal not found.');
           return;
         }
+        const linkedWithdrawal = await prisma.withdrawal.findFirst({
+          where: { OR: [{ walletTxId: txId }, { id: txId }] },
+        });
+        if (linkedWithdrawal && (linkedWithdrawal.network === 'BEP20' || linkedWithdrawal.nonce !== null)) {
+          await ctx.replyWithHTML(
+            `⚠️ Withdrawal <code>${txId}</code> is managed by the BEP-20 payout pipeline (status: <b>${linkedWithdrawal.status}</b>). Approve or review it from the Admin Web Dashboard.`
+          );
+          return;
+        }
         if (approved) {
           const check = validateTxHash(arg2, existing.network);
           if (!check.valid) {
@@ -733,8 +742,26 @@ class TelegramBotManager {
         }
         const owner = await db.withUserLock(existing.userId, async (locked) => {
           if (!approved) {
-            await db.updateUser(locked.id, {
-              usdtBalance: Number((locked.usdtBalance + existing.amount).toFixed(6)),
+            const refundedBal = Number((locked.usdtBalance + existing.amount).toFixed(6));
+            await db.updateUser(
+              locked.id,
+              { usdtBalance: refundedBal },
+              {
+                type: 'WITHDRAWAL_REFUND',
+                referenceId: linkedWithdrawal ? linkedWithdrawal.id : existing.id,
+                delta: existing.amount,
+              }
+            );
+            if (linkedWithdrawal && linkedWithdrawal.status === 'MANUAL_REVIEW') {
+              await prisma.withdrawal.update({
+                where: { id: linkedWithdrawal.id },
+                data: { status: 'REJECTED', approvedBy: actor.id },
+              });
+            }
+          } else if (linkedWithdrawal && linkedWithdrawal.status === 'MANUAL_REVIEW') {
+            await prisma.withdrawal.update({
+              where: { id: linkedWithdrawal.id },
+              data: { status: 'COMPLETED', txHash: arg2, approvedBy: actor.id, completedAt: new Date() },
             });
           }
           await db.saveWalletTransaction({
@@ -1140,10 +1167,37 @@ class TelegramBotManager {
           await ctx.answerCbQuery('Already processed', { show_alert: true });
           return;
         }
-        await db.withUserLock(existing.userId, async (locked) => {
-          await db.updateUser(locked.id, {
-            usdtBalance: Number((locked.usdtBalance + existing.amount).toFixed(6)),
+        const linkedWithdrawal = await prisma.withdrawal.findFirst({
+          where: { OR: [{ walletTxId: txId }, { id: txId }] },
+        });
+        if (
+          linkedWithdrawal &&
+          (linkedWithdrawal.status === 'SIMULATING' ||
+            linkedWithdrawal.status === 'PROCESSING' ||
+            linkedWithdrawal.status === 'NEEDS_RECONCILIATION' ||
+            linkedWithdrawal.nonce !== null)
+        ) {
+          await ctx.answerCbQuery(`Handled by worker (${linkedWithdrawal.status})`, {
+            show_alert: true,
           });
+          return;
+        }
+        await db.withUserLock(existing.userId, async (locked) => {
+          if (linkedWithdrawal) {
+            await prisma.withdrawal.update({
+              where: { id: linkedWithdrawal.id },
+              data: { status: 'REJECTED', approvedBy: actor.id },
+            });
+          }
+          await db.updateUser(
+            locked.id,
+            { usdtBalance: Number((locked.usdtBalance + existing.amount).toFixed(6)) },
+            {
+              type: 'WITHDRAWAL_REFUND',
+              referenceId: linkedWithdrawal ? linkedWithdrawal.id : existing.id,
+              delta: existing.amount,
+            }
+          );
           await db.saveWalletTransaction({
             ...existing,
             status: 'REJECTED',
