@@ -33,45 +33,32 @@ export async function evaluateWithdrawalRisk(
 ): Promise<RiskEvaluationResult> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  // Sum all non-failed/non-rejected Withdrawal requests created by this user in the last 24h
-  const withdrawalAgg = await tx.withdrawal.aggregate({
-    where: {
-      userId: input.userId,
-      createdAt: { gte: since },
-      status: { notIn: ['FAILED', 'REJECTED'] },
-    },
-    _sum: { amountUsdt: true },
-  });
+  // Single query combines Withdrawal + unlinked legacy WalletTransaction volume inside the active user lock
+  const rows = await tx.$queryRaw<Array<{ totalUsed: string }>>`
+    SELECT (
+      COALESCE((
+        SELECT SUM(w."amountUsdt")
+        FROM "Withdrawal" w
+        WHERE w."userId" = ${input.userId}
+          AND w."createdAt" >= ${since}
+          AND w."status" NOT IN ('FAILED', 'REJECTED')
+      ), 0)
+      +
+      COALESCE((
+        SELECT SUM(wt."amount")
+        FROM "WalletTransaction" wt
+        WHERE wt."userId" = ${input.userId}
+          AND wt."type" = 'WITHDRAW'
+          AND wt."createdAt" >= ${since}
+          AND wt."status" <> 'REJECTED'
+          AND NOT EXISTS (
+            SELECT 1 FROM "Withdrawal" w2 WHERE w2."walletTxId" = wt."id"
+          )
+      ), 0)
+    )::text AS "totalUsed"
+  `;
 
-  // Also include any legacy WalletTransaction WITHDRAW rows from before Withdrawal existed
-  // that do not yet have a corresponding Withdrawal row linked via walletTxId.
-  const linkedWalletTxIds = (
-    await tx.withdrawal.findMany({
-      where: {
-        userId: input.userId,
-        createdAt: { gte: since },
-        walletTxId: { not: null },
-      },
-      select: { walletTxId: true },
-    })
-  )
-    .map((w) => w.walletTxId)
-    .filter((id): id is string => Boolean(id));
-
-  const legacyAgg = await tx.walletTransaction.aggregate({
-    where: {
-      userId: input.userId,
-      type: 'WITHDRAW',
-      createdAt: { gte: since },
-      status: { not: 'REJECTED' },
-      ...(linkedWalletTxIds.length > 0 ? { id: { notIn: linkedWalletTxIds } } : {}),
-    },
-    _sum: { amount: true },
-  });
-
-  const used24hUsdt = (withdrawalAgg._sum.amountUsdt ?? new Prisma.Decimal(0)).plus(
-    legacyAgg._sum.amount ?? new Prisma.Decimal(0)
-  );
+  const used24hUsdt = new Prisma.Decimal(rows[0]?.totalUsed || '0');
 
   // Only BEP-20 supports automatic worker payout; TRC-20 and TON stay manual
   if (input.network !== 'BEP20') {

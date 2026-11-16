@@ -11,6 +11,7 @@ fetanp2probot/node_modules/
 out/
 build/
 /dist/
+workers/payout-engine/dist/
 !telegram/dist/
 
 # Environment variables & secrets (never commit real credentials)

@@ -45,11 +45,38 @@ import { SESSION_COOKIE_NAME, signSessionToken } from '../server/security/sessio
 import { POST as postWithdrawAlias } from '../app/api/withdraw/route';
 import { POST as postAdminWithdrawals } from '../app/api/admin/withdrawals/route';
 import type { Redis } from '@upstash/redis';
+import os from 'node:os';
+import { BaseWallet, keccak256, parseEther, parseUnits, Transaction, Wallet } from 'ethers';
+import { ERC20_TRANSFER_TOPIC } from '../server/payouts/constants';
+import { syncNonceOnBoot } from '../workers/payout-engine/nonce-manager';
+import { PayoutEngine, loadWorkerConfig } from '../workers/payout-engine/payout-engine';
+import type { PayoutAlerter } from '../workers/payout-engine/alerts';
+import type { QuorumFeeData, QuorumReceipt, RpcPoolInterface } from '../workers/payout-engine/rpc-pool';
+import { loadIsolatedHotWallet } from '../workers/payout-engine/secrets';
 
 const RUN_TAG = crypto.randomBytes(4).toString('hex');
 const createdUserIds: string[] = [];
 const createdEmails: string[] = [];
 const createdRateKeys: string[] = [];
+
+async function purgeTestUsers(userIds: string[]) {
+  if (userIds.length === 0) return;
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`SET LOCAL fetan.allow_test_ledger_cleanup = 'on'`);
+    await tx.walletBalance.deleteMany({ where: { userId: { in: userIds } } });
+    await tx.withdrawalBroadcast.deleteMany({
+      where: { withdrawal: { userId: { in: userIds } } },
+    });
+    await tx.withdrawal.deleteMany({ where: { userId: { in: userIds } } });
+    await tx.walletTransaction.deleteMany({ where: { userId: { in: userIds } } });
+    await tx.auditLog.deleteMany({
+      where: {
+        OR: [{ actorId: { in: userIds } }, { targetId: { in: userIds } }],
+      },
+    });
+    await tx.user.deleteMany({ where: { id: { in: userIds } } });
+  });
+}
 
 after(async () => {
   try {
@@ -60,21 +87,7 @@ after(async () => {
       await prisma.rateLimitRecord.deleteMany({ where: { key: { in: createdRateKeys } } });
     }
     if (createdUserIds.length > 0) {
-      await prisma.$transaction(async (tx) => {
-        await tx.$executeRawUnsafe(`SET LOCAL fetan.allow_test_ledger_cleanup = 'on'`);
-        await tx.walletBalance.deleteMany({ where: { userId: { in: createdUserIds } } });
-        await tx.withdrawalBroadcast.deleteMany({
-          where: { withdrawal: { userId: { in: createdUserIds } } },
-        });
-        await tx.withdrawal.deleteMany({ where: { userId: { in: createdUserIds } } });
-        await tx.walletTransaction.deleteMany({ where: { userId: { in: createdUserIds } } });
-        await tx.auditLog.deleteMany({
-          where: {
-            OR: [{ actorId: { in: createdUserIds } }, { targetId: { in: createdUserIds } }],
-          },
-        });
-        await tx.user.deleteMany({ where: { id: { in: createdUserIds } } });
-      });
+      await purgeTestUsers(createdUserIds);
     }
   } finally {
     await prisma.$disconnect();
@@ -423,6 +436,9 @@ test('Phase 2: /api/withdraw enforces strict Zod, parallel UUIDv4 idempotency, 4
   });
   createdUserIds.push(user.id, admin.id);
   createdRateKeys.push(`wdr:rl:user:${user.id}`, `wdr:rl:ip:${testIp}`);
+  const localIds: string[] = [user.id, admin.id];
+
+  try {
 
   const userCookie = `${SESSION_COOKIE_NAME}=${encodeURIComponent(
     signSessionToken(user.id, 'USER')
@@ -551,6 +567,7 @@ test('Phase 2: /api/withdraw enforces strict Zod, parallel UUIDv4 idempotency, 4
     },
   });
   createdUserIds.push(user2.id);
+  localIds.push(user2.id);
   createdRateKeys.push(`wdr:rl:user:${user2.id}`);
   const user2Cookie = `${SESSION_COOKIE_NAME}=${encodeURIComponent(
     signSessionToken(user2.id, 'USER')
@@ -650,4 +667,450 @@ test('Phase 2: /api/withdraw enforces strict Zod, parallel UUIDv4 idempotency, 4
   const queuedW = await prisma.withdrawal.findUniqueOrThrow({ where: { id: manual2Body.withdrawal.id } });
   assert.equal(queuedW.status, 'PENDING');
   assert.equal(queuedW.version, 1);
+  } finally {
+    await purgeTestUsers(localIds);
+  }
+});
+
+function createTestAlerter() {
+  const sent: Array<{ level: string; title: string; detail?: string }> = [];
+  const alerter: PayoutAlerter = {
+    async send(level, title, detail) {
+      sent.push({ level, title, detail });
+    },
+    async notifyUser() {
+      // no-op in tests
+    },
+  };
+  return { alerter, sent };
+}
+
+function makeMockSigner(wallet: BaseWallet) {
+  return {
+    address: wallet.address,
+    signTransaction: (tx: Parameters<BaseWallet['signTransaction']>[0]) =>
+      wallet.signTransaction(tx),
+  };
+}
+
+function makeTransferReceipt(params: {
+  hash: string;
+  usdtContract: string;
+  from: string;
+  to: string;
+  rawAmount: bigint;
+  status?: number;
+  confirmations?: number;
+  includeValidLog?: boolean;
+}): QuorumReceipt {
+  const padAddr = (a: string) => `0x000000000000000000000000${a.slice(2).toLowerCase()}`;
+  const hexData = `0x${params.rawAmount.toString(16).padStart(64, '0')}`;
+  return {
+    hash: params.hash.toLowerCase(),
+    status: params.status ?? 1,
+    blockNumber: 42_000_000,
+    confirmations: params.confirmations ?? 2,
+    gasUsed: 52_000n,
+    effectiveGasPrice: 1_000_000_000n,
+    logs:
+      params.includeValidLog === false
+        ? []
+        : [
+            {
+              address: params.usdtContract.toLowerCase(),
+              topics: [ERC20_TRANSFER_TOPIC, padAddr(params.from), padAddr(params.to)],
+              data: hexData,
+            },
+          ],
+  };
+}
+
+function createMockRpcPool(overrides?: Partial<RpcPoolInterface>): RpcPoolInterface {
+  return {
+    chainId: 56,
+    async verifyHealthAndChainIds() {
+      return 42_000_002;
+    },
+    async quorumBlockNumber() {
+      return 42_000_002;
+    },
+    async quorumNativeBalance() {
+      return parseEther('0.5');
+    },
+    async quorumTokenBalance() {
+      return parseUnits('1000', 18);
+    },
+    async quorumTransactionCount() {
+      return 10;
+    },
+    async simulateCall() {},
+    async estimateGas() {
+      return 55_000n;
+    },
+    async feeData(): Promise<QuorumFeeData> {
+      return {
+        gasPrice: 1_000_000_000n,
+        maxFeePerGas: 1_000_000_000n,
+        maxPriorityFeePerGas: 100_000_000n,
+        supportsEip1559: true,
+      };
+    },
+    async broadcastAll() {
+      return { acceptedBy: ['https://rpc1.test', 'https://rpc2.test'] };
+    },
+    async getQuorumReceipt() {
+      return null;
+    },
+    ...overrides,
+  };
+}
+
+test('Phase 3: Worker secret loader rejects process.env private key, checks pinned address, and loads credential file', async () => {
+  const randomWallet = Wallet.createRandom();
+  const prevEnvKey = process.env.HOT_WALLET_PRIVATE_KEY;
+  const prevAddr = process.env.HOT_WALLET_ADDRESS;
+  const prevSource = process.env.HOT_WALLET_KEY_SOURCE;
+  const prevKeyFile = process.env.HOT_WALLET_KEY_FILE;
+  const tmpFile = path.join(os.tmpdir(), `fetan-key-${RUN_TAG}.txt`);
+
+  try {
+    // 1. Refuse HOT_WALLET_PRIVATE_KEY in process.env
+    process.env.HOT_WALLET_PRIVATE_KEY = randomWallet.privateKey;
+    process.env.HOT_WALLET_ADDRESS = randomWallet.address;
+    await assert.rejects(() => loadIsolatedHotWallet(), /NEVER be passed in process\.env/);
+    delete process.env.HOT_WALLET_PRIVATE_KEY;
+
+    // 2. Credential file with mismatched pinned address must abort
+    fs.writeFileSync(tmpFile, randomWallet.privateKey, { mode: 0o600 });
+    process.env.HOT_WALLET_KEY_SOURCE = 'credential';
+    process.env.HOT_WALLET_KEY_FILE = tmpFile;
+    process.env.HOT_WALLET_ADDRESS = Wallet.createRandom().address;
+    await assert.rejects(() => loadIsolatedHotWallet(), /address mismatch/);
+
+    // 3. Matching pinned address loads cleanly
+    process.env.HOT_WALLET_ADDRESS = randomWallet.address;
+    const loaded = await loadIsolatedHotWallet();
+    assert.equal(loaded.address, randomWallet.address);
+  } finally {
+    if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+    if (prevEnvKey === undefined) delete process.env.HOT_WALLET_PRIVATE_KEY;
+    else process.env.HOT_WALLET_PRIVATE_KEY = prevEnvKey;
+    if (prevAddr === undefined) delete process.env.HOT_WALLET_ADDRESS;
+    else process.env.HOT_WALLET_ADDRESS = prevAddr;
+    if (prevSource === undefined) delete process.env.HOT_WALLET_KEY_SOURCE;
+    else process.env.HOT_WALLET_KEY_SOURCE = prevSource;
+    if (prevKeyFile === undefined) delete process.env.HOT_WALLET_KEY_FILE;
+    else process.env.HOT_WALLET_KEY_FILE = prevKeyFile;
+  }
+});
+
+test('Phase 3: Worker enforces drain protection, pre-flight revert refund, happy finality, fabricated log detection, stuck bump, SKIP LOCKED, and crash recovery', async () => {
+  const hotWallet = Wallet.createRandom();
+  const destAddr = '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045';
+  const cfg = {
+    ...loadWorkerConfig(),
+    workerId: `test-worker-${RUN_TAG}`,
+    receiptTimeoutMs: 120,
+    pollIntervalMs: 50,
+  };
+  const { alerter, sent } = createTestAlerter();
+
+  const u = await prisma.user.create({
+    data: {
+      id: `usr-p3-${RUN_TAG}`,
+      email: `p3-${RUN_TAG}@fetan.test`,
+      name: `P3 Worker ${RUN_TAG}`,
+      role: 'USER',
+      kycStatus: 'VERIFIED',
+      usdtBalance: new Prisma.Decimal('400.000000'),
+    },
+  });
+  createdUserIds.push(u.id);
+
+  async function queueTestWithdrawal(tag: string, amt: string, net: string) {
+    const wid = crypto.randomUUID();
+    const wtxId = `wdr-${wid}`;
+    return prisma.$transaction(async (tx) => {
+      const curU = await tx.user.findUniqueOrThrow({ where: { id: u.id } });
+      const decAmt = new Prisma.Decimal(amt);
+      const newBal = curU.usdtBalance.minus(decAmt).toDecimalPlaces(6);
+      await tx.user.update({ where: { id: u.id }, data: { usdtBalance: newBal } });
+      await tx.walletTransaction.create({
+        data: {
+          id: wtxId,
+          userId: u.id,
+          type: 'WITHDRAW',
+          amount: decAmt,
+          network: 'BEP20',
+          address: destAddr,
+          status: 'PENDING',
+          note: `Test ${tag}`,
+        },
+      });
+      const wRow = await tx.withdrawal.create({
+        data: {
+          id: wid,
+          userId: u.id,
+          idempotencyKey: crypto.randomUUID(),
+          requestHash: `p3-${RUN_TAG}-${tag}`,
+          walletTxId: wtxId,
+          network: 'BEP20',
+          destination: destAddr,
+          amountUsdt: decAmt,
+          feeUsdt: new Prisma.Decimal('0.500000'),
+          netAmountUsdt: new Prisma.Decimal(net),
+          netAmountRaw: parseUnits(net, 18).toString(),
+          status: 'PENDING',
+        },
+      });
+      await appendLedgerEntry(tx, {
+        userId: u.id,
+        type: 'WITHDRAWAL_DEBIT',
+        amount: decAmt.neg(),
+        balanceAfter: newBal,
+        referenceId: wid,
+      });
+      return wRow;
+    });
+  }
+
+  try {
+    // 1. Foreign pending nonce on boot must pause & alert CRITICAL
+    const badBootPool = createMockRpcPool({
+      quorumTransactionCount: async (_addr, tag) => (tag === 'latest' ? 5 : 6),
+    });
+    await assert.rejects(
+      () => syncNonceOnBoot(prisma, badBootPool, hotWallet.address, alerter),
+      /Unknown pending nonce/
+    );
+    const pausedControl = await prisma.payoutControl.findUniqueOrThrow({ where: { id: 'BEP20' } });
+    assert.equal(pausedControl.paused, true);
+
+    // Reset PayoutControl and sync nonce cleanly at 10
+    await prisma.payoutControl.update({
+      where: { id: 'BEP20' },
+      data: { paused: false, pauseReason: null, nextNonce: null },
+    });
+    await syncNonceOnBoot(prisma, createMockRpcPool(), hotWallet.address, alerter);
+
+    // 2. Drain protection: BNB below 0.02 pauses without claiming row
+    const wDrain = await queueTestWithdrawal('drain', '15.000000', '14.500000');
+    const lowBnbEngine = new PayoutEngine(
+      prisma,
+      createMockRpcPool({ quorumNativeBalance: async () => parseEther('0.005') }),
+      makeMockSigner(hotWallet),
+      alerter,
+      cfg
+    );
+    const didDrainRun = await lowBnbEngine.runTick();
+    assert.equal(didDrainRun, false);
+    assert.equal((await prisma.payoutControl.findUniqueOrThrow({ where: { id: 'BEP20' } })).paused, true);
+    assert.equal((await prisma.withdrawal.findUniqueOrThrow({ where: { id: wDrain.id } })).status, 'PENDING');
+    await prisma.payoutControl.update({ where: { id: 'BEP20' }, data: { paused: false, pauseReason: null } });
+
+    // 3. Pre-flight simulation revert -> FAILED + WITHDRAWAL_REFUND ledger credit
+    const revertEngine = new PayoutEngine(
+      prisma,
+      createMockRpcPool({
+        simulateCall: async () => {
+          throw new Error('execution reverted: BEP20: blacklisted');
+        },
+      }),
+      makeMockSigner(hotWallet),
+      alerter,
+      cfg
+    );
+    await revertEngine.runTick();
+    const afterRevert = await prisma.withdrawal.findUniqueOrThrow({ where: { id: wDrain.id } });
+    assert.equal(afterRevert.status, 'FAILED');
+    assert.equal(afterRevert.nonce, null);
+    assert.equal(Number((await prisma.user.findUniqueOrThrow({ where: { id: u.id } })).usdtBalance), 400);
+
+    // 4. Happy path + concurrent SKIP LOCKED across two competing workers
+    const wHappy = await queueTestWithdrawal('happy', '25.000000', '24.500000');
+    const receipts = new Map<string, QuorumReceipt>();
+    const happyPool = createMockRpcPool({
+      async broadcastAll(rawTx) {
+        const parsed = Transaction.from(rawTx);
+        const h = keccak256(rawTx).toLowerCase();
+        receipts.set(
+          h,
+          makeTransferReceipt({
+            hash: h,
+            usdtContract: cfg.usdtContract,
+            from: hotWallet.address,
+            to: destAddr,
+            rawAmount: BigInt(wHappy.netAmountRaw),
+            confirmations: 2,
+          })
+        );
+        assert.equal(parsed.nonce, 10);
+        return { acceptedBy: ['https://rpc1.test', 'https://rpc2.test'] };
+      },
+      async getQuorumReceipt(hash) {
+        return receipts.get(hash.toLowerCase()) || null;
+      },
+    });
+    const workerA = new PayoutEngine(prisma, happyPool, makeMockSigner(hotWallet), alerter, {
+      ...cfg,
+      workerId: `A-${RUN_TAG}`,
+    });
+    const workerB = new PayoutEngine(prisma, happyPool, makeMockSigner(hotWallet), alerter, {
+      ...cfg,
+      workerId: `B-${RUN_TAG}`,
+    });
+    const [ranA, ranB] = await Promise.all([workerA.runTick(), workerB.runTick()]);
+    assert.equal(Number(ranA) + Number(ranB), 1, 'SKIP LOCKED must allow only 1 competing worker to claim the row');
+
+    const happyDone = await prisma.withdrawal.findUniqueOrThrow({ where: { id: wHappy.id } });
+    assert.equal(happyDone.status, 'COMPLETED');
+    assert.equal(happyDone.nonce, 10);
+    assert.equal(happyDone.confirmations, 2);
+    assert.ok(happyDone.txHash);
+
+    // 5. Lying RPC returning status=1 without matching Transfer log -> NEEDS_RECONCILIATION + auto-pause
+    const wFake = await queueTestWithdrawal('fake-log', '10.000000', '9.500000');
+    const fakeReceiptMap = new Map<string, QuorumReceipt>();
+    const lyingEngine = new PayoutEngine(
+      prisma,
+      createMockRpcPool({
+        async broadcastAll(rawTx) {
+          const h = keccak256(rawTx).toLowerCase();
+          fakeReceiptMap.set(
+            h,
+            makeTransferReceipt({
+              hash: h,
+              usdtContract: cfg.usdtContract,
+              from: hotWallet.address,
+              to: destAddr,
+              rawAmount: BigInt(wFake.netAmountRaw),
+              includeValidLog: false,
+            })
+          );
+          return { acceptedBy: ['https://rpc1.test'] };
+        },
+        async getQuorumReceipt(hash) {
+          return fakeReceiptMap.get(hash.toLowerCase()) || null;
+        },
+      }),
+      makeMockSigner(hotWallet),
+      alerter,
+      cfg
+    );
+    await lyingEngine.runTick();
+    const fakeDone = await prisma.withdrawal.findUniqueOrThrow({ where: { id: wFake.id } });
+    assert.equal(fakeDone.status, 'NEEDS_RECONCILIATION');
+    assert.equal((await prisma.payoutControl.findUniqueOrThrow({ where: { id: 'BEP20' } })).paused, true);
+    await prisma.payoutControl.update({ where: { id: 'BEP20' }, data: { paused: false, pauseReason: null } });
+
+    // 6. Stuck transaction same-nonce +12.5% replacement gas bump
+    const wBump = await queueTestWithdrawal('bump', '12.000000', '11.500000');
+    const bumpBroadcasts: Array<{ hash: string; nonce: number; maxFeePerGas: bigint }> = [];
+    const bumpEngine = new PayoutEngine(
+      prisma,
+      createMockRpcPool({
+        quorumTransactionCount: async (_a, tag) => (tag === 'latest' ? 12 : 13),
+        async broadcastAll(rawTx) {
+          const tx = Transaction.from(rawTx);
+          const h = keccak256(rawTx).toLowerCase();
+          bumpBroadcasts.push({
+            hash: h,
+            nonce: tx.nonce,
+            maxFeePerGas: tx.maxFeePerGas ?? tx.gasPrice ?? 0n,
+          });
+          return { acceptedBy: ['https://rpc1.test'] };
+        },
+        async getQuorumReceipt(hash) {
+          if (bumpBroadcasts.length >= 2 && hash.toLowerCase() === bumpBroadcasts[1].hash) {
+            return makeTransferReceipt({
+              hash,
+              usdtContract: cfg.usdtContract,
+              from: hotWallet.address,
+              to: destAddr,
+              rawAmount: BigInt(wBump.netAmountRaw),
+              confirmations: 2,
+            });
+          }
+          return null;
+        },
+      }),
+      makeMockSigner(hotWallet),
+      alerter,
+      cfg
+    );
+    await bumpEngine.runTick();
+    assert.ok(bumpBroadcasts.length >= 2, 'Expected replacement broadcast');
+    assert.equal(bumpBroadcasts[0].nonce, bumpBroadcasts[1].nonce);
+    assert.ok(
+      bumpBroadcasts[1].maxFeePerGas > bumpBroadcasts[0].maxFeePerGas,
+      'Replacement bump must strictly increase fee'
+    );
+    const bumpDone = await prisma.withdrawal.findUniqueOrThrow({ where: { id: wBump.id } });
+    assert.equal(bumpDone.status, 'COMPLETED');
+    assert.equal(bumpDone.txHash, bumpBroadcasts[1].hash);
+
+    // 7. Boot crash recovery on PROCESSING row finalizes mined broadcast without re-signing
+    const wCrash = await queueTestWithdrawal('crash', '8.000000', '7.500000');
+    const crashNonce = 13;
+    const crashTxHash = `0x${crypto.randomBytes(32).toString('hex')}`;
+    const simCrash = await prisma.withdrawal.update({
+      where: { id: wCrash.id },
+      data: { status: 'SIMULATING' },
+    });
+    await prisma.$transaction(async (tx) => {
+      await tx.withdrawal.update({
+        where: { id: simCrash.id, version: simCrash.version },
+        data: { status: 'PROCESSING', nonce: crashNonce, attempts: 1 },
+      });
+      await tx.withdrawalBroadcast.create({
+        data: {
+          withdrawalId: simCrash.id,
+          txHash: crashTxHash,
+          nonce: crashNonce,
+          maxFeePerGas: '1000000000',
+          maxPriorityFee: '100000000',
+          rpcUrl: 'rpc1',
+        },
+      });
+    });
+
+    let recoveryBroadcastCalls = 0;
+    const recoveryEngine = new PayoutEngine(
+      prisma,
+      createMockRpcPool({
+        async broadcastAll() {
+          recoveryBroadcastCalls += 1;
+          return { acceptedBy: [] };
+        },
+        async getQuorumReceipt(hash) {
+          if (hash.toLowerCase() === crashTxHash.toLowerCase()) {
+            return makeTransferReceipt({
+              hash: crashTxHash,
+              usdtContract: cfg.usdtContract,
+              from: hotWallet.address,
+              to: destAddr,
+              rawAmount: BigInt(wCrash.netAmountRaw),
+              confirmations: 3,
+            });
+          }
+          return null;
+        },
+      }),
+      makeMockSigner(hotWallet),
+      alerter,
+      cfg
+    );
+    await recoveryEngine.recoverInFlightPayouts();
+    assert.equal(recoveryBroadcastCalls, 0);
+    const crashDone = await prisma.withdrawal.findUniqueOrThrow({ where: { id: wCrash.id } });
+    assert.equal(crashDone.status, 'COMPLETED');
+    assert.equal(crashDone.txHash, crashTxHash.toLowerCase());
+    assert.ok(sent.some((s) => s.level === 'CRITICAL'));
+  } finally {
+    await prisma.payoutControl.update({
+      where: { id: 'BEP20' },
+      data: { paused: false, pauseReason: null, nextNonce: null },
+    });
+    await purgeTestUsers([u.id]);
+  }
 });
