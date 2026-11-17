@@ -567,8 +567,10 @@ export class PayoutEngine {
     const outflowAgg = await this.prisma.withdrawal.aggregate({
       where: {
         network: 'BEP20',
-        status: { in: ['COMPLETED', 'PROCESSING'] },
-        createdAt: { gte: since },
+        OR: [
+          { status: 'COMPLETED', completedAt: { gte: since } },
+          { status: 'PROCESSING', updatedAt: { gte: since } },
+        ],
       },
       _sum: { netAmountUsdt: true },
     });
@@ -601,6 +603,25 @@ export class PayoutEngine {
 
     const row = claimed[0];
     if (!row) return false;
+
+    // Prevent off-by-one overrun: re-check daily cap INCLUDING this claimed payout before signing
+    if (sent24h.plus(row.netAmountUsdt).gt(control.dailyCapUsdt)) {
+      await this.prisma.withdrawal.updateMany({
+        where: { id: row.id, version: row.version, status: 'SIMULATING', nonce: null },
+        data: {
+          status: 'PENDING',
+          lockedBy: null,
+          lockedAt: null,
+          lastError: 'Deferred: would exceed 24h platform outflow cap',
+        },
+      });
+      await this.pauseWorker(
+        `Next payout (${row.netAmountUsdt.toFixed(2)} USDT) would exceed 24h cap (${sent24h.toFixed(
+          2
+        )} / ${control.dailyCapUsdt.toFixed(2)} USDT).`
+      );
+      return false;
+    }
 
     // Post-claim integrity validation before touching RPC or key
     let checksumDest: string;

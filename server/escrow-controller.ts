@@ -444,8 +444,14 @@ export class EscrowController {
           throw new Error(`This order is already ${order.status.toLowerCase()}.`);
         }
 
-        if (!isAdmin && !isSystemAutoRelease && order.status === 'PENDING_PAYMENT') {
+        // Prevent even an admin from releasing escrow before buyer marks payment as sent
+        if (order.status === 'PENDING_PAYMENT') {
           throw new Error('Wait for the buyer to mark the order as paid before releasing USDT.');
+        }
+
+        const isAdminOverride = isAdmin && order.sellerId !== actorId && !isSystemAutoRelease;
+        if (isAdminOverride && (!note || note.trim().length < 5)) {
+          throw new Error('Admin escrow release requires a written justification note (min 5 characters).');
         }
 
         const seller = await db.getUser(order.sellerId);

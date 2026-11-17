@@ -13,12 +13,8 @@ import { isAdminRole } from '@/client/types';
 export const dynamic = 'force-dynamic';
 
 function hasValidSyncSecret(req: Request): boolean {
-  const syncSecret = (
-    process.env.TELEGRAM_SYNC_SECRET ||
-    process.env.TGCLOUD_TOKEN ||
-    process.env.TELEGRAM_BOT_TOKEN ||
-    ''
-  ).trim();
+  // Dedicated sync secret only — never fall back to bot/TGCloud tokens
+  const syncSecret = (process.env.TELEGRAM_SYNC_SECRET || '').trim();
   if (!syncSecret) return false;
 
   const authHeader = req.headers.get('authorization') || '';

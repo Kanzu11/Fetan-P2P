@@ -6,11 +6,8 @@ import { requireAdmin } from '@/server/security/session';
 export const dynamic = 'force-dynamic';
 
 function hasValidWebhookSecret(req: Request): boolean {
-  const webhookSecret = (
-    process.env.TELEGRAM_WEBHOOK_SECRET ||
-    process.env.TELEGRAM_BOT_TOKEN ||
-    ''
-  ).trim();
+  // Never fall back to TELEGRAM_BOT_TOKEN so bot token exposure cannot forge webhook updates
+  const webhookSecret = (process.env.TELEGRAM_WEBHOOK_SECRET || '').trim();
   if (!webhookSecret) return false;
 
   const headerSecret =

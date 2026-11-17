@@ -327,8 +327,10 @@ export async function POST(req: Request) {
 
             const risk = await evaluateWithdrawalRisk(tx, {
               userId: lockedUser.id,
+              userEmail: lockedUser.email,
               network,
               amountUsdt: amountDec,
+              destination: cleanAddress,
               accountCreatedAt: lockedUser.createdAt,
             });
 

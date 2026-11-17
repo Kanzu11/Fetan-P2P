@@ -7,8 +7,10 @@ import {
 
 export interface RiskEvaluationInput {
   userId: string;
+  userEmail?: string;
   network: 'TRC20' | 'BEP20' | 'TON';
   amountUsdt: Prisma.Decimal;
+  destination?: string;
   accountCreatedAt: Date;
 }
 
@@ -94,6 +96,43 @@ export async function evaluateWithdrawalRisk(
       riskReason: 'Account created within last 24 hours requires manual withdrawal approval.',
       used24hUsdt,
     };
+  }
+
+  // Account takeover defense: hold automatic payouts for 24h after any password reset
+  if (input.userEmail) {
+    const recentReset = await tx.otpChallenge.findFirst({
+      where: {
+        email: input.userEmail.trim().toLowerCase(),
+        purpose: 'RESET_PASSWORD',
+        consumedAt: { gte: since },
+      },
+      select: { id: true },
+    });
+    if (recentReset) {
+      return {
+        status: 'MANUAL_REVIEW',
+        riskReason: 'Withdrawal within 24 hours of a password reset requires manual review.',
+        used24hUsdt,
+      };
+    }
+  }
+
+  // First-time destination address defense for larger auto-tier withdrawals (> 50 USDT)
+  if (input.destination && input.amountUsdt.gt(50)) {
+    const priorToAddr = await tx.withdrawal.count({
+      where: {
+        userId: input.userId,
+        destination: input.destination,
+        status: 'COMPLETED',
+      },
+    });
+    if (priorToAddr === 0) {
+      return {
+        status: 'MANUAL_REVIEW',
+        riskReason: 'First withdrawal > 50 USDT to a new destination address requires manual review.',
+        used24hUsdt,
+      };
+    }
   }
 
   return {

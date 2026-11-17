@@ -299,7 +299,7 @@ async function verifyTonUsdtDeposit(
     }
 
     const memoText = transfer.decoded_forward_payload?.text?.trim() || '';
-    if (!expectedMemo || memoText !== expectedMemo) continue;
+    if (expectedMemo && memoText !== expectedMemo) continue;
 
     fromAddr = transfer.source;
     if (transfer.amount) {
@@ -309,7 +309,9 @@ async function verifyTonUsdtDeposit(
 
   if (matchedUnits <= 0n) {
     throw new Error(
-      `No confirmed TON USDT transfer to ${expectedTonAddress} with exact Memo "${expectedMemo}" was found.`
+      expectedMemo
+        ? `No confirmed TON USDT transfer to ${expectedTonAddress} with exact Memo "${expectedMemo}" was found.`
+        : `No confirmed TON USDT transfer to ${expectedTonAddress} was found.`
     );
   }
 
@@ -364,5 +366,38 @@ export async function verifyOnChainUsdtDeposit(params: {
       }
       return verifyTonUsdtDeposit(txHash, userAddresses.ton, userAddresses.tonMemo);
   }
+}
+
+/**
+ * Verifies an admin-submitted manual outgoing payout transaction hash (TRC-20, TON, or reconciled BEP-20)
+ * actually transferred >= minAmountUsdt to the user's destination wallet on-chain.
+ */
+export async function verifyOutgoingUsdtPayout(params: {
+  network: DepositNetwork;
+  txHash: string;
+  destinationAddress: string;
+  minAmountUsdt: number;
+}): Promise<VerifiedDepositResult> {
+  const { network, txHash, destinationAddress, minAmountUsdt } = params;
+  let result: VerifiedDepositResult;
+
+  switch (network) {
+    case 'BEP20':
+      result = await verifyBep20UsdtDeposit(txHash, destinationAddress);
+      break;
+    case 'TRC20':
+      result = await verifyTrc20UsdtDeposit(txHash, destinationAddress);
+      break;
+    case 'TON':
+      result = await verifyTonUsdtDeposit(txHash, destinationAddress, '');
+      break;
+  }
+
+  if (result.amountUsdt < minAmountUsdt * 0.99) {
+    throw new Error(
+      `On-chain payout amount (${result.amountUsdt.toFixed(2)} USDT) is less than required net payout (${minAmountUsdt.toFixed(2)} USDT).`
+    );
+  }
+  return result;
 }
 

@@ -36,24 +36,29 @@ export async function reconcileLedgerAndReserves(
     WHERE u."usdtBalance" <> latest."balanceAfter"
   `;
 
+  const autoFreeze = process.env.PAYOUT_RECONCILE_AUTO_FREEZE === 'true';
   const mismatches: string[] = [];
   for (const row of mismatchRows) {
     mismatches.push(
       `user=${row.userId} db=${row.userBalance} ledger=${row.ledgerBalance}`
     );
-    await prisma.user.update({
-      where: { id: row.userId },
-      data: {
-        isSuspended: true,
-        suspendReason: 'Automated freeze: ledger continuity mismatch pending audit.',
-      },
-    });
+    if (autoFreeze) {
+      await prisma.user.update({
+        where: { id: row.userId },
+        data: {
+          isSuspended: true,
+          suspendReason: 'Automated freeze: ledger continuity mismatch pending audit.',
+        },
+      });
+    }
   }
 
   if (mismatches.length > 0) {
     await alerts.send(
       'CRITICAL',
-      'User Balance vs Ledger Mismatch Detected (Accounts Frozen)',
+      autoFreeze
+        ? 'User Balance vs Ledger Mismatch Detected (Accounts Frozen)'
+        : 'User Balance vs Ledger Mismatch Detected (Alert-Only Mode)',
       mismatches.join('; ')
     );
   }

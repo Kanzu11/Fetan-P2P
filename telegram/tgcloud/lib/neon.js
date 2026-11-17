@@ -342,28 +342,6 @@ export async function createNeonEscrowOrder({ actor, offerId, usdtAmount, paymen
     throw new Error('This counterparty account is currently suspended.');
   }
 
-  const lockRes = await queryNeon(
-    `UPDATE "User"
-     SET "usdtBalance" = "usdtBalance" - $1,
-         "usdtLocked" = "usdtLocked" + $1,
-         "updatedAt" = NOW()
-     WHERE "id" = $2 AND "usdtBalance" >= $1
-     RETURNING *`,
-    [amount, sellerId]
-  );
-  if (lockRes.rowCount === 0) {
-    throw new Error('Seller has insufficient available USDT balance to lock escrow.');
-  }
-
-  await queryNeon(
-    `UPDATE "P2POffer"
-     SET "totalAvailable" = GREATEST(0, "totalAvailable" - $1),
-         "isActive" = CASE WHEN "totalAvailable" - $1 <= 0 THEN false ELSE "isActive" END,
-         "updatedAt" = NOW()
-     WHERE "id" = $2`,
-    [amount, offer.id]
-  );
-
   const orderId = makeId('ord');
   const paymentDetails = extractSellerPaymentDetails(
     sellerRow.paymentDetails,
@@ -371,34 +349,63 @@ export async function createNeonEscrowOrder({ actor, offerId, usdtAmount, paymen
     sellerRow.name
   );
 
-  const insRes = await queryNeon(
-    `INSERT INTO "P2POrder" (
+  // Single atomic CTE transaction: debit seller + write ESCROW_LOCK ledger + decrement offer + insert order
+  const atomicRes = await queryNeon(
+    `WITH locked_seller AS (
+       UPDATE "User"
+       SET "usdtBalance" = "usdtBalance" - $1,
+           "usdtLocked" = "usdtLocked" + $1,
+           "updatedAt" = NOW()
+       WHERE "id" = $2 AND "usdtBalance" >= $1
+       RETURNING "id", "usdtBalance"
+     ),
+     ledger_ins AS (
+       INSERT INTO "WalletBalance" ("id", "userId", "type", "amount", "balanceAfter", "referenceId")
+       SELECT $13, ls."id", 'ESCROW_LOCK'::"LedgerEntryType", -$1, ls."usdtBalance", $3
+       FROM locked_seller ls
+       ON CONFLICT ("type", "referenceId", "userId") DO NOTHING
+     ),
+     offer_upd AS (
+       UPDATE "P2POffer"
+       SET "totalAvailable" = GREATEST(0, "totalAvailable" - $1),
+           "isActive" = CASE WHEN "totalAvailable" - $1 <= 0 THEN false ELSE "isActive" END,
+           "updatedAt" = NOW()
+       WHERE "id" = $4 AND EXISTS (SELECT 1 FROM locked_seller)
+     )
+     INSERT INTO "P2POrder" (
        "id", "offerId", "offerType", "buyerId", "buyerName", "sellerId", "sellerName",
        "usdtAmount", "etbAmount", "unitPriceEtb", "paymentMethod", "paymentDetails",
        "status", "expiresAt", "auditLogs", "updatedAt"
-     ) VALUES (
-       $1, $2, $3, $4, $5, $6, $7,
-       $8, $9, $10, $11, $12::jsonb,
+     )
+     SELECT
+       $3, $4, $5, $6, $7, $2, $8,
+       $1, $9, $10, $11, $12::jsonb,
        'PENDING_PAYMENT'::"OrderStatus", NOW() + interval '15 minutes', '[]'::jsonb, NOW()
-     ) RETURNING *`,
+     FROM locked_seller
+     RETURNING *`,
     [
+      amount,
+      sellerId,
       orderId,
       offer.id,
       offer.offerType,
       buyerId,
       buyerRow.name,
-      sellerId,
       sellerRow.name,
-      amount,
       etbAmount,
       unitPriceEtb,
       chosenMethod,
       JSON.stringify(paymentDetails),
+      makeId('wb'),
     ]
   );
 
+  if (atomicRes.rowCount === 0) {
+    throw new Error('Seller has insufficient available USDT balance to lock escrow.');
+  }
+
   return {
-    order: normalizeOrderRow(insRes.rows[0]),
+    order: normalizeOrderRow(atomicRes.rows[0]),
     buyerChatId: buyerRow.telegramChatId || null,
     sellerChatId: sellerRow.telegramChatId || null,
   };
@@ -430,35 +437,66 @@ export async function performNeonOrderAction({ actor, orderId, action, reason })
     if (order.sellerId !== actor.id && !isAdmin) {
       throw new Error('Only the seller or an admin can release escrow.');
     }
+    if (isAdmin && order.sellerId !== actor.id && (!reason || String(reason).trim().length < 5)) {
+      throw new Error('Admin escrow release requires a written reason (min 5 characters).');
+    }
+    // Single atomic CTE updates order, seller usdtLocked, buyer usdtBalance, and ESCROW_RELEASE ledger
     const upd = await queryNeon(
-      `UPDATE "P2POrder"
+      `WITH seller_debit AS (
+         UPDATE "User"
+         SET "usdtLocked" = "usdtLocked" - $4,
+             "completedTrades" = "completedTrades" + 1,
+             "updatedAt" = NOW()
+         WHERE "id" = $5 AND "usdtLocked" >= $4
+         RETURNING "id"
+       ),
+       buyer_credit AS (
+         UPDATE "User"
+         SET "usdtBalance" = "usdtBalance" + $4,
+             "completedTrades" = "completedTrades" + 1,
+             "updatedAt" = NOW()
+         WHERE "id" = $6 AND EXISTS (SELECT 1 FROM seller_debit)
+         RETURNING "id", "usdtBalance"
+       ),
+       ledger_ins AS (
+         INSERT INTO "WalletBalance" ("id", "userId", "type", "amount", "balanceAfter", "referenceId")
+         SELECT $7, bc."id", 'ESCROW_RELEASE'::"LedgerEntryType", $4, bc."usdtBalance", $1
+         FROM buyer_credit bc
+         ON CONFLICT ("type", "referenceId", "userId") DO NOTHING
+       )
+       UPDATE "P2POrder"
        SET "status" = 'COMPLETED'::"OrderStatus",
            "completedAt" = NOW(),
            "resolvedBy" = $2,
            "resolutionNote" = $3,
            "updatedAt" = NOW()
-       WHERE "id" = $1 AND "status" IN ('PAYMENT_SENT'::"OrderStatus", 'DISPUTED'::"OrderStatus")
+       WHERE "id" = $1
+         AND "status" IN ('PAYMENT_SENT'::"OrderStatus", 'DISPUTED'::"OrderStatus")
+         AND EXISTS (SELECT 1 FROM buyer_credit)
        RETURNING *`,
-      [orderId, isAdmin ? actor.id : null, reason || 'Escrow released']
+      [
+        orderId,
+        isAdmin ? actor.id : null,
+        reason || 'Escrow released',
+        amount,
+        order.sellerId,
+        order.buyerId,
+        makeId('wb'),
+      ]
     );
-    if (upd.rowCount === 0) throw new Error('Order must be in PAYMENT_SENT or DISPUTED state to release.');
-
-    await queryNeon(
-      `UPDATE "User"
-       SET "usdtLocked" = GREATEST(0, "usdtLocked" - $1),
-           "completedTrades" = "completedTrades" + 1,
-           "updatedAt" = NOW()
-       WHERE "id" = $2`,
-      [amount, order.sellerId]
-    );
-    await queryNeon(
-      `UPDATE "User"
-       SET "usdtBalance" = "usdtBalance" + $1,
-           "completedTrades" = "completedTrades" + 1,
-           "updatedAt" = NOW()
-       WHERE "id" = $2`,
-      [amount, order.buyerId]
-    );
+    if (upd.rowCount === 0) {
+      throw new Error('Order cannot be released (must be PAYMENT_SENT/DISPUTED with locked seller balance).');
+    }
+    if (isAdmin && order.sellerId !== actor.id) {
+      await logNeonAudit({
+        actorId: actor.id,
+        actorRole: actor.role,
+        action: 'ADMIN_ESCROW_RELEASE',
+        targetType: 'P2POrder',
+        targetId: orderId,
+        details: { source: 'TELEGRAM', amount, reason },
+      });
+    }
     return normalizeOrderRow(upd.rows[0]);
   }
 
@@ -468,35 +506,50 @@ export async function performNeonOrderAction({ actor, orderId, action, reason })
     if (!canBuyerCancel && !canAdminCancel) {
       throw new Error('Only the buyer (before payment) or an admin can cancel this order.');
     }
+    // Single atomic CTE refunds seller locked USDT, records ESCROW_REFUND ledger, restores offer, cancels order
     const upd = await queryNeon(
-      `UPDATE "P2POrder"
+      `WITH seller_refund AS (
+         UPDATE "User"
+         SET "usdtLocked" = "usdtLocked" - $4,
+             "usdtBalance" = "usdtBalance" + $4,
+             "updatedAt" = NOW()
+         WHERE "id" = $5 AND "usdtLocked" >= $4
+         RETURNING "id", "usdtBalance"
+       ),
+       ledger_ins AS (
+         INSERT INTO "WalletBalance" ("id", "userId", "type", "amount", "balanceAfter", "referenceId")
+         SELECT $7, sr."id", 'ESCROW_REFUND'::"LedgerEntryType", $4, sr."usdtBalance", $1
+         FROM seller_refund sr
+         ON CONFLICT ("type", "referenceId", "userId") DO NOTHING
+       ),
+       offer_restore AS (
+         UPDATE "P2POffer"
+         SET "totalAvailable" = "totalAvailable" + $4,
+             "isActive" = true,
+             "updatedAt" = NOW()
+         WHERE "id" = $6 AND EXISTS (SELECT 1 FROM seller_refund)
+       )
+       UPDATE "P2POrder"
        SET "status" = 'CANCELLED'::"OrderStatus",
            "cancelledAt" = NOW(),
            "cancelledBy" = $2,
            "cancelReason" = $3,
            "updatedAt" = NOW()
-       WHERE "id" = $1 AND "status" IN ('PENDING_PAYMENT'::"OrderStatus", 'PAYMENT_SENT'::"OrderStatus", 'DISPUTED'::"OrderStatus")
+       WHERE "id" = $1
+         AND "status" IN ('PENDING_PAYMENT'::"OrderStatus", 'PAYMENT_SENT'::"OrderStatus", 'DISPUTED'::"OrderStatus")
+         AND EXISTS (SELECT 1 FROM seller_refund)
        RETURNING *`,
-      [orderId, isAdmin ? 'ADMIN' : 'BUYER', reason || 'Cancelled via Telegram']
+      [
+        orderId,
+        isAdmin ? 'ADMIN' : 'BUYER',
+        reason || 'Cancelled via Telegram',
+        amount,
+        order.sellerId,
+        order.offerId,
+        makeId('wb'),
+      ]
     );
     if (upd.rowCount === 0) throw new Error('Order cannot be cancelled in its current state.');
-
-    await queryNeon(
-      `UPDATE "User"
-       SET "usdtLocked" = GREATEST(0, "usdtLocked" - $1),
-           "usdtBalance" = "usdtBalance" + $1,
-           "updatedAt" = NOW()
-       WHERE "id" = $2`,
-      [amount, order.sellerId]
-    );
-    await queryNeon(
-      `UPDATE "P2POffer"
-       SET "totalAvailable" = "totalAvailable" + $1,
-           "isActive" = true,
-           "updatedAt" = NOW()
-       WHERE "id" = $2`,
-      [amount, order.offerId]
-    );
     return normalizeOrderRow(upd.rows[0]);
   }
 
@@ -773,6 +826,23 @@ export async function adminReviewWithdrawalNeon({ actor, txId, approved, txHash,
     throw new Error(`Withdrawal is already ${existing.status}.`);
   }
 
+  // C1 defense: NEVER allow TGCloud to override BEP-20 automated payouts or in-flight worker rows
+  const wRes = await queryNeon(
+    `SELECT "id", "network", "status", "nonce", "amountUsdt" FROM "Withdrawal" WHERE "walletTxId" = $1 OR "id" = $1 LIMIT 1`,
+    [txId]
+  );
+  const linkedW = wRes.rows[0];
+  if (
+    linkedW &&
+    (linkedW.network === 'BEP20' ||
+      linkedW.nonce !== null ||
+      ['SIMULATING', 'PROCESSING', 'NEEDS_RECONCILIATION'].includes(linkedW.status))
+  ) {
+    throw new Error(
+      `Withdrawal is managed by the BEP-20 payout pipeline (${linkedW.status}). Approve or reject it from the Admin Web Dashboard.`
+    );
+  }
+
   const cleanHash = txHash ? String(txHash).trim() : '';
   if (approved && cleanHash.length < 16) {
     throw new Error('Valid payout blockchain TxHash is required to approve withdrawal.');
@@ -785,25 +855,68 @@ export async function adminReviewWithdrawalNeon({ actor, txId, approved, txHash,
       ? `Approved and dispatched by ${actor.name} via Telegram Admin`
       : `Rejected and refunded to wallet by ${actor.name} via Telegram Admin`);
 
-  const updTx = await queryNeon(
-    `UPDATE "WalletTransaction"
-     SET "status" = $2::"WalletTxStatus",
-         "txHash" = CASE WHEN $3 <> '' THEN $3 ELSE "txHash" END,
-         "reviewedBy" = $4,
-         "note" = $5,
-         "updatedAt" = NOW()
-     WHERE "id" = $1 AND "status" = 'PENDING'::"WalletTxStatus"
-     RETURNING *`,
-    [txId, nextStatus, approved ? cleanHash : '', actor.id, cleanNote]
-  );
-  if (updTx.rowCount === 0) throw new Error('Withdrawal has already been processed.');
+  const amountVal = Number(linkedW ? linkedW.amountUsdt : existing.amount || 0);
+  const refId = linkedW ? linkedW.id : txId;
 
-  if (!approved) {
-    await queryNeon(
-      `UPDATE "User" SET "usdtBalance" = "usdtBalance" + $2, "updatedAt" = NOW() WHERE "id" = $1`,
-      [existing.userId, Number(existing.amount || 0)]
-    );
-  }
+  // Atomic CTE handles WalletTransaction + optional Withdrawal + User refund + WITHDRAWAL_REFUND ledger
+  const updTx = approved
+    ? await queryNeon(
+        `WITH w_upd AS (
+           UPDATE "Withdrawal"
+           SET "status" = 'COMPLETED'::"WithdrawalStatus",
+               "txHash" = $3,
+               "approvedBy" = $4,
+               "completedAt" = NOW(),
+               "updatedAt" = NOW()
+           WHERE "walletTxId" = $1 AND "status" = 'MANUAL_REVIEW'::"WithdrawalStatus"
+         )
+         UPDATE "WalletTransaction"
+         SET "status" = $2::"WalletTxStatus",
+             "txHash" = $3,
+             "reviewedBy" = $4,
+             "note" = $5,
+             "updatedAt" = NOW()
+         WHERE "id" = $1 AND "status" = 'PENDING'::"WalletTxStatus"
+         RETURNING *`,
+        [txId, nextStatus, cleanHash, actor.id, cleanNote]
+      )
+    : await queryNeon(
+        `WITH w_upd AS (
+           UPDATE "Withdrawal"
+           SET "status" = 'REJECTED'::"WithdrawalStatus",
+               "approvedBy" = $4,
+               "lastError" = $5,
+               "updatedAt" = NOW()
+           WHERE "walletTxId" = $1
+             AND "status" IN ('MANUAL_REVIEW'::"WithdrawalStatus", 'PENDING'::"WithdrawalStatus")
+             AND "nonce" IS NULL
+         ),
+         tx_upd AS (
+           UPDATE "WalletTransaction"
+           SET "status" = 'REJECTED'::"WalletTxStatus",
+               "reviewedBy" = $4,
+               "note" = $5,
+               "updatedAt" = NOW()
+           WHERE "id" = $1 AND "status" = 'PENDING'::"WalletTxStatus"
+           RETURNING *
+         ),
+         user_ref AS (
+           UPDATE "User"
+           SET "usdtBalance" = "usdtBalance" + $6, "updatedAt" = NOW()
+           WHERE "id" = $2 AND EXISTS (SELECT 1 FROM tx_upd)
+           RETURNING "id", "usdtBalance"
+         ),
+         ledger_ins AS (
+           INSERT INTO "WalletBalance" ("id", "userId", "type", "amount", "balanceAfter", "referenceId")
+           SELECT $7, ur."id", 'WITHDRAWAL_REFUND'::"LedgerEntryType", $6, ur."usdtBalance", $3
+           FROM user_ref ur
+           ON CONFLICT ("type", "referenceId", "userId") DO NOTHING
+         )
+         SELECT * FROM tx_upd`,
+        [txId, existing.userId, refId, actor.id, cleanNote, amountVal, makeId('wb')]
+      );
+
+  if (updTx.rowCount === 0) throw new Error('Withdrawal has already been processed.');
 
   const uRes = await queryNeon(`SELECT "telegramChatId" FROM "User" WHERE "id" = $1 LIMIT 1`, [
     existing.userId,

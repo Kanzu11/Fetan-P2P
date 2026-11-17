@@ -8,7 +8,14 @@ const OTP_TTL_MINUTES = 10;
 const OTP_MAX_ATTEMPTS = 5;
 
 function getOtpSecret(): string {
-  return process.env.JWT_SECRET?.trim() || 'fetan-otp-dev-secret';
+  const secret = process.env.JWT_SECRET?.trim();
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET must be configured in production for OTP hashing.');
+    }
+    return 'fetan-otp-dev-secret';
+  }
+  return secret;
 }
 
 export function hashOtpCode(email: string, purpose: OtpPurpose, code: string): string {

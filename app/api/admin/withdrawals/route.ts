@@ -6,6 +6,7 @@ import { db } from '@/server/database/store';
 import { requireAdmin, requireSuperadmin } from '@/server/security/session';
 import { getClientIp } from '@/server/security/rate-limiter';
 import { sanitizeString, validateTxHash } from '@/server/security/sanitize';
+import { verifyOutgoingUsdtPayout, type DepositNetwork } from '@/server/blockchain/verify-deposit';
 import { wsGateway } from '@/server/websocket-gateway';
 import { telegramBot } from '@/server/telegram-bot';
 import { appendLedgerEntry } from '@/server/payouts/ledger';
@@ -178,6 +179,12 @@ export async function POST(req: Request) {
             { status: 409 }
           );
         }
+        await verifyOutgoingUsdtPayout({
+          network: existing.network as DepositNetwork,
+          txHash: cleanTxHash,
+          destinationAddress: linkedWithdrawal.destination,
+          minAmountUsdt: Number(linkedWithdrawal.netAmountUsdt),
+        });
       }
 
       const reconResult = await prisma.$transaction(async (tx) => {
@@ -305,6 +312,18 @@ export async function POST(req: Request) {
           { error: 'This transaction hash is already linked to another transaction.' },
           { status: 409 }
         );
+      }
+
+      if (existing.address) {
+        const expectedNet = linkedWithdrawal
+          ? Number(linkedWithdrawal.netAmountUsdt)
+          : Math.max(1, existing.amount - 1);
+        await verifyOutgoingUsdtPayout({
+          network: existing.network as DepositNetwork,
+          txHash: cleanTxHash,
+          destinationAddress: existing.address,
+          minAmountUsdt: expectedNet,
+        });
       }
     }
 

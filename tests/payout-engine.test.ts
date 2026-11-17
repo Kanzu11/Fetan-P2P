@@ -45,6 +45,8 @@ import { SESSION_COOKIE_NAME, signSessionToken } from '../server/security/sessio
 import { POST as postWithdrawAlias } from '../app/api/withdraw/route';
 import { POST as postAdminWithdrawals } from '../app/api/admin/withdrawals/route';
 import { GET as getHealth } from '../app/api/health/route';
+import { POST as postTelegramWebhook } from '../app/api/telegram/webhook/route';
+import { POST as postTelegramSync } from '../app/api/telegram/sync/route';
 import type { Redis } from '@upstash/redis';
 import os from 'node:os';
 import { BaseWallet, keccak256, parseEther, parseUnits, Transaction, Wallet } from 'ethers';
@@ -1155,4 +1157,97 @@ test('Phase 4: /api/health reports DB + worker heartbeat and Oracle Cloud ARM de
   const nft = fs.readFileSync(path.join(deployDir, 'nftables.conf'), 'utf8');
   assert.ok(nft.includes('policy drop'));
   assert.ok(nft.includes('tcp dport 5432 accept'));
+});
+
+test('Security Hardening Audit: TGCloud ledger atomicity, dedicated webhook/sync secrets, password-reset cooldown, and new-address hold', async () => {
+  // 1. TGCloud neon.js must use atomic CTE ledger inserts and block BEP-20 overrides
+  const tgNeonSrc = fs.readFileSync(path.join(process.cwd(), 'telegram/tgcloud/lib/neon.js'), 'utf8');
+  assert.equal(tgNeonSrc.includes('GREATEST(0, "usdtLocked"'), false);
+  assert.ok(tgNeonSrc.includes("'ESCROW_LOCK'::\"LedgerEntryType\""));
+  assert.ok(tgNeonSrc.includes("'ESCROW_RELEASE'::\"LedgerEntryType\""));
+  assert.ok(tgNeonSrc.includes("'ESCROW_REFUND'::\"LedgerEntryType\""));
+  assert.ok(tgNeonSrc.includes("'WITHDRAWAL_REFUND'::\"LedgerEntryType\""));
+  assert.ok(tgNeonSrc.includes("linkedW.network === 'BEP20'"));
+
+  // 2. Webhook & sync routes must reject TELEGRAM_BOT_TOKEN fallback when dedicated secrets are absent
+  const prevWh = process.env.TELEGRAM_WEBHOOK_SECRET;
+  const prevSync = process.env.TELEGRAM_SYNC_SECRET;
+  try {
+    delete process.env.TELEGRAM_WEBHOOK_SECRET;
+    delete process.env.TELEGRAM_SYNC_SECRET;
+    const token = process.env.TELEGRAM_BOT_TOKEN || 'dummy-bot-token';
+    const whRes = await postTelegramWebhook(
+      new Request('http://localhost/api/telegram/webhook', {
+        method: 'POST',
+        headers: { 'x-telegram-bot-api-secret-token': token },
+        body: '{}',
+      })
+    );
+    assert.equal(whRes.status, 401);
+
+    const syncRes = await postTelegramSync(
+      new Request('http://localhost/api/telegram/sync', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}` },
+        body: '{}',
+      })
+    );
+    assert.equal(syncRes.status, 401);
+  } finally {
+    if (prevWh !== undefined) process.env.TELEGRAM_WEBHOOK_SECRET = prevWh;
+    if (prevSync !== undefined) process.env.TELEGRAM_SYNC_SECRET = prevSync;
+  }
+
+  // 3. Risk engine holds withdrawals within 24h of RESET_PASSWORD and first-time addresses > 50 USDT
+  const matureDate = new Date(Date.now() - 48 * 3600_000);
+  const email = `audit-sec-${RUN_TAG}@fetan.test`;
+  createdEmails.push(email);
+  const u = await prisma.user.create({
+    data: {
+      id: `usr-sec-${RUN_TAG}`,
+      email,
+      name: `Sec Audit ${RUN_TAG}`,
+      role: 'USER',
+      kycStatus: 'VERIFIED',
+      usdtBalance: new Prisma.Decimal('500.000000'),
+      createdAt: matureDate,
+    },
+  });
+  createdUserIds.push(u.id);
+
+  // First-time address with > 50 USDT -> MANUAL_REVIEW
+  const newAddrRisk = await prisma.$transaction((tx) =>
+    evaluateWithdrawalRisk(tx, {
+      userId: u.id,
+      userEmail: email,
+      network: 'BEP20',
+      amountUsdt: new Prisma.Decimal('60.000000'),
+      destination: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
+      accountCreatedAt: matureDate,
+    })
+  );
+  assert.equal(newAddrRisk.status, 'MANUAL_REVIEW');
+
+  // Consumed RESET_PASSWORD OTP in last 24h -> MANUAL_REVIEW even for 15 USDT
+  await prisma.otpChallenge.create({
+    data: {
+      email,
+      purpose: 'RESET_PASSWORD',
+      codeHash: 'test-hash',
+      consumedAt: new Date(),
+      expiresAt: new Date(Date.now() + 600_000),
+    },
+  });
+  const resetRisk = await prisma.$transaction((tx) =>
+    evaluateWithdrawalRisk(tx, {
+      userId: u.id,
+      userEmail: email,
+      network: 'BEP20',
+      amountUsdt: new Prisma.Decimal('15.000000'),
+      destination: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
+      accountCreatedAt: matureDate,
+    })
+  );
+  assert.equal(resetRisk.status, 'MANUAL_REVIEW');
+  assert.match(resetRisk.riskReason || '', /password reset/i);
 });
