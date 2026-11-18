@@ -64,21 +64,21 @@ class EmailService {
       this.transporter = nodemailer.createTransport(
         service === 'gmail'
           ? {
-              host: 'smtp.gmail.com',
-              port: 465,
-              secure: true,
-              auth: { user, pass },
-              connectionTimeout: 8000,
-              greetingTimeout: 8000,
-              socketTimeout: 10000,
-            }
+            host: 'smtp.gmail.com',
+            port: 465,
+            secure: true,
+            auth: { user, pass },
+            connectionTimeout: 8000,
+            greetingTimeout: 8000,
+            socketTimeout: 10000,
+          }
           : {
-              service,
-              auth: { user, pass },
-              connectionTimeout: 8000,
-              greetingTimeout: 8000,
-              socketTimeout: 10000,
-            }
+            service,
+            auth: { user, pass },
+            connectionTimeout: 8000,
+            greetingTimeout: 8000,
+            socketTimeout: 10000,
+          }
       );
     }
   }
@@ -109,8 +109,8 @@ class EmailService {
   isConfigured(): boolean {
     return Boolean(
       (this.transporter && process.env.EMAIL_USER) ||
-        this.getWebhookUrl() ||
-        (this.getRelayUrl() && getRelaySecret())
+      this.getWebhookUrl() ||
+      (this.getRelayUrl() && getRelaySecret())
     );
   }
 
@@ -213,17 +213,17 @@ class EmailService {
     const title = isWithdraw
       ? 'Confirm Your USDT Withdrawal'
       : isReset
-      ? 'Reset Your Fetan P2P Password'
-      : isSignup
-      ? 'Verify Your Email Address'
-      : 'Your Fetan P2P Sign-In Code';
+        ? 'Reset Your Fetan P2P Password'
+        : isSignup
+          ? 'Verify Your Email Address'
+          : 'Your Fetan P2P Sign-In Code';
     const badge = isWithdraw
       ? 'Security 2FA Code'
       : isReset
-      ? 'Password Reset'
-      : isSignup
-      ? 'Email Verification'
-      : 'Login Verification';
+        ? 'Password Reset'
+        : isSignup
+          ? 'Email Verification'
+          : 'Login Verification';
 
     const detailHtml = isWithdraw
       ? `<p>You requested a withdrawal on Fetan P2P:</p>
@@ -234,10 +234,10 @@ class EmailService {
          </ul>
          <p>If you did not request this withdrawal, ignore this email and lock your account immediately.</p>`
       : isReset
-      ? `<p>Enter this 6-digit password reset code to choose a new password for your Fetan P2P account. It expires in <strong>10 minutes</strong>.</p>`
-      : isSignup
-      ? `<p>Welcome to Fetan P2P! Enter this 6-digit verification code to verify your email address (first-time setup only). After this, you can sign in directly with your email and password.</p>`
-      : `<p>Enter this 6-digit verification code to sign in to your Fetan P2P account. It expires in <strong>10 minutes</strong>.</p>`;
+        ? `<p>Enter this 6-digit password reset code to choose a new password for your Fetan P2P account. It expires in <strong>10 minutes</strong>.</p>`
+        : isSignup
+          ? `<p>Welcome to Fetan P2P! Enter this 6-digit verification code to verify your email address (first-time setup only). After this, you can sign in directly with your email and password.</p>`
+          : `<p>Enter this 6-digit verification code to sign in to your Fetan P2P account. It expires in <strong>10 minutes</strong>.</p>`;
 
     const html = this.wrapTemplate(
       title,
@@ -253,10 +253,10 @@ class EmailService {
     const subject = isWithdraw
       ? `[Fetan P2P] Withdrawal Confirmation Code: ${code}`
       : isReset
-      ? `[Fetan P2P] Password Reset Code: ${code}`
-      : isSignup
-      ? `[Fetan P2P] Verify Your Email: ${code}`
-      : `[Fetan P2P] Your Verification Code: ${code}`;
+        ? `[Fetan P2P] Password Reset Code: ${code}`
+        : isSignup
+          ? `[Fetan P2P] Verify Your Email: ${code}`
+          : `[Fetan P2P] Your Verification Code: ${code}`;
 
     await this.deliverMail({
       from: `"Fetan P2P Security" <${process.env.EMAIL_USER || 'security@fetanp2p.com'}>`,
