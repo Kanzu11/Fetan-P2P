@@ -271,25 +271,31 @@ export async function POST(req: Request) {
       }
 
       const meta = otpCheck.metadata;
-      if (meta) {
-        const metaAmount = typeof meta.amountUsdt === 'number' ? Number(meta.amountUsdt) : null;
-        const metaNet = typeof meta.network === 'string' ? meta.network : null;
-        const metaAddr =
-          typeof meta.destinationAddress === 'string' ? meta.destinationAddress.trim() : null;
+      const metaAmount =
+        meta && typeof meta.amountUsdt === 'number' && Number.isFinite(meta.amountUsdt)
+          ? Number(meta.amountUsdt)
+          : null;
+      const metaNet = meta && typeof meta.network === 'string' ? meta.network.trim() : null;
+      const metaAddr =
+        meta && typeof meta.destinationAddress === 'string'
+          ? meta.destinationAddress.trim()
+          : null;
 
-        if (
-          (metaAmount !== null && Math.abs(metaAmount - amountUsdt) > 0.000001) ||
-          (metaNet && metaNet !== network) ||
-          (metaAddr && metaAddr.toLowerCase() !== cleanAddress.toLowerCase())
-        ) {
-          return NextResponse.json(
-            {
-              error:
-                'Withdrawal amount, network, or destination address changed after your verification code was issued. Please request a fresh code.',
-            },
-            { status: 400 }
-          );
-        }
+      if (
+        metaAmount === null ||
+        !metaNet ||
+        !metaAddr ||
+        Math.abs(metaAmount - amountUsdt) > 0.000001 ||
+        metaNet !== network ||
+        metaAddr.toLowerCase() !== cleanAddress.toLowerCase()
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'Verification code is not bound to this withdrawal amount, network, and destination address. Please request a fresh code.',
+          },
+          { status: 400 }
+        );
       }
 
       const netAmountRaw =

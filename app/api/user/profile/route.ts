@@ -104,7 +104,18 @@ export async function POST(req: Request) {
     }
 
     if (data.telegramChatId !== undefined) {
-      updates.telegramChatId = cleanOptionalField(data.telegramChatId, 40);
+      const trimmedChatId = data.telegramChatId.trim();
+      if (trimmedChatId === '') {
+        updates.telegramChatId = '';
+      } else if (trimmedChatId !== (auth.user.telegramChatId || '')) {
+        return NextResponse.json(
+          {
+            error:
+              'Telegram Chat ID cannot be edited manually. Link your account via the Telegram bot using your one-time link code.',
+          },
+          { status: 400 }
+        );
+      }
     }
 
     if (typeof data.telegramNotifications === 'boolean') {

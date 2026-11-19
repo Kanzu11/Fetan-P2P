@@ -17,6 +17,12 @@ export async function POST(req: Request) {
     const timestamp = req.headers.get('x-fetan-timestamp') || '';
     const signature = req.headers.get('x-fetan-signature') || '';
     const rawBody = await req.text();
+    if (Buffer.byteLength(rawBody, 'utf8') > 131_072) {
+      return NextResponse.json(
+        { error: 'Email relay payload exceeds 128 KB limit.' },
+        { status: 413 }
+      );
+    }
 
     const sigCheck = verifyEmailRelaySignature(timestamp, rawBody, signature);
     if (!sigCheck.valid) {
@@ -26,9 +32,23 @@ export async function POST(req: Request) {
       );
     }
 
-    const parsed = relaySchema.safeParse(JSON.parse(rawBody));
+    let rawJson: unknown;
+    try {
+      rawJson = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: 'Malformed JSON email relay payload.' }, { status: 400 });
+    }
+
+    const parsed = relaySchema.safeParse(rawJson);
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid email relay payload.' }, { status: 400 });
+    }
+
+    if (/[\r\n]/.test(parsed.data.to) || /[\r\n]/.test(parsed.data.subject)) {
+      return NextResponse.json(
+        { error: 'Invalid newline characters in email header fields.' },
+        { status: 400 }
+      );
     }
 
     await emailService.sendDirectSmtp(parsed.data);

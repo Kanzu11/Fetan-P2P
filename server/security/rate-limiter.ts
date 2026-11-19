@@ -134,13 +134,34 @@ class RateLimiter {
 export const rateLimiter = new RateLimiter();
 
 export function getClientIp(req: Request): string {
+  const cleanHeaderIp = (val: string | null): string | null => {
+    if (!val) return null;
+    const trimmed = val.trim().slice(0, 64);
+    return trimmed || null;
+  };
+
+  // Prefer single-value proxy headers set by trusted edge/reverse proxies over spoofable XFF first hop
+  const cfIp = cleanHeaderIp(req.headers.get('cf-connecting-ip'));
+  if (cfIp) return cfIp;
+
+  const vercelFwd = req.headers.get('x-vercel-forwarded-for');
+  if (vercelFwd) {
+    const first = cleanHeaderIp(vercelFwd.split(',')[0]);
+    if (first) return first;
+  }
+
+  const realIp = cleanHeaderIp(req.headers.get('x-real-ip'));
+  if (realIp) return realIp;
+
   const forwarded = req.headers.get('x-forwarded-for');
   if (forwarded) {
-    return forwarded.split(',')[0].trim();
+    const hops = forwarded
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const rightmost = hops.length > 0 ? cleanHeaderIp(hops[hops.length - 1]) : null;
+    if (rightmost) return rightmost;
   }
-  const realIp = req.headers.get('x-real-ip');
-  if (realIp) return realIp.trim();
-  const cfIp = req.headers.get('cf-connecting-ip');
-  if (cfIp) return cfIp.trim();
+
   return '127.0.0.1';
 }

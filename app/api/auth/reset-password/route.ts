@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { db } from '@/server/database/store';
 import { verifyAndConsumeOtp } from '@/server/security/otp';
 import { hashPassword, validatePasswordStrength } from '@/server/security/password';
-import { setSessionCookie, signSessionToken } from '@/server/security/session';
+import { setSessionCookie } from '@/server/security/session';
 import { rateLimiter, getClientIp } from '@/server/security/rate-limiter';
 
 export const dynamic = 'force-dynamic';
@@ -86,14 +86,12 @@ export async function POST(req: Request) {
       details: { email: cleanEmail },
     });
 
-    const token = signSessionToken(user.id, user.role);
     const response = NextResponse.json({
       success: true,
-      token,
       user,
       message: 'Password updated successfully. You are now signed in.',
     });
-    setSessionCookie(response, user.id, user.role);
+    setSessionCookie(response, user.id, user.role, passwordHash);
     return response;
   } catch (err) {
     console.error('Reset password error:', err);

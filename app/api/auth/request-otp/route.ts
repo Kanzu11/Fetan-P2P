@@ -36,11 +36,28 @@ export async function POST(req: Request) {
     }
 
     const { purpose, amountUsdt, network, destinationAddress } = parsed.data;
+    const cleanDest = destinationAddress?.trim();
     let targetEmail = parsed.data.email?.trim().toLowerCase() || '';
 
     if (purpose === 'WITHDRAW') {
       const auth = await requireAuth(req);
       if (!auth.ok) return auth.response;
+      if (
+        typeof amountUsdt !== 'number' ||
+        !Number.isFinite(amountUsdt) ||
+        amountUsdt <= 0 ||
+        !network ||
+        !cleanDest ||
+        cleanDest.length < 8
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'Withdrawal verification requires amountUsdt, network, and destinationAddress.',
+          },
+          { status: 400 }
+        );
+      }
       targetEmail = auth.user.email.trim().toLowerCase();
     } else if (!targetEmail) {
       return NextResponse.json({ error: 'Valid email address is required.' }, { status: 400 });
@@ -66,7 +83,7 @@ export async function POST(req: Request) {
       purpose,
       metadata:
         purpose === 'WITHDRAW'
-          ? { amountUsdt, network, destinationAddress }
+          ? { amountUsdt, network, destinationAddress: cleanDest }
           : undefined,
     });
 
@@ -76,7 +93,7 @@ export async function POST(req: Request) {
       purpose,
       amountUsdt,
       network,
-      destinationAddress,
+      destinationAddress: cleanDest,
     });
 
     return NextResponse.json({

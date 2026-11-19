@@ -3,13 +3,25 @@ import { api, EndpointError } from 'sdk';
 import { users, kycSubmissions } from '../schema.js';
 import {
   ensureNeonTelegramUser,
+  escapeHtml,
   queryNeon,
   getNeonAdminChatIds,
   makeId,
 } from '../lib/neon.js';
 
+function isAllowedKycUrl(url) {
+  if (!url || typeof url !== 'string' || /\s/.test(url)) return false;
+  if (/^\/api\/uploads\/[A-Za-z0-9_-]{8,120}$/.test(url)) return true;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' && parsed.hostname === 'res.cloudinary.com' && parsed.pathname.length > 2;
+  } catch {
+    return false;
+  }
+}
+
 export default async function (input, ctx) {
-  const tgUser = ctx?.initData?.user || input?.user;
+  const tgUser = ctx?.initData?.user;
   if (!tgUser?.id) {
     throw new EndpointError('Authentication required via Telegram Mini App', { code: 'UNAUTHORIZED' });
   }
@@ -17,6 +29,11 @@ export default async function (input, ctx) {
   const { docType, docNumber, docPhotoUrl } = input || {};
   if (!docNumber || !docNumber.trim()) {
     throw new EndpointError('Please enter your valid ID number', { code: 'INVALID_ID' });
+  }
+
+  const cleanDocPhotoUrl = typeof docPhotoUrl === 'string' && docPhotoUrl.trim() ? docPhotoUrl.trim() : null;
+  if (cleanDocPhotoUrl && !isAllowedKycUrl(cleanDocPhotoUrl)) {
+    throw new EndpointError('Document URL must come from platform uploads or Cloudinary HTTPS', { code: 'INVALID_URL' });
   }
 
   const user = await ensureNeonTelegramUser(tgUser);
@@ -40,7 +57,7 @@ export default async function (input, ctx) {
       user.telegramHandle || null,
       cleanDocType,
       cleanDocNumber,
-      docPhotoUrl || null,
+      cleanDocPhotoUrl,
     ]
   );
 
@@ -81,9 +98,9 @@ export default async function (input, ctx) {
   const adminChatIds = await getNeonAdminChatIds();
   const alertText =
     `🪪 <b>NEW KYC VERIFICATION via Mini App</b>\n\n` +
-    `• User: <b>${user.name}</b> (${user.telegramHandle || user.email})\n` +
-    `• ID Type: <b>${cleanDocType}</b>\n` +
-    `• ID Number: <code>${cleanDocNumber}</code>`;
+    `• User: <b>${escapeHtml(user.name)}</b> (${escapeHtml(user.telegramHandle || user.email)})\n` +
+    `• ID Type: <b>${escapeHtml(cleanDocType)}</b>\n` +
+    `• ID Number: <code>${escapeHtml(cleanDocNumber)}</code>`;
 
   for (const admId of adminChatIds) {
     await api.sendMessage({

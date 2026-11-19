@@ -1,6 +1,7 @@
 import { api } from 'sdk';
 import {
   ensureNeonTelegramUser,
+  escapeHtml,
   queryNeon,
   getNeonAdminChatIds,
   createNeonEscrowOrder,
@@ -10,6 +11,19 @@ import {
 } from '../lib/neon.js';
 
 const MINIAPP_URL = 'https://app9136159373.tgcloud.ai/';
+
+function generateLinkCode() {
+  const bytes = new Uint8Array(8);
+  if (typeof globalThis !== 'undefined' && globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i += 1) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+  return `FETAN-${hex}`;
+}
 
 export default async function (message, ctx) {
   const chatId = message.chat.id;
@@ -26,22 +40,41 @@ export default async function (message, ctx) {
     const parts = rawText.split(' ');
     const param = parts[1] || '';
 
-    // Linking website account to Telegram directly in shared Neon PostgreSQL
+    // Linking website account to Telegram strictly by one-time telegramLinkCode in Neon PostgreSQL
     if (param.startsWith('link_') || param.startsWith('FETAN-')) {
-      const code = param.replace(/^link_/, '');
-      const linked = await queryNeon(
-        `UPDATE "User"
-         SET "telegramChatId" = $1,
-             "telegramHandle" = COALESCE($2, "telegramHandle"),
-             "telegramNotifications" = true,
-             "updatedAt" = NOW()
-         WHERE "telegramLinkCode" = $3 OR "id" = $3
-         RETURNING *`,
-        [String(chatId), tgUsername ? `@${tgUsername}` : null, code]
-      );
-      if (linked.rows[0]) {
-        user = await ensureNeonTelegramUser(fromUser);
+      const code = param.replace(/^link_/i, '').trim();
+      let linkedRow = null;
+      if (code.length >= 8) {
+        const rotatedCode = generateLinkCode();
+        const linked = await queryNeon(
+          `UPDATE "User"
+           SET "telegramChatId" = $1,
+               "telegramHandle" = COALESCE($2, "telegramHandle"),
+               "telegramNotifications" = true,
+               "telegramLinkCode" = $4,
+               "updatedAt" = NOW()
+           WHERE "telegramLinkCode" = $3
+             AND ("telegramChatId" IS NULL OR "telegramChatId" = $1)
+             AND NOT EXISTS (
+               SELECT 1 FROM "User" u2
+               WHERE u2."telegramChatId" = $1 AND u2."id" <> "User"."id"
+             )
+           RETURNING *`,
+          [String(chatId), tgUsername ? `@${tgUsername}` : null, code, rotatedCode]
+        );
+        linkedRow = linked.rows[0] || null;
       }
+
+      if (!linkedRow) {
+        await api.sendMessage({
+          chat_id: chatId,
+          parse_mode: 'HTML',
+          text: `❌ <b>Invalid or Already-Used Link Code</b>\n\nPlease generate or copy your active one-time linking command from your Fetan P2P Wallet page.`,
+        });
+        return;
+      }
+
+      user = await ensureNeonTelegramUser(fromUser);
 
       await api.sendMessage({
         chat_id: chatId,
@@ -187,7 +220,7 @@ export default async function (message, ctx) {
 
       const lines = offers.map((o, idx) => {
         const side = o.offerType === 'SELL' ? '🟢 BUY USDT' : '🔵 SELL USDT';
-        return `${idx + 1}. <b>${side}</b> @ <code>${Number(o.pricePerUsdtEtb).toFixed(2)} ETB</code>\n   • Merchant: ${o.merchantName} • Avail: <code>${Number(o.totalAvailable).toFixed(2)} USDT</code>`;
+        return `${idx + 1}. <b>${side}</b> @ <code>${Number(o.pricePerUsdtEtb).toFixed(2)} ETB</code>\n   • Merchant: ${escapeHtml(o.merchantName)} • Avail: <code>${Number(o.totalAvailable).toFixed(2)} USDT</code>`;
       });
     const buttons = offers.map((o) => [
         {
@@ -210,7 +243,7 @@ export default async function (message, ctx) {
         await api.sendMessage({
           chat_id: chatId,
           parse_mode: 'HTML',
-          text: `🚫 <b>Account Suspended</b>\n${user.suspendReason || 'Trading access disabled by Fetan Compliance.'}`,
+          text: `🚫 <b>Account Suspended</b>\n${escapeHtml(user.suspendReason || 'Trading access disabled by Fetan Compliance.')}`,
         });
         return;
       }
@@ -242,10 +275,10 @@ export default async function (message, ctx) {
             chat_id: chatId,
             parse_mode: 'HTML',
             text:
-              `🔒 <b>Escrow Order #${o.id} Created</b>\n` +
+              `🔒 <b>Escrow Order #${escapeHtml(o.id)} Created</b>\n` +
               `• Amount: <code>${o.usdtAmount.toFixed(2)} USDT</code>\n` +
               `• Total ETB: <b>${o.etbAmount.toLocaleString()} ETB</b>\n` +
-              `• Account: <code>${o.paymentDetails?.accountNumber || 'See Mini App'}</code> (${o.paymentDetails?.accountName || ''})`,
+              `• Account: <code>${escapeHtml(o.paymentDetails?.accountNumber || 'See Mini App')}</code> (${escapeHtml(o.paymentDetails?.accountName || '')})`,
             reply_markup: {
               inline_keyboard: isBuyer
                 ? [[
@@ -261,7 +294,7 @@ export default async function (message, ctx) {
               await api.sendMessage({
                 chat_id: counterpartyChat,
                 parse_mode: 'HTML',
-              text: `🔔 <b>New P2P Order #${o.id}</b>\n• Counterparty: <b>${user.name}</b>\n• Amount: <b>${o.usdtAmount.toFixed(2)} USDT</b> (${o.etbAmount.toLocaleString()} ETB)`,
+              text: `🔔 <b>New P2P Order #${escapeHtml(o.id)}</b>\n• Counterparty: <b>${escapeHtml(user.name)}</b>\n• Amount: <b>${o.usdtAmount.toFixed(2)} USDT</b> (${o.etbAmount.toLocaleString()} ETB)`,
         }).catch(() => { });
       }
 
@@ -271,7 +304,7 @@ export default async function (message, ctx) {
           await api.sendMessage({
             chat_id: admId,
             parse_mode: 'HTML',
-            text: `🛡️ <b>[Admin Monitor] New Order #${o.id} (Bot)</b>\n• Buyer: <b>${o.buyerName}</b> → Seller: <b>${o.sellerName}</b>\n• Amount: <b>${o.usdtAmount.toFixed(2)} USDT</b> (${o.etbAmount.toLocaleString()} ETB)`,
+            text: `🛡️ <b>[Admin Monitor] New Order #${escapeHtml(o.id)} (Bot)</b>\n• Buyer: <b>${escapeHtml(o.buyerName)}</b> → Seller: <b>${escapeHtml(o.sellerName)}</b>\n• Amount: <b>${o.usdtAmount.toFixed(2)} USDT</b> (${o.etbAmount.toLocaleString()} ETB)`,
           }).catch(() => { });
         }
       }
@@ -279,7 +312,7 @@ export default async function (message, ctx) {
       await api.sendMessage({
         chat_id: chatId,
         parse_mode: 'HTML',
-        text: `❌ <b>Trade Error:</b> ${err instanceof Error ? err.message : 'Could not open order'}`,
+        text: `❌ <b>Trade Error:</b> ${escapeHtml(err instanceof Error ? err.message : 'Could not open order')}`,
       });
     }
     return;
@@ -317,7 +350,7 @@ export default async function (message, ctx) {
       await api.sendMessage({
         chat_id: chatId,
         parse_mode: 'HTML',
-        text: `🧾 <b>Order #${o.id}</b>\n• Side: <b>${isBuyer ? 'Buy' : 'Sell'}</b> • Status: <b>${o.status}</b>\n• Amount: <code>${Number(o.usdtAmount).toFixed(2)} USDT</code> (${Number(o.etbAmount).toLocaleString()} ETB)`,
+        text: `🧾 <b>Order #${escapeHtml(o.id)}</b>\n• Side: <b>${isBuyer ? 'Buy' : 'Sell'}</b> • Status: <b>${escapeHtml(o.status)}</b>\n• Amount: <code>${Number(o.usdtAmount).toFixed(2)} USDT</code> (${Number(o.etbAmount).toLocaleString()} ETB)`,
         reply_markup: buttons.length > 0 ? { inline_keyboard: buttons } : undefined,
       });
     }
@@ -331,10 +364,10 @@ export default async function (message, ctx) {
       parse_mode: 'HTML',
       text:
         `💰 <b>Fetan P2P Wallet</b>\n\n` +
-        `• Account: <b>${user.name}</b>\n` +
+        `• Account: <b>${escapeHtml(user.name)}</b>\n` +
         `• Available: <code>${Number(user.usdtBalance || 0).toFixed(2)} USDT</code>\n` +
         `• In Escrow: <code>${Number(user.usdtLocked || 0).toFixed(2)} USDT</code>\n` +
-        `• Status: ${isVerified ? '✅ Verified' : `⚠️ ${user.kycStatus}`}`,
+        `• Status: ${isVerified ? '✅ Verified' : `⚠️ ${escapeHtml(user.kycStatus)}`}`,
       reply_markup: {
         inline_keyboard: [[{ text: '📱 Open Mini App Wallet', web_app: { url: MINIAPP_URL } }]],
       },
@@ -390,7 +423,7 @@ export default async function (message, ctx) {
       await api.sendMessage({
         chat_id: admId,
         parse_mode: 'HTML',
-        text: `🪪 <b>NEW KYC SUBMISSION via Telegram</b>\n\n• User: <b>${user.name}</b> (${user.telegramHandle || user.email})\n• ID Number: <code>${docNumber}</code>\n• Type: NATIONAL_ID`,
+        text: `🪪 <b>NEW KYC SUBMISSION via Telegram</b>\n\n• User: <b>${escapeHtml(user.name)}</b> (${escapeHtml(user.telegramHandle || user.email)})\n• ID Number: <code>${escapeHtml(docNumber)}</code>\n• Type: NATIONAL_ID`,
         reply_markup: {
           inline_keyboard: [[
             { text: '✅ Approve KYC', callback_data: `kyc_approve:${subId}` },
@@ -403,7 +436,7 @@ export default async function (message, ctx) {
     await api.sendMessage({
       chat_id: chatId,
       parse_mode: 'HTML',
-      text: `✅ <b>KYC Submitted!</b>\n\nYour ID number <code>${docNumber}</code> was sent to <b>Fetan Compliance Desk</b>. You will be notified here as soon as it is reviewed.`,
+      text: `✅ <b>KYC Submitted!</b>\n\nYour ID number <code>${escapeHtml(docNumber)}</code> was sent to <b>Fetan Compliance Desk</b>. You will be notified here as soon as it is reviewed.`,
     });
     return;
   }
@@ -442,7 +475,7 @@ export default async function (message, ctx) {
       await api.sendMessage({
         chat_id: admId,
         parse_mode: 'HTML',
-        text: `🚨 <b>NEW ORDER COMPLAINT / SUPPORT TICKET</b>\n\n• From: <b>${user.name}</b> (${user.telegramHandle || user.email})\n• Message:\n"${textContent}"`,
+        text: `🚨 <b>NEW ORDER COMPLAINT / SUPPORT TICKET</b>\n\n• From: <b>${escapeHtml(user.name)}</b> (${escapeHtml(user.telegramHandle || user.email)})\n• Message:\n"${escapeHtml(textContent)}"`,
         reply_markup: {
           inline_keyboard: [
             [{ text: '✅ Mark Resolved', callback_data: `ticket_resolve:${ticketId}` }],
@@ -550,7 +583,7 @@ export default async function (message, ctx) {
         await api.sendMessage({
           chat_id: chatId,
           parse_mode: 'HTML',
-          text: `ℹ️ <b>${target.name}</b> is already ${wantSuspended ? 'SUSPENDED' : 'ACTIVE'}.`,
+          text: `ℹ️ <b>${escapeHtml(target.name)}</b> is already ${wantSuspended ? 'SUSPENDED' : 'ACTIVE'}.`,
         });
         return;
       }
@@ -567,7 +600,7 @@ export default async function (message, ctx) {
           chat_id: updated.telegramChatId,
           parse_mode: 'HTML',
           text: updated.isSuspended
-            ? `🚫 <b>Account Suspended</b>\nYour Fetan P2P account was suspended.\nReason: ${updated.suspendReason || 'Compliance review'}`
+            ? `🚫 <b>Account Suspended</b>\nYour Fetan P2P account was suspended.\nReason: ${escapeHtml(updated.suspendReason || 'Compliance review')}`
             : `✅ <b>Account Reactivated</b>\nYour Fetan P2P trading access has been restored.`,
         }).catch(() => {});
       }
@@ -576,8 +609,8 @@ export default async function (message, ctx) {
         chat_id: chatId,
         parse_mode: 'HTML',
         text: updated.isSuspended
-          ? `🚫 <b>User Suspended:</b> ${updated.name} (${updated.email})\nAll active ads paused.`
-          : `✅ <b>User Unbanned:</b> ${updated.name} (${updated.email})`,
+          ? `🚫 <b>User Suspended:</b> ${escapeHtml(updated.name)} (${escapeHtml(updated.email)})\nAll active ads paused.`
+          : `✅ <b>User Unbanned:</b> ${escapeHtml(updated.name)} (${escapeHtml(updated.email)})`,
       });
     } catch (err) {
       await api.sendMessage({
@@ -621,8 +654,8 @@ export default async function (message, ctx) {
           chat_id: wRes.targetChatId,
           parse_mode: 'HTML',
           text: approved
-            ? `✅ <b>USDT Withdrawal Dispatched</b>\n• Amount: <code>${Number(wRes.tx.amount || 0).toFixed(2)} USDT</code>\n• TxHash: <code>${wRes.tx.txHash || ''}</code>`
-            : `↩️ <b>Withdrawal Rejected & Refunded</b>\n• Amount: <code>${Number(wRes.tx.amount || 0).toFixed(2)} USDT</code> returned to your wallet.\n• Reason: ${wRes.tx.note || 'Compliance review'}`,
+            ? `✅ <b>USDT Withdrawal Dispatched</b>\n• Amount: <code>${Number(wRes.tx.amount || 0).toFixed(2)} USDT</code>\n• TxHash: <code>${escapeHtml(wRes.tx.txHash || '')}</code>`
+            : `↩️ <b>Withdrawal Rejected & Refunded</b>\n• Amount: <code>${Number(wRes.tx.amount || 0).toFixed(2)} USDT</code> returned to your wallet.\n• Reason: ${escapeHtml(wRes.tx.note || 'Compliance review')}`,
         }).catch(() => {});
       }
 
@@ -630,8 +663,8 @@ export default async function (message, ctx) {
         chat_id: chatId,
         parse_mode: 'HTML',
         text: approved
-          ? `✅ Withdrawal <code>${txId}</code> marked COMPLETED.`
-          : `↩️ Withdrawal <code>${txId}</code> REJECTED and refunded to user.`,
+          ? `✅ Withdrawal <code>${escapeHtml(txId)}</code> marked COMPLETED.`
+          : `↩️ Withdrawal <code>${escapeHtml(txId)}</code> REJECTED and refunded to user.`,
       });
     } catch (err) {
       await api.sendMessage({

@@ -16,7 +16,11 @@ import {
   verifyPassword,
 } from '../server/security/password';
 import { createOtpChallenge } from '../server/security/otp';
-import { verifySessionToken } from '../server/security/session';
+import {
+  parseCookieHeader,
+  SESSION_COOKIE_NAME,
+  verifySessionToken,
+} from '../server/security/session';
 import { prisma } from '../server/database/prisma';
 import { wsGateway } from '../server/websocket-gateway';
 import { POST as verifyOtpRoute } from '../app/api/auth/verify-otp/route';
@@ -264,9 +268,11 @@ test('Signup OTP -> Email+Password Login -> Forgot/Reset Password + JWT Flow wor
       })
     );
     assert.equal(verifyRes.status, 200);
+    const verifySetCookie = verifyRes.headers.get('set-cookie') || '';
+    const verifyCookieToken = parseCookieHeader(verifySetCookie.split(',')[0], SESSION_COOKIE_NAME);
     const verifyData = (await verifyRes.json()) as {
       success: boolean;
-      token: string;
+      token?: string;
       user: {
         id: string;
         emailVerified?: boolean;
@@ -276,10 +282,11 @@ test('Signup OTP -> Email+Password Login -> Forgot/Reset Password + JWT Flow wor
     };
     createdUserId = verifyData.user.id;
     assert.equal(verifyData.success, true);
+    assert.equal(verifyData.token, undefined);
     assert.equal(verifyData.user.emailVerified, true);
     assert.equal(verifyData.user.hasPassword, true);
     assert.equal(verifyData.user.passwordHash, undefined);
-    assert.equal(verifySessionToken(verifyData.token)?.sub, createdUserId);
+    assert.equal(verifySessionToken(verifyCookieToken)?.sub, createdUserId);
 
     const wrongLoginRes = await loginRoute(
       new Request('http://localhost/api/auth/login', {
@@ -306,13 +313,15 @@ test('Signup OTP -> Email+Password Login -> Forgot/Reset Password + JWT Flow wor
     assert.equal(goodLoginRes.status, 200);
     const loginSetCookie = goodLoginRes.headers.get('set-cookie') || '';
     assert.ok(loginSetCookie.includes('fetan_session='));
+    const loginCookieToken = parseCookieHeader(loginSetCookie.split(',')[0], SESSION_COOKIE_NAME);
     const goodLoginData = (await goodLoginRes.json()) as {
       success: boolean;
-      token: string;
+      token?: string;
       user: { id: string };
     };
     assert.equal(goodLoginData.success, true);
-    assert.equal(verifySessionToken(goodLoginData.token)?.sub, createdUserId);
+    assert.equal(goodLoginData.token, undefined);
+    assert.equal(verifySessionToken(loginCookieToken)?.sub, createdUserId);
 
     const { code: resetCode } = await createOtpChallenge({
       email: testEmail,

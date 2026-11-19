@@ -148,18 +148,14 @@ export async function POST(req: Request) {
         ? 'Email verified and account created! You can now sign in with your email and password.'
         : `Signed in as ${user.name}`;
 
-    const cookieRes = new NextResponse();
-    setSessionCookie(cookieRes, user.id, user.role);
-    const jwtCookie = cookieRes.cookies.get('fetan_session');
-
+    const authState = await db.getUserWithPasswordHash(user.id);
     const response = NextResponse.json({
       success: true,
-      token: jwtCookie?.value || null,
       user,
       message,
     });
 
-    return setSessionCookie(response, user.id, user.role);
+    return setSessionCookie(response, user.id, user.role, authState?.passwordHash ?? null);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Verification failed.';
     return NextResponse.json({ error: message }, { status: 500 });

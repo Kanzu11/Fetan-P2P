@@ -5,7 +5,7 @@ import { db } from '@/server/database/store';
 import { telegramBot } from '@/server/telegram-bot';
 import { escrowController } from '@/server/escrow-controller';
 import { requireAdmin } from '@/server/security/session';
-import { sanitizeString } from '@/server/security/sanitize';
+import { isAllowedPlatformAssetUrl, sanitizeString } from '@/server/security/sanitize';
 import { wsGateway } from '@/server/websocket-gateway';
 import type { KycSubmission, PaymentMethod } from '@/client/types';
 import { isAdminRole } from '@/client/types';
@@ -143,6 +143,14 @@ export async function POST(req: Request) {
         );
       }
 
+      const cleanDocPhotoUrl = data.docPhotoUrl?.trim() || undefined;
+      if (cleanDocPhotoUrl && !isAllowedPlatformAssetUrl(cleanDocPhotoUrl)) {
+        return NextResponse.json(
+          { error: 'Document URL must come from platform upload (/api/uploads/...) or verified Cloudinary storage.' },
+          { status: 400 }
+        );
+      }
+
       const cleanDoc = sanitizeString(data.docNumber, 60);
       const sub: KycSubmission = {
         id: `kyc-${crypto.randomUUID()}`,
@@ -153,7 +161,7 @@ export async function POST(req: Request) {
         source: 'TELEGRAM_BOT',
         kycDocType: data.docType,
         kycDocNumber: cleanDoc,
-        docPhotoUrl: data.docPhotoUrl?.trim() || undefined,
+        docPhotoUrl: cleanDocPhotoUrl,
         status: 'PENDING',
         submittedAt: new Date().toISOString(),
       };

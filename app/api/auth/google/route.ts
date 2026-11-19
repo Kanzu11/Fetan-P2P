@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/server/database/store';
 import { rateLimiter, getClientIp } from '@/server/security/rate-limiter';
-import { setSessionCookie, signSessionToken } from '@/server/security/session';
+import { setSessionCookie } from '@/server/security/session';
 import { sanitizeString } from '@/server/security/sanitize';
 
 export const dynamic = 'force-dynamic';
@@ -49,13 +49,15 @@ export async function POST(req: Request) {
     }
 
     const verifyRes = await fetch(
-      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(parsed.data.idToken)}`
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(parsed.data.idToken)}`,
+      { signal: AbortSignal.timeout(8000) }
     );
     if (!verifyRes.ok) {
       return NextResponse.json({ error: 'Invalid or expired Google ID token.' }, { status: 401 });
     }
 
     const payload = (await verifyRes.json()) as {
+      iss?: string;
       aud?: string;
       email?: string;
       email_verified?: string | boolean;
@@ -63,11 +65,13 @@ export async function POST(req: Request) {
       exp?: string;
     };
 
+    if (payload.iss !== 'accounts.google.com' && payload.iss !== 'https://accounts.google.com') {
+      return NextResponse.json({ error: 'Invalid Google token issuer.' }, { status: 401 });
+    }
+
     if (!payload.aud || !allowedClientIds.includes(payload.aud.trim())) {
       return NextResponse.json(
-        {
-          error: `Google token audience mismatch. Token aud (${payload.aud || 'missing'}) does not match server GOOGLE_CLIENT_ID.`,
-        },
+        { error: 'Google token audience mismatch.' },
         { status: 401 }
       );
     }
@@ -135,14 +139,13 @@ export async function POST(req: Request) {
       ip,
     });
 
-    const token = signSessionToken(user.id, user.role);
+    const authState = await db.getUserWithPasswordHash(user.id);
     const response = NextResponse.json({
       success: true,
-      token,
       user,
       message: `Signed in with Google as ${user.name}`,
     });
-    return setSessionCookie(response, user.id, user.role);
+    return setSessionCookie(response, user.id, user.role, authState?.passwordHash ?? null);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Google authentication failed.';
     return NextResponse.json({ error: message }, { status: 500 });

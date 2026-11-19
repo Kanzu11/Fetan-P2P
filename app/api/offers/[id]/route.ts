@@ -4,6 +4,7 @@ import { db } from '@/server/database/store';
 import { requireAuth } from '@/server/security/session';
 import { pricingService } from '@/client/pricing';
 import { sanitizeString } from '@/server/security/sanitize';
+import { rateLimiter, getClientIp } from '@/server/security/rate-limiter';
 import { isAdminRole } from '@/client/types';
 
 export const dynamic = 'force-dynamic';
@@ -35,11 +36,42 @@ export async function PATCH(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const ip = getClientIp(req);
+    const limit = await rateLimiter.checkAsync(`offer-patch:${auth.user.id}`, 30, 300);
+    if (!limit.allowed) {
+      return rateLimiter.rateLimitResponse(limit.resetSeconds, 'Too many offer updates.');
+    }
+
     const rawBody = await req.json();
     const parsed = patchOfferSchema.safeParse(rawBody);
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.issues[0]?.message || 'Invalid update payload' },
+        { status: 400 }
+      );
+    }
+
+    const nextMin = parsed.data.minLimitEtb ?? offer.minLimitEtb;
+    const nextMax = parsed.data.maxLimitEtb ?? offer.maxLimitEtb;
+    const nextTotal = parsed.data.totalAvailable ?? offer.totalAvailable;
+
+    if (nextMin < 100 || nextMin > nextMax) {
+      return NextResponse.json(
+        { error: 'Offer limits must satisfy minLimitEtb >= 100 ETB and minLimitEtb <= maxLimitEtb.' },
+        { status: 400 }
+      );
+    }
+
+    if (
+      offer.offerType === 'SELL' &&
+      parsed.data.totalAvailable !== undefined &&
+      offer.merchantId === auth.user.id &&
+      nextTotal > auth.user.usdtBalance
+    ) {
+      return NextResponse.json(
+        {
+          error: `Insufficient available USDT balance (${auth.user.usdtBalance.toFixed(2)} USDT) for SELL offer availability.`,
+        },
         { status: 400 }
       );
     }
@@ -51,7 +83,7 @@ export async function PATCH(
       }
     }
 
-    const updated = await db.updateOffer(offer.id, {
+    const updates = {
       ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
       ...(parsed.data.isOnline !== undefined ? { isOnline: parsed.data.isOnline } : {}),
       ...(parsed.data.pricePerUsdtEtb !== undefined
@@ -69,6 +101,18 @@ export async function PATCH(
       ...(parsed.data.terms !== undefined
         ? { terms: sanitizeString(parsed.data.terms, 800) }
         : {}),
+    };
+
+    const updated = await db.updateOffer(offer.id, updates);
+
+    await db.logAudit({
+      actorId: auth.user.id,
+      actorRole: auth.user.role,
+      action: 'OFFER_UPDATED',
+      targetType: 'P2POffer',
+      targetId: offer.id,
+      ip,
+      details: updates,
     });
 
     void pricingService.broadcastLivePrices().catch(() => {});

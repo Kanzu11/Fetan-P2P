@@ -1,6 +1,7 @@
 import { api, EndpointError } from 'sdk';
 import {
   ensureNeonTelegramUser,
+  escapeHtml,
   queryNeon,
   getNeonAdminChatIds,
   normalizeOfferRow,
@@ -15,8 +16,20 @@ import {
   makeId,
 } from '../lib/neon.js';
 
+const ALLOWED_PAYMENT_METHODS = new Set([
+  'TELEBIRR',
+  'CBE',
+  'ABYSSINIA',
+  'AWASH',
+  'CBE_BIRR',
+  'DASHEN',
+]);
+
 export default async function (input, ctx) {
-  const tgUser = ctx?.initData?.user || input?.user || {};
+  const tgUser = ctx?.initData?.user;
+  if (!tgUser || !tgUser.id) {
+    throw new EndpointError('Telegram Mini App authentication required', { code: 'UNAUTHORIZED' });
+  }
   let user = await ensureNeonTelegramUser(tgUser);
   let isAdmin = user.role === 'ADMIN' || user.role === 'SUPERADMIN';
   let isSuperadmin = user.role === 'SUPERADMIN';
@@ -45,10 +58,10 @@ export default async function (input, ctx) {
         actionResult = { order: res.order };
 
         const sellerMsg =
-          `🔔 <b>New P2P Order #${res.order.id} (Mini App)</b>\n` +
-          `• Buyer: <b>${res.order.buyerName}</b>\n` +
+          `🔔 <b>New P2P Order #${escapeHtml(res.order.id)} (Mini App)</b>\n` +
+          `• Buyer: <b>${escapeHtml(res.order.buyerName)}</b>\n` +
           `• Amount: <b>${res.order.usdtAmount.toFixed(2)} USDT</b> (${res.order.etbAmount.toLocaleString()} ETB)\n` +
-          `• Method: <b>${res.order.paymentMethod}</b>`;
+          `• Method: <b>${escapeHtml(res.order.paymentMethod)}</b>`;
         if (res.sellerChatId) {
           await api.sendMessage({ chat_id: res.sellerChatId, parse_mode: 'HTML', text: sellerMsg }).catch(() => {});
         }
@@ -58,7 +71,7 @@ export default async function (input, ctx) {
             await api.sendMessage({
               chat_id: admId,
               parse_mode: 'HTML',
-              text: `🛡️ <b>[Admin Monitor] New Order #${res.order.id}</b>\n• Buyer: <b>${res.order.buyerName}</b> → Seller: <b>${res.order.sellerName}</b>\n• Amount: <b>${res.order.usdtAmount.toFixed(2)} USDT</b> (${res.order.etbAmount.toLocaleString()} ETB)`,
+              text: `🛡️ <b>[Admin Monitor] New Order #${escapeHtml(res.order.id)}</b>\n• Buyer: <b>${escapeHtml(res.order.buyerName)}</b> → Seller: <b>${escapeHtml(res.order.sellerName)}</b>\n• Amount: <b>${res.order.usdtAmount.toFixed(2)} USDT</b> (${res.order.etbAmount.toLocaleString()} ETB)`,
             }).catch(() => {});
           }
         }
@@ -77,7 +90,7 @@ export default async function (input, ctx) {
             await api.sendMessage({
               chat_id: admId,
               parse_mode: 'HTML',
-              text: `🚨 <b>ORDER APPEAL #${updatedOrder.id}</b>\n• Amount: <b>${updatedOrder.usdtAmount.toFixed(2)} USDT</b>\n• Reason: "${updatedOrder.disputeReason || 'Disputed via Mini App'}"`,
+              text: `🚨 <b>ORDER APPEAL #${escapeHtml(updatedOrder.id)}</b>\n• Amount: <b>${updatedOrder.usdtAmount.toFixed(2)} USDT</b>\n• Reason: "${escapeHtml(updatedOrder.disputeReason || 'Disputed via Mini App')}"`,
               reply_markup: {
                 inline_keyboard: [[
                   { text: '🔓 Release to Buyer', callback_data: `order_release:${updatedOrder.id}` },
@@ -97,11 +110,21 @@ export default async function (input, ctx) {
         const total = Number(input.totalAvailable);
         const minEtb = Number(input.minLimitEtb);
         const maxEtb = Number(input.maxLimitEtb);
-        const methods = Array.isArray(input.paymentMethods) && input.paymentMethods.length > 0
+        const rawMethods = Array.isArray(input.paymentMethods) && input.paymentMethods.length > 0
           ? input.paymentMethods
-          : ['TELEBIRR'];
-        if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(total) || total <= 0) {
+          : ['TELEBIRR', 'CBE'];
+        const methods = rawMethods.map((m) => String(m || '').trim().toUpperCase());
+        if (methods.some((m) => !ALLOWED_PAYMENT_METHODS.has(m))) {
+          throw new Error('Unsupported payment method in offer.');
+        }
+        if (!Number.isFinite(price) || price <= 0 || price > 1_000_000 || !Number.isFinite(total) || total <= 0 || total > 1_000_000) {
           throw new Error('Enter valid positive offer price and USDT liquidity.');
+        }
+        if (!Number.isFinite(minEtb) || !Number.isFinite(maxEtb) || minEtb < 100 || maxEtb < minEtb) {
+          throw new Error('Offer ETB limits must satisfy minLimitEtb >= 100 and minLimitEtb <= maxLimitEtb.');
+        }
+        if (offerType === 'SELL' && Number(user.usdtBalance || 0) < total) {
+          throw new Error(`Insufficient available USDT balance (${Number(user.usdtBalance || 0).toFixed(2)} USDT) for SELL offer.`);
         }
 
         const priceStatsRes = await queryNeon(
@@ -175,7 +198,7 @@ export default async function (input, ctx) {
           await api.sendMessage({
             chat_id: admId,
             parse_mode: 'HTML',
-            text: `🏪 <b>NEW MERCHANT APPLICATION (Mini App)</b>\n• User: <b>${user.name}</b> (${user.email})\n• Wallet: <b>${Number(user.usdtBalance || 0).toFixed(2)} USDT</b>`,
+            text: `🏪 <b>NEW MERCHANT APPLICATION (Mini App)</b>\n• User: <b>${escapeHtml(user.name)}</b> (${escapeHtml(user.email)})\n• Wallet: <b>${Number(user.usdtBalance || 0).toFixed(2)} USDT</b>`,
             reply_markup: {
               inline_keyboard: [[
                 { text: '✅ Approve Merchant', callback_data: `merchant_approve:${appId}` },
@@ -264,7 +287,7 @@ export default async function (input, ctx) {
             chat_id: updatedUser.telegramChatId,
             parse_mode: 'HTML',
             text: updatedUser.isSuspended
-              ? `🚫 <b>Account Suspended</b>\nYour Fetan P2P account was suspended.\nReason: ${updatedUser.suspendReason || 'Suspended by Compliance Admin'}`
+              ? `🚫 <b>Account Suspended</b>\nYour Fetan P2P account was suspended.\nReason: ${escapeHtml(updatedUser.suspendReason || 'Suspended by Compliance Admin')}`
               : `✅ <b>Account Reactivated</b>\nYour Fetan P2P trading access has been restored.`,
           }).catch(() => {});
         }
@@ -290,8 +313,8 @@ export default async function (input, ctx) {
             chat_id: wRes.targetChatId,
             parse_mode: 'HTML',
             text: approved
-              ? `✅ <b>USDT Withdrawal Dispatched</b>\n• Amount: <code>${Number(wRes.tx.amount || 0).toFixed(2)} USDT</code> (${wRes.tx.network})\n• TxHash: <code>${wRes.tx.txHash || ''}</code>`
-              : `↩️ <b>Withdrawal Rejected & Refunded</b>\n• Amount: <code>${Number(wRes.tx.amount || 0).toFixed(2)} USDT</code> returned to your wallet.\n• Note: ${wRes.tx.note || 'Review failed'}`,
+              ? `✅ <b>USDT Withdrawal Dispatched</b>\n• Amount: <code>${Number(wRes.tx.amount || 0).toFixed(2)} USDT</code> (${escapeHtml(wRes.tx.network)})\n• TxHash: <code>${escapeHtml(wRes.tx.txHash || '')}</code>`
+              : `↩️ <b>Withdrawal Rejected & Refunded</b>\n• Amount: <code>${Number(wRes.tx.amount || 0).toFixed(2)} USDT</code> returned to your wallet.\n• Note: ${escapeHtml(wRes.tx.note || 'Review failed')}`,
           }).catch(() => {});
         }
         actionResult = { withdrawal: wRes.tx };

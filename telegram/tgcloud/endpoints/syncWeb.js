@@ -19,24 +19,82 @@ async function upsertKvConfig(key, value) {
   }
 }
 
-function parseNeonDatabaseUrl(rawUrl, explicitEndpoint) {
+export function safeEqual(a, b) {
+  const strA = String(a || '');
+  const strB = String(b || '');
+  const maxLen = Math.max(strA.length, strB.length);
+  let diff = strA.length ^ strB.length;
+  for (let i = 0; i < maxLen; i += 1) {
+    const ca = i < strA.length ? strA.charCodeAt(i) : 0;
+    const cb = i < strB.length ? strB.charCodeAt(i) : 0;
+    diff |= ca ^ cb;
+  }
+  return diff === 0 && strA.length > 0;
+}
+
+export function parseNeonDatabaseUrl(rawUrl, explicitEndpoint) {
   const cleaned = String(rawUrl || '').trim();
+  if (!/^postgres(?:ql)?:\/\//i.test(cleaned)) {
+    throw new Error('Invalid DATABASE_URL protocol');
+  }
   const hostMatch = cleaned.match(/@([^/?:]+)/);
   if (!hostMatch) {
     throw new Error('Invalid DATABASE_URL host');
   }
-  const sqlEndpoint = explicitEndpoint || `https://${hostMatch[1]}/sql`;
+  const host = hostMatch[1].trim().toLowerCase();
+  if (
+    !/^[a-z0-9-]+(?:\.[a-z0-9-]+){2,}$/.test(host) ||
+    /^\d+\.\d+\.\d+\.\d+$/.test(host)
+  ) {
+    throw new Error('Database host must be a valid multi-label hostname');
+  }
+  const sqlEndpoint = (explicitEndpoint || `https://${host}/sql`).trim();
+  let parsedEndpoint;
+  try {
+    parsedEndpoint = new URL(sqlEndpoint);
+  } catch {
+    throw new Error('Invalid SQL endpoint URL');
+  }
+  if (
+    parsedEndpoint.protocol !== 'https:' ||
+    parsedEndpoint.hostname.toLowerCase() !== host ||
+    parsedEndpoint.pathname !== '/sql'
+  ) {
+    throw new Error('SQL endpoint must use HTTPS /sql on the matching database host');
+  }
   // Strip libpq-only channel_binding param for HTTP SQL endpoint compatibility
   const connString = cleaned
     .replace(/([?&])channel_binding=[^&]*&?/g, '$1')
     .replace(/[?&]$/, '');
-  return { sqlEndpoint, connString, host: hostMatch[1] };
+  return { sqlEndpoint, connString, host };
 }
 
 export default async function (input, ctx) {
-  // Block Mini App client callers — only backend /manage/run (TGCLOUD_TOKEN) may sync config/state
+  // Block Mini App client callers — only authenticated backend sync may invoke this endpoint
   if (ctx?.initData?.user) {
     throw new EndpointError('Forbidden', { code: 'FORBIDDEN' });
+  }
+
+  const envSyncSecret =
+    typeof process !== 'undefined' && process.env?.TELEGRAM_SYNC_SECRET
+      ? String(process.env.TELEGRAM_SYNC_SECRET).trim()
+      : '';
+  let expectedSecret = envSyncSecret;
+  if (!expectedSecret) {
+    const storedSecret = await db.select().from(kvConfig).where(eq(kvConfig.key, 'telegram_sync_secret')).get();
+    expectedSecret = String(storedSecret?.value || '').trim();
+  }
+  if (!expectedSecret) {
+    throw new EndpointError('Sync secret not configured on TGCloud', { code: 'UNAUTHORIZED' });
+  }
+
+  const headerSecret =
+    ctx?.headers?.['x-telegram-sync-secret'] ||
+    ctx?.headers?.['X-Telegram-Sync-Secret'] ||
+    '';
+  const providedSecret = String(input?.syncSecret || headerSecret || '').trim();
+  if (!safeEqual(providedSecret, expectedSecret)) {
+    throw new EndpointError('Unauthorized sync request', { code: 'UNAUTHORIZED' });
   }
 
   const { action, payload } = input || {};

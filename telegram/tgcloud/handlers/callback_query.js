@@ -1,6 +1,7 @@
 import { api } from 'sdk';
 import {
   ensureNeonTelegramUser,
+  escapeHtml,
   queryNeon,
   getNeonAdminChatIds,
   createNeonEscrowOrder,
@@ -72,7 +73,7 @@ export default async function (callbackQuery, ctx) {
       } else {
         const lines = offers.map((o, idx) => {
           const side = o.offerType === 'SELL' ? '🟢 BUY' : '🔵 SELL';
-          return `${idx + 1}. <b>${side}</b> @ <code>${Number(o.pricePerUsdtEtb).toFixed(2)} ETB</code> • Avail: <code>${Number(o.totalAvailable).toFixed(2)} USDT</code> (${o.merchantName})`;
+          return `${idx + 1}. <b>${side}</b> @ <code>${Number(o.pricePerUsdtEtb).toFixed(2)} ETB</code> • Avail: <code>${Number(o.totalAvailable).toFixed(2)} USDT</code> (${escapeHtml(o.merchantName)})`;
         });
         const buttons = offers.map((o) => [
           {
@@ -144,11 +145,11 @@ export default async function (callbackQuery, ctx) {
         chat_id: chatId,
         parse_mode: 'HTML',
         text:
-          `💱 <b>${o.offerType === 'SELL' ? 'Buy' : 'Sell'} USDT with ${o.merchantName}</b>\n` +
+          `💱 <b>${o.offerType === 'SELL' ? 'Buy' : 'Sell'} USDT with ${escapeHtml(o.merchantName)}</b>\n` +
           `• Rate: <code>${price.toFixed(2)} ETB / USDT</code>\n` +
           `• Available: <code>${Number(o.totalAvailable).toFixed(2)} USDT</code>\n` +
           `• Limits: <code>${minUsdt}–${maxUsdt} USDT</code>\n\n` +
-          `Select a preset amount or run:\n<code>/buy ${o.id} 50</code>`,
+          `Select a preset amount or run:\n<code>/buy ${escapeHtml(o.id)} 50</code>`,
         reply_markup: {
           inline_keyboard: [
             ...(quickButtons.length > 0 ? [quickButtons] : []),
@@ -192,7 +193,7 @@ export default async function (callbackQuery, ctx) {
         await api.sendMessage({
           chat_id: counterpartyChat,
           parse_mode: 'HTML',
-          text: `🔔 <b>New P2P Order #${o.id}</b>\n• Counterparty: <b>${user.name}</b>\n• Amount: <b>${o.usdtAmount.toFixed(2)} USDT</b> (${o.etbAmount.toLocaleString()} ETB)`,
+          text: `🔔 <b>New P2P Order #${escapeHtml(o.id)}</b>\n• Counterparty: <b>${escapeHtml(user.name)}</b>\n• Amount: <b>${o.usdtAmount.toFixed(2)} USDT</b> (${o.etbAmount.toLocaleString()} ETB)`,
         }).catch(() => {});
       }
       const adminChatIds = await getNeonAdminChatIds();
@@ -201,7 +202,7 @@ export default async function (callbackQuery, ctx) {
           await api.sendMessage({
             chat_id: admId,
             parse_mode: 'HTML',
-            text: `🛡️ <b>[Admin Monitor] New Order #${o.id} (Bot)</b>\n• Buyer: <b>${o.buyerName}</b> → Seller: <b>${o.sellerName}</b>\n• Amount: <b>${o.usdtAmount.toFixed(2)} USDT</b> (${o.etbAmount.toLocaleString()} ETB)`,
+            text: `🛡️ <b>[Admin Monitor] New Order #${escapeHtml(o.id)} (Bot)</b>\n• Buyer: <b>${escapeHtml(o.buyerName)}</b> → Seller: <b>${escapeHtml(o.sellerName)}</b>\n• Amount: <b>${o.usdtAmount.toFixed(2)} USDT</b> (${o.etbAmount.toLocaleString()} ETB)`,
           }).catch(() => {});
         }
       }
@@ -337,10 +338,10 @@ export default async function (callbackQuery, ctx) {
             chat_id: chatId,
             parse_mode: 'HTML',
             text:
-              `🪪 <b>KYC #${k.id}</b>\n` +
-              `• User: <b>${k.userName}</b> (${k.userEmail})\n` +
-              `• Type: <b>${k.kycDocType}</b>\n` +
-              `• ID Number: <code>${k.kycDocNumber}</code>`,
+              `🪪 <b>KYC #${escapeHtml(k.id)}</b>\n` +
+              `• User: <b>${escapeHtml(k.userName)}</b> (${escapeHtml(k.userEmail)})\n` +
+              `• Type: <b>${escapeHtml(k.kycDocType)}</b>\n` +
+              `• ID Number: <code>${escapeHtml(k.kycDocNumber)}</code>`,
             reply_markup: {
               inline_keyboard: [[
                 { text: '✅ Approve KYC', callback_data: `kyc_approve:${k.id}` },
@@ -368,7 +369,7 @@ export default async function (callbackQuery, ctx) {
           await api.sendMessage({
             chat_id: chatId,
             parse_mode: 'HTML',
-            text: `🏪 <b>Merchant #${m.id}</b>\n• User: <b>${m.userName}</b> (${m.userEmail})\n• Balance: <code>${Number(m.usdtBalance || 0).toFixed(2)} USDT</code>`,
+            text: `🏪 <b>Merchant #${escapeHtml(m.id)}</b>\n• User: <b>${escapeHtml(m.userName)}</b> (${escapeHtml(m.userEmail)})\n• Balance: <code>${Number(m.usdtBalance || 0).toFixed(2)} USDT</code>`,
             reply_markup: {
               inline_keyboard: [[
                 { text: '✅ Approve Merchant', callback_data: `merchant_approve:${m.id}` },
@@ -397,10 +398,10 @@ export default async function (callbackQuery, ctx) {
             chat_id: chatId,
             parse_mode: 'HTML',
             text:
-              `⚠️ <b>Appeal Order #${d.id}</b>\n` +
-              `• Buyer: <b>${d.buyerName}</b> • Seller: <b>${d.sellerName}</b>\n` +
+              `⚠️ <b>Appeal Order #${escapeHtml(d.id)}</b>\n` +
+              `• Buyer: <b>${escapeHtml(d.buyerName)}</b> • Seller: <b>${escapeHtml(d.sellerName)}</b>\n` +
               `• Amount: <code>${Number(d.usdtAmount).toFixed(2)} USDT</code>\n` +
-              `• Reason: ${d.disputeReason || 'Disputed'}`,
+              `• Reason: ${escapeHtml(d.disputeReason || 'Disputed')}`,
             reply_markup: {
               inline_keyboard: [[
                 { text: '🔓 Release to Buyer', callback_data: `order_release:${d.id}` },
@@ -559,8 +560,8 @@ export default async function (callbackQuery, ctx) {
             chat_id: chatId,
             parse_mode: 'HTML',
             text:
-              `📢 <b>Ad #${o.id}</b> (${o.isActive ? '🟢 ACTIVE' : '⏸ PAUSED'})\n` +
-              `• Merchant: <b>${o.merchantName}</b> (${o.offerType})\n` +
+              `📢 <b>Ad #${escapeHtml(o.id)}</b> (${o.isActive ? '🟢 ACTIVE' : '⏸ PAUSED'})\n` +
+              `• Merchant: <b>${escapeHtml(o.merchantName)}</b> (${escapeHtml(o.offerType)})\n` +
               `• Rate: <code>${Number(o.pricePerUsdtEtb).toFixed(2)} ETB</code> • Avail: <code>${Number(o.totalAvailable).toFixed(2)} USDT</code>`,
             reply_markup: {
               inline_keyboard: [[
@@ -634,9 +635,9 @@ export default async function (callbackQuery, ctx) {
           chat_id: chatId,
           parse_mode: 'HTML',
           text:
-            `👤 <b>${u.name}</b> ${u.isSuspended ? '🚫 [SUSPENDED]' : ''}\n` +
-            `• ${u.email}\n` +
-            `• Role: <b>${u.role}</b> • KYC: <b>${u.kycStatus}</b> • Bal: <code>${Number(u.usdtBalance || 0).toFixed(2)} USDT</code>`,
+            `👤 <b>${escapeHtml(u.name)}</b> ${u.isSuspended ? '🚫 [SUSPENDED]' : ''}\n` +
+            `• ${escapeHtml(u.email)}\n` +
+            `• Role: <b>${escapeHtml(u.role)}</b> • KYC: <b>${escapeHtml(u.kycStatus)}</b> • Bal: <code>${Number(u.usdtBalance || 0).toFixed(2)} USDT</code>`,
           reply_markup: { inline_keyboard: buttons },
         });
       }
@@ -726,11 +727,11 @@ export default async function (callbackQuery, ctx) {
             chat_id: chatId,
             parse_mode: 'HTML',
             text:
-              `📤 <b>Pending Withdrawal #${w.id}</b>\n` +
-              `• User: <b>${w.userName || w.userId}</b> (${w.userEmail || ''})\n` +
-              `• Amount: <code>${Number(w.amount || 0).toFixed(2)} USDT</code> (${w.network})\n` +
-              `• To: <code>${w.address || 'N/A'}</code>\n\n` +
-              `To approve with payout TxHash:\n<code>/approve_wdr ${w.id} &lt;txHash&gt;</code>`,
+              `📤 <b>Pending Withdrawal #${escapeHtml(w.id)}</b>\n` +
+              `• User: <b>${escapeHtml(w.userName || w.userId)}</b> (${escapeHtml(w.userEmail || '')})\n` +
+              `• Amount: <code>${Number(w.amount || 0).toFixed(2)} USDT</code> (${escapeHtml(w.network)})\n` +
+              `• To: <code>${escapeHtml(w.address || 'N/A')}</code>\n\n` +
+              `To approve with payout TxHash:\n<code>/approve_wdr ${escapeHtml(w.id)} &lt;txHash&gt;</code>`,
             reply_markup: {
               inline_keyboard: [[
                 { text: '📋 Approve in Mini App', web_app: { url: MINIAPP_URL } },
@@ -795,10 +796,10 @@ export default async function (callbackQuery, ctx) {
             chat_id: chatId,
             parse_mode: 'HTML',
             text:
-              `🎫 <b>Ticket #${t.id}</b>\n` +
-              `• From: <b>${t.userName}</b> (${t.userEmail})\n` +
-              `• Subject: <b>${t.subject}</b>\n` +
-              `• Message: "${t.message}"`,
+              `🎫 <b>Ticket #${escapeHtml(t.id)}</b>\n` +
+              `• From: <b>${escapeHtml(t.userName)}</b> (${escapeHtml(t.userEmail)})\n` +
+              `• Subject: <b>${escapeHtml(t.subject)}</b>\n` +
+              `• Message: "${escapeHtml(t.message)}"`,
             reply_markup: {
               inline_keyboard: [[{ text: '✅ Mark Resolved', callback_data: `ticket_resolve:${t.id}` }]],
             },

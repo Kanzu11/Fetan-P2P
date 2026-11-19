@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/server/database/prisma';
 import { requireAuth } from '@/server/security/session';
+import { isAllowedCloudinaryUrl } from '@/server/security/sanitize';
 import { isAdminRole } from '@/client/types';
 
 export const dynamic = 'force-dynamic';
@@ -60,7 +61,7 @@ export async function GET(
 
     const bodyBuffer = Buffer.from(file.data);
     const maybeUrl = bodyBuffer.toString('utf8');
-    if (maybeUrl.startsWith('https://res.cloudinary.com/')) {
+    if (isAllowedCloudinaryUrl(maybeUrl)) {
       return NextResponse.redirect(maybeUrl, {
         status: 302,
         headers: {
@@ -69,12 +70,19 @@ export async function GET(
       });
     }
 
+    const safeMime = file.mimeType.toLowerCase();
+    const isSafeInlineImage =
+      safeMime === 'image/jpeg' || safeMime === 'image/png' || safeMime === 'image/webp';
+    const disposition = isSafeInlineImage ? 'inline' : 'attachment';
+    const safeFilename = file.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+
     return new Response(bodyBuffer, {
       status: 200,
       headers: {
         'Content-Type': file.mimeType,
         'Content-Length': String(bodyBuffer.length),
-        'Content-Disposition': `inline; filename="${file.filename.replace(/[^a-zA-Z0-9._-]/g, '_')}"`,
+        'Content-Disposition': `${disposition}; filename="${safeFilename}"`,
+        'Content-Security-Policy': "default-src 'none'; sandbox",
         'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'private, max-age=3600',
       },

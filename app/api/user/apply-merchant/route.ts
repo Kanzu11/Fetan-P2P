@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { db } from '@/server/database/store';
 import { requireAuth } from '@/server/security/session';
 import { rateLimiter, getClientIp } from '@/server/security/rate-limiter';
-import { sanitizeString } from '@/server/security/sanitize';
+import { isAllowedPlatformAssetUrl, sanitizeString } from '@/server/security/sanitize';
 import { telegramBot } from '@/server/telegram-bot';
 import { wsGateway } from '@/server/websocket-gateway';
 import type { MerchantApplication } from '@/client/types';
@@ -68,13 +68,9 @@ export async function POST(req: Request) {
     const cleanTelegram = rawTg.startsWith('@') ? rawTg : `@${rawTg}`;
     const cleanProofUrl = parsed.data.proofDocumentUrl?.trim();
 
-    if (
-      cleanProofUrl &&
-      !cleanProofUrl.startsWith('/api/uploads/') &&
-      !cleanProofUrl.startsWith('https://')
-    ) {
+    if (cleanProofUrl && !isAllowedPlatformAssetUrl(cleanProofUrl)) {
       return NextResponse.json(
-        { error: 'Document URL must be a secure upload (/api/uploads/...) or HTTPS URL.' },
+        { error: 'Document URL must be a secure upload (/api/uploads/...) or verified Cloudinary URL.' },
         { status: 400 }
       );
     }

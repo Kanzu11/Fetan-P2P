@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { AsyncLocalStorage } from 'async_hooks';
 import { LedgerEntryType, Prisma } from '@prisma/client';
 import { prisma } from './prisma';
@@ -30,6 +31,10 @@ const txStorage = new AsyncLocalStorage<Prisma.TransactionClient>();
 
 function toIso(d: Date | null | undefined): string | undefined {
   return d ? d.toISOString() : undefined;
+}
+
+export function generateTelegramLinkCode(): string {
+  return `FETAN-${crypto.randomBytes(8).toString('hex').toUpperCase()}`;
 }
 
 function mapUser(row: {
@@ -569,6 +574,18 @@ export class DatabaseStore {
     return mapUser(row);
   }
 
+  async getUserWithPasswordHash(
+    id: string
+  ): Promise<{ user: User; passwordHash: string | null } | undefined> {
+    await this.ensureBootstrapped();
+    const row = await this.client().user.findUnique({ where: { id } });
+    if (!row) return undefined;
+    return {
+      user: mapUser(row),
+      passwordHash: row.passwordHash,
+    };
+  }
+
   async getUserByEmail(email: string): Promise<User | undefined> {
     await this.ensureBootstrapped();
     const row = await this.client().user.findUnique({
@@ -668,21 +685,29 @@ export class DatabaseStore {
   ): Promise<User | undefined> {
     await this.ensureBootstrapped();
     const cleanCode = codeOrUserId.trim().replace(/^link_/i, '');
+    if (cleanCode.length < 8) return undefined;
     const cleanUsername = username?.trim().replace(/^@/, '');
 
+    // Strict matching on single-use telegramLinkCode only (never userId or mutable handle)
     const target = await this.client().user.findFirst({
       where: {
-        OR: [
-          { id: cleanCode },
-          { telegramLinkCode: { equals: cleanCode, mode: 'insensitive' } },
-          ...(cleanUsername
-            ? [{ telegramHandle: { equals: `@${cleanUsername}`, mode: 'insensitive' as const } }]
-            : []),
-        ],
+        telegramLinkCode: { equals: cleanCode, mode: 'insensitive' },
       },
     });
 
     if (!target) return undefined;
+    if (target.telegramChatId && target.telegramChatId !== String(chatId)) {
+      return undefined;
+    }
+
+    const existingOwner = await this.client().user.findFirst({
+      where: {
+        telegramChatId: String(chatId),
+        id: { not: target.id },
+      },
+      select: { id: true },
+    });
+    if (existingOwner) return undefined;
 
     const updated = await this.client().user.update({
       where: { id: target.id },
@@ -690,6 +715,7 @@ export class DatabaseStore {
         telegramChatId: String(chatId),
         telegramHandle: cleanUsername ? `@${cleanUsername}` : target.telegramHandle,
         telegramNotifications: true,
+        telegramLinkCode: generateTelegramLinkCode(),
       },
     });
 
@@ -712,7 +738,7 @@ export class DatabaseStore {
     await this.ensureBootstrapped();
     const id = params.id || this.newId('usr');
     const cleanEmail = params.email.trim().toLowerCase();
-    const linkCode = `FETAN-${params.name.split(' ')[0].replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 6) || 'USER'}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const linkCode = generateTelegramLinkCode();
     const depositAddresses = generateUserDepositAddresses(id);
 
     const row = await this.client().user.create({
@@ -835,33 +861,39 @@ export class DatabaseStore {
     email?: string;
   }): Promise<User> {
     await this.ensureBootstrapped();
-    const superTg = (process.env.ADMIN_TELEGRAM_USERNAME || '').replace(/^@/, '').toLowerCase();
+    const adminChatId = (
+      process.env.TELEGRAM_ADMIN_CHAT_ID ||
+      process.env.ADMIN_TELEGRAM_CHAT_ID ||
+      ''
+    ).trim();
     const cleanUser = (params.username || '').replace(/^@/, '').toLowerCase();
 
-    if (superTg && cleanUser === superTg) {
+    if (adminChatId && String(params.tgId) === adminChatId) {
       const superUser = await this.getSuperadminUser();
-      if (superUser) {
+      if (superUser && (!superUser.telegramChatId || superUser.telegramChatId === String(params.tgId))) {
         return this.updateUser(superUser.id, {
           telegramChatId: String(params.tgId),
-          telegramHandle: `@${cleanUser}`,
+          telegramHandle: cleanUser ? `@${cleanUser}` : superUser.telegramHandle,
         });
       }
     }
 
-    const existing =
-      (await this.getUserByTelegram(String(params.tgId))) ||
-      (cleanUser ? await this.getUserByTelegram(cleanUser) : undefined);
+    const existingRow = await this.client().user.findFirst({
+      where: { telegramChatId: String(params.tgId) },
+    });
 
-    if (existing) {
-      return this.updateUser(existing.id, {
-        telegramChatId: String(params.tgId),
-        telegramHandle: cleanUser ? `@${cleanUser}` : existing.telegramHandle,
-      });
+    if (existingRow) {
+      if (cleanUser && existingRow.telegramHandle !== `@${cleanUser}`) {
+        return this.updateUser(existingRow.id, {
+          telegramHandle: `@${cleanUser}`,
+        });
+      }
+      return mapUser(existingRow);
     }
 
     return this.createUser({
       id: `usr-tg-${params.tgId}`,
-      email: params.email || `${cleanUser || params.tgId}@telegram.fetan.et`,
+      email: params.email || `${params.tgId}@telegram.fetan.et`,
       name: params.name || cleanUser || `Trader ${params.tgId}`,
       nickname: cleanUser || params.name,
       telegramHandle: cleanUser ? `@${cleanUser}` : undefined,

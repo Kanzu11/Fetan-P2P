@@ -3,13 +3,14 @@ import { api, EndpointError } from 'sdk';
 import { supportTickets } from '../schema.js';
 import {
   ensureNeonTelegramUser,
+  escapeHtml,
   queryNeon,
   getNeonAdminChatIds,
   makeId,
 } from '../lib/neon.js';
 
 export default async function (input, ctx) {
-  const tgUser = ctx?.initData?.user || input?.user;
+  const tgUser = ctx?.initData?.user;
   if (!tgUser?.id) {
     throw new EndpointError('Authentication required via Telegram Mini App', { code: 'UNAUTHORIZED' });
   }
@@ -65,9 +66,9 @@ export default async function (input, ctx) {
   const adminChatIds = await getNeonAdminChatIds();
   const alertText =
     `🚨 <b>NEW ORDER COMPLAINT / SUPPORT via Mini App</b>\n\n` +
-    `• From: <b>${user.name}</b> (${user.telegramHandle || user.email})\n` +
-    `• Order ID: ${cleanOrderId ? `<code>${cleanOrderId}</code>` : 'General'}\n` +
-    `• Message:\n"${cleanMsg}"`;
+    `• From: <b>${escapeHtml(user.name)}</b> (${escapeHtml(user.telegramHandle || user.email)})\n` +
+    `• Order ID: ${cleanOrderId ? `<code>${escapeHtml(cleanOrderId)}</code>` : 'General'}\n` +
+    `• Message:\n"${escapeHtml(cleanMsg)}"`;
 
   const inlineKeyboard = [
     cleanOrderId ? [{ text: '🔓 Release Order', callback_data: `order_release:${cleanOrderId}` }] : [],

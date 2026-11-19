@@ -4,16 +4,12 @@ import { z } from 'zod';
 import { db } from '@/server/database/store';
 import { requireAuth } from '@/server/security/session';
 import { rateLimiter, getClientIp } from '@/server/security/rate-limiter';
-import { sanitizeString } from '@/server/security/sanitize';
+import { isAllowedPlatformAssetUrl, sanitizeString } from '@/server/security/sanitize';
 import { telegramBot } from '@/server/telegram-bot';
 import { wsGateway } from '@/server/websocket-gateway';
 import type { KycSubmission } from '@/client/types';
 
 export const dynamic = 'force-dynamic';
-
-function isAllowedDocUrl(url: string): boolean {
-  return url.startsWith('/api/uploads/') || url.startsWith('https://');
-}
 
 const kycSchema = z.object({
   docType: z.enum(['NATIONAL_ID', 'PASSPORT', 'DRIVERS_LICENSE']),
@@ -73,9 +69,9 @@ export async function POST(req: Request) {
     }
 
     const cleanPhotoUrl = parsed.data.docPhotoUrl?.trim();
-    if (cleanPhotoUrl && !isAllowedDocUrl(cleanPhotoUrl)) {
+    if (cleanPhotoUrl && !isAllowedPlatformAssetUrl(cleanPhotoUrl)) {
       return NextResponse.json(
-        { error: 'Uploaded ID image URL must come from secure platform upload (/api/uploads/...) or HTTPS.' },
+        { error: 'Uploaded ID image URL must come from secure platform upload (/api/uploads/...) or verified Cloudinary storage.' },
         { status: 400 }
       );
     }

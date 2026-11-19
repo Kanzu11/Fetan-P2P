@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/server/database/store';
 import { verifyPassword } from '@/server/security/password';
-import { setSessionCookie, signSessionToken } from '@/server/security/session';
+import { setSessionCookie } from '@/server/security/session';
 import { rateLimiter, getClientIp } from '@/server/security/rate-limiter';
 
 export const dynamic = 'force-dynamic';
@@ -130,14 +130,12 @@ export async function POST(req: Request) {
       details: { email: cleanEmail },
     });
 
-    const token = signSessionToken(user.id, user.role);
     const response = NextResponse.json({
       success: true,
-      token,
       user,
       message: 'Signed in successfully.',
     });
-    setSessionCookie(response, user.id, user.role);
+    setSessionCookie(response, user.id, user.role, authRecord.passwordHash);
     return response;
   } catch (err) {
     console.error('Password login error:', err);

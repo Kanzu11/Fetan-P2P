@@ -3,6 +3,43 @@
  * Protects against XSS, injection, address spoofing, and invalid transaction payloads.
  */
 
+export function escapeHtml(input: unknown): string {
+  return String(input ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+export function isAllowedCloudinaryUrl(url: string): boolean {
+  if (typeof url !== 'string' || !url || /\s/.test(url)) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'https:' || parsed.hostname.toLowerCase() !== 'res.cloudinary.com') {
+    return false;
+  }
+  const cloudName = (process.env.CLOUDINARY_CLOUD_NAME || '').trim();
+  if (cloudName && !cloudName.startsWith('your_')) {
+    return parsed.pathname.startsWith(`/${cloudName}/`);
+  }
+  return parsed.pathname.length > 2;
+}
+
+export function isAllowedPlatformAssetUrl(url: string): boolean {
+  if (typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed || /\s/.test(trimmed)) return false;
+  if (/^\/api\/uploads\/[A-Za-z0-9_-]{8,120}$/.test(trimmed)) {
+    return true;
+  }
+  return isAllowedCloudinaryUrl(trimmed);
+}
+
 export function sanitizeString(input: unknown, maxLength: number = 500): string {
   if (typeof input !== 'string') return '';
   return input

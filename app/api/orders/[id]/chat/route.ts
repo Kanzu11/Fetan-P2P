@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/server/database/store';
 import { requireAuth } from '@/server/security/session';
-import { sanitizeString } from '@/server/security/sanitize';
+import { isAllowedPlatformAssetUrl, sanitizeString } from '@/server/security/sanitize';
 import { rateLimiter, getClientIp } from '@/server/security/rate-limiter';
 import { wsGateway } from '@/server/websocket-gateway';
 import { displayName, isAdminRole, type ChatMessage } from '@/client/types';
@@ -15,10 +15,6 @@ const chatPostSchema = z.object({
   imageUrl: z.string().max(500).optional(),
   type: z.enum(['TEXT', 'IMAGE']).default('TEXT'),
 });
-
-function isAllowedReceiptUrl(url: string): boolean {
-  return url.startsWith('/api/uploads/') || url.startsWith('https://');
-}
 
 export async function GET(
   req: Request,
@@ -87,9 +83,9 @@ export async function POST(
       );
     }
 
-    if (cleanImageUrl && !isAllowedReceiptUrl(cleanImageUrl)) {
+    if (cleanImageUrl && !isAllowedPlatformAssetUrl(cleanImageUrl)) {
       return NextResponse.json(
-        { error: 'Image URL must originate from platform upload (/api/uploads/...) or HTTPS.' },
+        { error: 'Image URL must originate from platform upload (/api/uploads/...) or verified Cloudinary storage.' },
         { status: 400 }
       );
     }

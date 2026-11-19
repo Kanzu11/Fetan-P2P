@@ -10,8 +10,17 @@ const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 interface SessionPayload {
   sub: string;
   role: Role;
+  pvh?: string;
   iat: number;
   exp: number;
+}
+
+export function computePasswordVersion(passwordHash?: string | null): string {
+  return crypto
+    .createHash('sha256')
+    .update(passwordHash || 'no-password')
+    .digest('hex')
+    .slice(0, 16);
 }
 
 function getSigningSecret(): string {
@@ -39,12 +48,18 @@ function base64UrlDecode(input: string): string {
   return Buffer.from(base64, 'base64').toString('utf8');
 }
 
-export function signSessionToken(userId: string, role: Role, ttlSeconds = SESSION_TTL_SECONDS): string {
+export function signSessionToken(
+  userId: string,
+  role: Role,
+  ttlSeconds = SESSION_TTL_SECONDS,
+  passwordHash: string | null = null
+): string {
   const header = base64UrlEncode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const now = Math.floor(Date.now() / 1000);
   const payloadObj: SessionPayload = {
     sub: userId,
     role,
+    pvh: computePasswordVersion(passwordHash),
     iat: now,
     exp: now + ttlSeconds,
   };
@@ -72,6 +87,11 @@ export function verifySessionToken(token: string | undefined | null): SessionPay
   }
 
   try {
+    const decodedHeader = JSON.parse(base64UrlDecode(header)) as { alg?: string; typ?: string };
+    if (decodedHeader.alg !== 'HS256' || decodedHeader.typ !== 'JWT') {
+      return null;
+    }
+
     const decoded = JSON.parse(base64UrlDecode(payload)) as SessionPayload;
     const now = Math.floor(Date.now() / 1000);
     if (!decoded.sub || typeof decoded.exp !== 'number' || decoded.exp <= now) {
@@ -110,8 +130,13 @@ export function extractTokenFromRequest(req?: Request): string | undefined {
   }
 }
 
-export function setSessionCookie(response: NextResponse, userId: string, role: Role): NextResponse {
-  const token = signSessionToken(userId, role);
+export function setSessionCookie(
+  response: NextResponse,
+  userId: string,
+  role: Role,
+  passwordHash: string | null = null
+): NextResponse {
+  const token = signSessionToken(userId, role, SESSION_TTL_SECONDS, passwordHash);
   response.cookies.set({
     name: SESSION_COOKIE_NAME,
     value: token,
@@ -142,8 +167,15 @@ export async function getSessionUser(req?: Request): Promise<User | null> {
   const payload = verifySessionToken(token);
   if (!payload) return null;
 
-  const user = await db.getUser(payload.sub);
-  return user || null;
+  const authState = await db.getUserWithPasswordHash(payload.sub);
+  if (!authState) return null;
+
+  const expectedPvh = computePasswordVersion(authState.passwordHash);
+  if (!payload.pvh || payload.pvh !== expectedPvh) {
+    return null;
+  }
+
+  return authState.user;
 }
 
 export type AuthCheckSuccess = { ok: true; user: User };

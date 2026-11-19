@@ -178,7 +178,8 @@ export default function WalletPage() {
   };
 
   const handleCopyLinkCode = () => {
-    const code = currentUser.telegramLinkCode || `link_${currentUser.id}`;
+    const code = currentUser.telegramLinkCode;
+    if (!code) return;
     navigator.clipboard.writeText(`/start ${code}`);
     setCopiedCode(true);
     setNotification('Copied bot connect command!');
@@ -350,7 +351,6 @@ export default function WalletPage() {
         body: JSON.stringify({
           userId: currentUser.id,
           telegramHandle: tgHandle,
-          telegramChatId: tgChatId,
           telegramNotifications: tgNotify,
         }),
       });
@@ -1039,27 +1039,32 @@ export default function WalletPage() {
               </div>
               <div className="flex items-center justify-between gap-2 bg-white/90 p-3 rounded-2xl border border-black/10">
                 <code className="font-mono font-bold text-brand-ink">
-                  /start {currentUser.telegramLinkCode || `link_${currentUser.id}`}
+                  {currentUser.telegramLinkCode
+                    ? `/start ${currentUser.telegramLinkCode}`
+                    : 'Link code unavailable — refresh page'}
                 </code>
                 <button
                   type="button"
+                  disabled={!currentUser.telegramLinkCode}
                   onClick={handleCopyLinkCode}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-brand-ink text-white font-semibold hover:bg-neutral-800 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-brand-ink text-white font-semibold hover:bg-neutral-800 disabled:opacity-50 transition-colors"
                 >
                   {copiedCode ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedCode ? 'Copied' : 'Copy Command'}</span>
                 </button>
               </div>
               <div className="flex flex-wrap gap-2 pt-1">
-                <a
-                  href={`https://t.me/${botUsername}?start=${currentUser.telegramLinkCode || `link_${currentUser.id}`}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-sky-600 hover:bg-sky-700 text-white font-bold shadow-sm transition-colors"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Connect @{botUsername} Now</span>
-                </a>
+                {currentUser.telegramLinkCode ? (
+                  <a
+                    href={`https://t.me/${botUsername}?start=${encodeURIComponent(currentUser.telegramLinkCode)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-sky-600 hover:bg-sky-700 text-white font-bold shadow-sm transition-colors"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Connect @{botUsername} Now</span>
+                  </a>
+                ) : null}
                 <a
                   href={miniAppUrl}
                   target="_blank"
@@ -1088,14 +1093,14 @@ export default function WalletPage() {
                 </div>
                 <div>
                   <label className="block font-semibold text-brand-ink mb-1.5">
-                    Telegram Chat ID (Auto-filled on /start)
+                    Telegram Chat ID (Verified via /start only)
                   </label>
                   <input
                     type="text"
+                    readOnly
                     value={tgChatId}
-                    onChange={(e) => setTgChatId(e.target.value)}
-                    placeholder="e.g. 913615937"
-                    className="w-full px-3.5 py-2.5 rounded-2xl border border-black/10 bg-white/80 text-xs font-mono text-brand-ink focus:outline-none focus:bg-white focus:border-brand-ink"
+                    placeholder="Not linked yet — tap Connect above"
+                    className="w-full px-3.5 py-2.5 rounded-2xl border border-black/10 bg-black/[0.03] text-xs font-mono text-brand-ink-soft cursor-not-allowed focus:outline-none"
                   />
                 </div>
               </div>

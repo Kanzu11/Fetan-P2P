@@ -58,18 +58,21 @@ class TelegramBotManager {
 
   private async isAuthorizedAdminTelegramActor(
     tgId?: number,
-    username?: string
+    _username?: string
   ): Promise<{ authorized: boolean; label: string }> {
-    const cleanUser = (username || '').replace(/^@/, '').toLowerCase();
-    const superTg = (process.env.ADMIN_TELEGRAM_USERNAME || '').replace(/^@/, '').toLowerCase();
+    const adminChatId = (
+      process.env.TELEGRAM_ADMIN_CHAT_ID ||
+      process.env.ADMIN_TELEGRAM_CHAT_ID ||
+      ''
+    ).trim();
 
-    if (superTg && cleanUser && cleanUser === superTg) {
+    if (tgId && adminChatId && String(tgId) === adminChatId) {
       return { authorized: true, label: 'Fetan Compliance Admin' };
     }
 
     if (tgId) {
       const user = await db.getUserByTelegram(String(tgId));
-      if (user && isAdminRole(user.role)) {
+      if (user && user.telegramChatId === String(tgId) && isAdminRole(user.role)) {
         return { authorized: true, label: 'Fetan Compliance Admin' };
       }
     }
@@ -1363,7 +1366,8 @@ class TelegramBotManager {
 
   async syncWithTelegramCloud(action: string, payload: Record<string, unknown> = {}) {
     const cloudToken = this.getTgCloudToken();
-    if (!cloudToken) return null;
+    const syncSecret = (process.env.TELEGRAM_SYNC_SECRET || '').trim();
+    if (!cloudToken || !syncSecret) return null;
     const appId = cloudToken.split(':')[0];
 
     try {
@@ -1389,7 +1393,7 @@ class TelegramBotManager {
             'endpoints/syncWeb': syncWebCode,
           },
           args: {
-            secret: cloudToken,
+            syncSecret,
             action,
             payload,
           },

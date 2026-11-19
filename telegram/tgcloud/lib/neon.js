@@ -5,6 +5,15 @@ import { kvConfig } from '../schema.js';
 const FALLBACK_ADMIN_CHAT_ID = '841403501';
 let cachedNeonConfig = null;
 
+export function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function parseNeonUrl(rawUrl, explicitEndpoint) {
   const cleaned = String(rawUrl || '').trim();
   const hostMatch = cleaned.match(/@([^/?:]+)/);
@@ -104,78 +113,56 @@ export function normalizeNeonUser(row) {
 export async function ensureNeonTelegramUser(tgUser) {
   const rawId = tgUser?.id;
   const tgIdStr = rawId !== undefined && rawId !== null && Number(rawId) > 0 ? String(rawId) : '';
+  if (!tgIdStr) {
+    throw new Error('Telegram user ID required');
+  }
   const cleanUsername = (tgUser?.username || '').replace(/^@/, '').toLowerCase();
-  const isSuperTg = cleanUsername === 'kanzedin';
   const fullName =
     [tgUser?.first_name, tgUser?.last_name].filter(Boolean).join(' ') ||
     tgUser?.username ||
-    (tgIdStr ? `Trader ${tgIdStr}` : 'Guest Trader');
+    `Trader ${tgIdStr}`;
 
   let row = null;
 
-  if (tgIdStr) {
-    const byChat = await queryNeon(
-      `SELECT * FROM "User" WHERE "telegramChatId" = $1 LIMIT 1`,
-      [tgIdStr]
-    );
-    row = byChat.rows[0] || null;
-  }
+  const byChat = await queryNeon(
+    `SELECT * FROM "User" WHERE "telegramChatId" = $1 LIMIT 1`,
+    [tgIdStr]
+  );
+  row = byChat.rows[0] || null;
 
-  if (!row && isSuperTg) {
+  const envAdminChatId =
+    typeof process !== 'undefined'
+      ? (process.env?.TELEGRAM_ADMIN_CHAT_ID || process.env?.ADMIN_TELEGRAM_CHAT_ID || '').trim()
+      : '';
+  if (!row && envAdminChatId && tgIdStr === envAdminChatId) {
     const bySuper = await queryNeon(
       `SELECT * FROM "User" WHERE "role" = 'SUPERADMIN'::"Role" LIMIT 1`
     );
-    row = bySuper.rows[0] || null;
-  }
-
-  if (!row && cleanUsername) {
-    const byHandle = await queryNeon(
-      `SELECT * FROM "User" WHERE LOWER("telegramHandle") = $1 LIMIT 1`,
-      [`@${cleanUsername}`]
-    );
-    row = byHandle.rows[0] || null;
+    if (bySuper.rows[0] && (!bySuper.rows[0].telegramChatId || bySuper.rows[0].telegramChatId === tgIdStr)) {
+      row = bySuper.rows[0];
+    }
   }
 
   if (row) {
-    const needChatUpdate = tgIdStr && row.telegramChatId !== tgIdStr;
+    const needChatBind = !row.telegramChatId;
     const needHandleUpdate = cleanUsername && !row.telegramHandle;
-    if (needChatUpdate || needHandleUpdate) {
+    if (needChatBind || needHandleUpdate) {
       const updated = await queryNeon(
         `UPDATE "User"
-         SET "telegramChatId" = COALESCE($1, "telegramChatId"),
-             "telegramHandle" = COALESCE($2, "telegramHandle"),
+         SET "telegramChatId" = COALESCE("telegramChatId", $1),
+             "telegramHandle" = COALESCE("telegramHandle", $2),
              "updatedAt" = NOW()
          WHERE "id" = $3
          RETURNING *`,
-        [tgIdStr || null, cleanUsername ? `@${cleanUsername}` : null, row.id]
+        [tgIdStr, cleanUsername ? `@${cleanUsername}` : null, row.id]
       );
       if (updated.rows[0]) row = updated.rows[0];
     }
     return normalizeNeonUser(row);
   }
 
-  if (!tgIdStr) {
-    return {
-      id: 'usr-tg-guest',
-      email: 'guest@telegram.fetan.et',
-      name: fullName,
-      username: cleanUsername ? `@${cleanUsername}` : null,
-      telegramHandle: cleanUsername ? `@${cleanUsername}` : null,
-      telegramChatId: null,
-      telegramNotifications: true,
-      role: isSuperTg ? 'SUPERADMIN' : 'USER',
-      isSuspended: false,
-      suspendReason: null,
-      kycStatus: isSuperTg ? 'VERIFIED' : 'UNVERIFIED',
-      merchantStatus: isSuperTg ? 'APPROVED' : 'NONE',
-      usdtBalance: 0,
-      usdtLocked: 0,
-      paymentDetails: {},
-    };
-  }
-
   const newId = `usr-tg-${tgIdStr}`;
-  const email = `${cleanUsername || tgIdStr}@telegram.fetan.et`;
+  const email = `${tgIdStr}@telegram.fetan.et`;
   const handle = cleanUsername ? `@${cleanUsername}` : null;
   const created = await queryNeon(
     `INSERT INTO "User" (
@@ -187,8 +174,8 @@ export async function ensureNeonTelegramUser(tgUser) {
        true, 'telegram', false,
        'USER'::"Role", 'UNVERIFIED'::"KycStatus", 'NONE'::"MerchantStatus", NOW()
      )
-     ON CONFLICT ("email") DO UPDATE SET
-       "telegramChatId" = EXCLUDED."telegramChatId",
+     ON CONFLICT ("id") DO UPDATE SET
+       "telegramChatId" = COALESCE("User"."telegramChatId", EXCLUDED."telegramChatId"),
        "telegramHandle" = COALESCE("User"."telegramHandle", EXCLUDED."telegramHandle"),
        "updatedAt" = NOW()
      RETURNING *`,

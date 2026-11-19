@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth } from '@/server/security/session';
 import { escrowController } from '@/server/escrow-controller';
+import { isAllowedPlatformAssetUrl } from '@/server/security/sanitize';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,9 +31,9 @@ export async function POST(
     }
 
     const proof = parsed.data.proofReceiptUrl?.trim();
-    if (proof && !proof.startsWith('/api/uploads/') && !proof.startsWith('https://')) {
+    if (proof && !isAllowedPlatformAssetUrl(proof)) {
       return NextResponse.json(
-        { error: 'Receipt URL must come from platform upload (/api/uploads/...) or HTTPS.' },
+        { error: 'Receipt URL must come from platform upload (/api/uploads/...) or verified Cloudinary storage.' },
         { status: 400 }
       );
     }
